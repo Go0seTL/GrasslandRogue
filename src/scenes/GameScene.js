@@ -9,6 +9,9 @@ class GameScene extends Phaser.Scene {
     this.weapon = WEAPONS.pistol;
     this.round = 1;
     this.stage = 1;
+    this.mapKey = 'grass';
+    this.mapName = '草原';
+    this.currentMap = null;
     this.enemyLevel = 1;
     this.runCoins = 0;
     this.kills = 0;
@@ -50,7 +53,14 @@ class GameScene extends Phaser.Scene {
       coinBonus: 0, hpBonus: 0, size: 1, healBonus: 0,
       bulletSpeed: 1, spreadMul: 1, lifesteal: 0, twinChance: 0, deathBlast: 0,
     };
+    this.charLevel = Store.getCharLevel(this.characterId);
+    this.buffs.damage *= 1 + this.charLevel * 0.04;
+    this.buffs.fireRate *= Math.max(0.45, 1 - this.charLevel * 0.02);
+    this.lastEnergyWarn = 0;
     this.ghost = null;
+    this.dualWield = false;
+    this.secondaryWeapon = null;
+    this.secondaryId = null;
     this.upgradeOpen = false;
     this.lastUpgradeRound = 0;
     this.startUpgradeShown = false;
@@ -74,8 +84,8 @@ class GameScene extends Phaser.Scene {
 
   create() {
     this.runStartTime = this.time.now;
-    this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
-    this.setupDecor();
+    this.groundImage = this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
+    this.decorObjects = [];
 
     this.physics.world.setBounds(ARENA.left, ARENA.top, ARENA.right - ARENA.left, ARENA.bottom - ARENA.top);
 
@@ -85,6 +95,7 @@ class GameScene extends Phaser.Scene {
     this.enemyBullets = this.physics.add.group();
     this.coins = this.physics.add.group();
     this.healthPacks = this.physics.add.group();
+    this.energyPacks = this.physics.add.group();
     this.fragments = this.physics.add.group();
 
     this.physics.add.overlap(this.playerBullets, this.enemies, this.onBulletHitEnemy, null, this);
@@ -117,7 +128,44 @@ class GameScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ 场景搭建
 
-  setupDecor() {
+  setupDecor(mapKey) {
+    if (this.decorObjects) {
+      this.decorObjects.forEach((img) => {
+        this.tweens.killTweensOf(img);
+        if (img.active) img.destroy();
+      });
+    }
+    this.decorObjects = [];
+
+    if (mapKey === 'mountain') {
+      const keys = ['pebble_deco', 'pebble_deco', 'tuft', 'bush_deco'];
+      for (let i = 0; i < 18; i++) {
+        const x = rand(ARENA.left + 24, ARENA.right - 24);
+        const y = rand(ARENA.top + 24, ARENA.bottom - 12);
+        const key = choice(keys);
+        const img = this.add.image(x, y, key).setOrigin(0.5, 1).setDepth(2).setAlpha(0.92);
+        if (key === 'tuft') img.setTint(0x9aa88a);
+        if (key === 'bush_deco') img.setTint(0x6f7f5a).setScale(0.9);
+        if (key !== 'pebble_deco') {
+          this.tweens.add({
+            targets: img, angle: rand(-2, 2), duration: rand(1800, 3000),
+            yoyo: true, repeat: -1, ease: 'Sine.InOut', delay: rand(0, 1200),
+          });
+        }
+        this.decorObjects.push(img);
+      }
+      const bushSpots = [
+        [ARENA.left + 60, ARENA.top + 80], [ARENA.right - 70, ARENA.top + 100],
+        [ARENA.left + 80, ARENA.bottom - 80], [ARENA.right - 80, ARENA.bottom - 90],
+      ];
+      bushSpots.forEach(([x, y]) => {
+        const img = this.add.image(x, y, 'bush_deco').setOrigin(0.5, 1)
+          .setDepth(2).setAlpha(0.9).setScale(1.1).setTint(0x6f7f5a);
+        this.decorObjects.push(img);
+      });
+      return;
+    }
+
     const keys = ['flower_white', 'flower_yellow', 'flower_pink', 'tuft', 'tuft', 'pebble_deco'];
     for (let i = 0; i < 28; i++) {
       const x = rand(ARENA.left + 22, ARENA.right - 22);
@@ -130,13 +178,15 @@ class GameScene extends Phaser.Scene {
           yoyo: true, repeat: -1, ease: 'Sine.InOut', delay: rand(0, 1200),
         });
       }
+      this.decorObjects.push(img);
     }
     const bushSpots = [
       [ARENA.left + 60, ARENA.top + 70], [ARENA.right - 70, ARENA.top + 90],
       [ARENA.left + 80, ARENA.bottom - 70], [ARENA.right - 80, ARENA.bottom - 80],
     ];
     bushSpots.forEach(([x, y]) => {
-      this.add.image(x, y, 'bush_deco').setOrigin(0.5, 1).setDepth(2).setAlpha(0.9).setScale(1.1);
+      const img = this.add.image(x, y, 'bush_deco').setOrigin(0.5, 1).setDepth(2).setAlpha(0.9).setScale(1.1);
+      this.decorObjects.push(img);
     });
   }
 
@@ -266,16 +316,57 @@ class GameScene extends Phaser.Scene {
       return img;
     };
 
-    fx.muzzle = (x, y) => {
+    fx.muzzle = (x, y, angle, color, power) => {
       const img = scene.add.image(x, y, 'muzzle')
         .setRotation(rand(-0.4, 0.4))
         .setScale(rand(0.55, 0.85))
         .setBlendMode(Phaser.BlendModes.ADD).setDepth(705);
+      if (color != null) img.setTint(color);
       scene.tweens.add({
         targets: img, alpha: 0, scaleX: 1.15, scaleY: 1.15, duration: 90,
         onComplete: () => img.destroy(),
       });
       sparks.explode(2, x, y);
+      if (color != null) fx.shotBurst(x, y, color, power || 0);
+    };
+
+    fx.shotBurst = (x, y, color, power) => {
+      const p = Math.min(6, power || 0);
+      const ring = scene.add.image(x, y, 'ring')
+        .setTint(color).setScale(0.12 + p * 0.02).setAlpha(0.7)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(719);
+      scene.tweens.add({
+        targets: ring, scale: 0.45 + p * 0.09, alpha: 0,
+        duration: 160, onComplete: () => ring.destroy(),
+      });
+      const glow = scene.add.image(x, y, 'glow')
+        .setTint(color).setScale(0.25 + p * 0.04).setAlpha(0.55)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(720);
+      scene.tweens.add({
+        targets: glow, alpha: 0, scale: 0.5 + p * 0.07,
+        duration: 140, onComplete: () => glow.destroy(),
+      });
+      if (p >= 3) sparks.explode(2 + p, x, y);
+    };
+
+    fx.weaponHit = (x, y, color, power) => {
+      const p = Math.min(6, power || 0);
+      sparks.explode(4 + p, x, y);
+      const c = color == null ? 0xffe066 : color;
+      const ring = scene.add.image(x, y, 'ring')
+        .setTint(c).setScale(0.14 + p * 0.02).setAlpha(0.8)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(745);
+      scene.tweens.add({
+        targets: ring, scale: 0.45 + p * 0.09, alpha: 0,
+        duration: 220, onComplete: () => ring.destroy(),
+      });
+      const glow = scene.add.image(x, y, 'glow')
+        .setTint(c).setScale(0.3 + p * 0.05).setAlpha(0.5)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(744);
+      scene.tweens.add({
+        targets: glow, alpha: 0, scale: 0.7 + p * 0.08,
+        duration: 180, onComplete: () => glow.destroy(),
+      });
     };
 
     fx.shell = (x, y) => { shells.explode(1, x, y); };
@@ -399,11 +490,22 @@ class GameScene extends Phaser.Scene {
     this.pendingSpawns = 0;
     this.spawnQueue = [];
 
+    const mapKey = round >= 3 ? 'mountain' : 'grass';
+    this.mapName = mapKey === 'mountain' ? '山地' : '草原';
+    if (this.currentMap !== mapKey) {
+      this.currentMap = mapKey;
+      if (this.groundImage) {
+        this.groundImage.setTexture(mapKey === 'mountain' ? 'ground_mountain' : 'ground');
+      }
+      this.setupDecor(mapKey);
+    }
+
     this.cancelSkill();
     this.destroyPortal();
     this.clearRoomObjects();
 
     this.tweens.killTweensOf(this.player);
+    if (this.player.cancelCharge) this.player.cancelCharge();
     this.player.setPosition(480, 405);
     this.player.setAlpha(1).setAngle(0).clearTint();
     this.player.gun.setVisible(true).setAlpha(1);
@@ -415,7 +517,7 @@ class GameScene extends Phaser.Scene {
     this.hud.hpDirty = true;
     this.hud.bannerQueue.push({
       title: `${round}-${stage}`,
-      sub: stage === ROUND_LEN ? 'BOSS 房间 · 史莱姆王' : '草原',
+      sub: stage === ROUND_LEN ? `BOSS 房间 · ${this.mapName}` : this.mapName,
       color: stage === ROUND_LEN ? '#ff9a6a' : '#ffe9a8',
     });
 
@@ -445,6 +547,10 @@ class GameScene extends Phaser.Scene {
       if (h.active) h.destroy();
     });
     this.healthPacks.clear(false, false);
+    this.energyPacks.getChildren().slice().forEach((e) => {
+      if (e.active) e.destroy();
+    });
+    this.energyPacks.clear(false, false);
     this.fragments.getChildren().slice().forEach((f) => {
       if (f.glow && f.glow.active) f.glow.destroy();
       if (f.active) f.destroy();
@@ -462,11 +568,12 @@ class GameScene extends Phaser.Scene {
     for (let i = 0; i < total; i++) {
       const r = Math.random();
       let type = 'slime';
-      // 第二轮开始加入蘑菇射手和冲锋野猪
-      if (round >= 2 && r < 0.20) type = 'mushroom';
-      else if (round >= 2 && r < 0.38) type = 'boar';
-      else if (n >= 4 && r < 0.55) type = 'bat';
-      else if (n >= 2 && r < 0.78) type = 'goblin';
+      // 第二轮加入蘑菇射手/冲锋野猪，第三轮加入山羊精
+      if (round >= 3 && r < 0.14) type = 'goat';
+      else if (round >= 2 && r < 0.30) type = 'mushroom';
+      else if (round >= 2 && r < 0.46) type = 'boar';
+      else if (n >= 4 && r < 0.62) type = 'bat';
+      else if (n >= 2 && r < 0.82) type = 'goblin';
       else type = 'slime';
       types.push(type);
     }
@@ -518,13 +625,41 @@ class GameScene extends Phaser.Scene {
 
   startBossRoom() {
     this.pendingSpawns = 1;
+    const spec = this.bossSpecForRound(this.round);
     this.time.delayedCall(750, () => {
       if (!this.scene.isActive() || this.roomState !== 'fighting') return;
       this.pendingSpawns = 0;
-      this.spawnEnemyAt('boss', 480, 205, true);
+      this.spawnBoss(spec);
       this.spawnEnemyAt('slime', 300, 250, true);
       this.spawnEnemyAt('slime', 660, 250, true);
     });
+  }
+
+  bossSpecForRound(round) {
+    const r = ((round - 1) % 4) + 1;
+    if (r === 1) return { kind: 'slime', elite: false };
+    if (r === 2) return { kind: 'boar', elite: false };
+    if (r === 3) return { kind: Math.random() < 0.5 ? 'slime' : 'boar', elite: true };
+    return { kind: 'mushroom', elite: false };
+  }
+
+  spawnBoss(spec) {
+    let boss;
+    if (spec.kind === 'boar') {
+      boss = new BoarKingBoss(this, 480, 230, this.enemyLevel, spec.elite);
+    } else if (spec.kind === 'mushroom') {
+      boss = new MushroomFiendBoss(this, 480, 220, this.enemyLevel);
+    } else {
+      boss = new Boss(this, 480, 205, this.enemyLevel, spec.elite);
+    }
+    this.boss = boss;
+    this.enemies.add(boss);
+    boss.setAlpha(1);
+    this.cameras.main.shake(320, 0.008);
+    Sfx.bossRoar();
+    this.hud.toastQueue.push(`${boss.bossName} 出现了！`);
+    this.fx.ring(boss.x, boss.y, spec.elite ? 0xffd76a : 0xff9a6a, 0.3, 2.0, 700, 0.9, 745);
+    return boss;
   }
 
   spawnEnemyAt(type, x, y, instant, elite) {
@@ -637,6 +772,9 @@ class GameScene extends Phaser.Scene {
     this.fragments.getChildren().slice().forEach((f) => {
       if (f.active) this.collectFragment(f, true);
     });
+    this.energyPacks.getChildren().slice().forEach((e) => {
+      if (e.active) this.collectEnergyPack(e);
+    });
     Sfx.portal();
     this.cameras.main.flash(220, 170, 235, 255);
     this.cameras.main.fadeOut(340, 6, 12, 6);
@@ -658,10 +796,11 @@ class GameScene extends Phaser.Scene {
 
   spawnPlayerBullet(x, y, angle, damage, opts) {
     const o = opts || {};
-    const b = this.physics.add.image(x, y, 'bullet');
+    const b = this.physics.add.image(x, y, o.texture || 'bullet');
     this.playerBullets.add(b);
     b.setDepth(700).setBlendMode(Phaser.BlendModes.ADD);
     b.setRotation(angle);
+    if (o.scale) b.setScale(o.scale);
     b.body.setSize(6, 6);
     b.body.setAllowGravity(false);
     const speed = o.speed || BALANCE.bulletSpeed;
@@ -670,6 +809,8 @@ class GameScene extends Phaser.Scene {
     b.damage = damage || BALANCE.bulletDamage;
     b.pierce = o.pierce || 0;
     b.hitEnemies = new Set();
+    b.qualityColor = o.color == null ? 0xffe066 : o.color;
+    b.qualityPower = o.power || 0;
     b.bornAt = this.time.now;
     return b;
   }
@@ -686,14 +827,20 @@ class GameScene extends Phaser.Scene {
     return b;
   }
 
-  spawnEnemyOrb(x, y, angle, damage) {
+  spawnEnemyOrb(x, y, angle, damage, opts) {
+    const o = opts || {};
     const b = this.physics.add.image(x, y, 'orb');
     this.enemyBullets.add(b);
     b.setDepth(705).setBlendMode(Phaser.BlendModes.ADD);
     b.body.setCircle(6, 2, 2);
     b.body.setAllowGravity(false);
-    b.setVelocity(Math.cos(angle) * 255, Math.sin(angle) * 255);
+    const speed = o.speed || 255;
+    b.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    if (o.tint != null) b.setTint(o.tint);
     b.damage = damage || 12;
+    b.decelAfter = o.decelAfter || 0;
+    b.startX = x;
+    b.startY = y;
     b.bornAt = this.time.now;
     return b;
   }
@@ -717,18 +864,39 @@ class GameScene extends Phaser.Scene {
       onComplete: () => sl.destroy(),
     });
 
+    const power = Math.max(0, QUALITY_ORDER.indexOf(w.quality));
     let hits = 0;
+    let cut = 0;
     this.enemies.getChildren().forEach((e) => {
       if (!e.active || e.dying) return;
       if (dist2(px, py, e.x, e.y) > range * range) return;
       const diff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - py, e.x - px) - aim));
       if (diff > arc / 2) return;
       e.takeDamage(dmg, aim);
-      this.fx.hitSpark(e.x, e.y);
+      this.fx.weaponHit(e.x, e.y, q.color, power);
       hits++;
     });
-    this.cameras.main.shake(55, hits > 0 ? 0.002 : 0.0008);
-    if (hits > 0) Sfx.hit();
+
+    // 近战可以砍掉范围内的敌方子弹
+    this.enemyBullets.getChildren().slice().forEach((b) => {
+      if (!b.active) return;
+      if (dist2(px, py, b.x, b.y) > (range + 12) * (range + 12)) return;
+      const diff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(b.y - py, b.x - px) - aim));
+      if (diff > arc / 2 + 0.16) return;
+      b.destroy();
+      this.fx.hitSpark(b.x, b.y);
+      cut++;
+    });
+
+    this.cameras.main.shake(55, (hits > 0 || cut > 0) ? 0.002 : 0.0008);
+    if (hits > 0 || cut > 0) {
+      this.fx.weaponHit(
+        px + Math.cos(aim) * range * 0.52,
+        py + Math.sin(aim) * range * 0.52,
+        q.color, power
+      );
+      Sfx.hit();
+    }
   }
 
   summonGhost() {
@@ -805,6 +973,35 @@ class GameScene extends Phaser.Scene {
     return true;
   }
 
+  spawnFallingRock(x, y) {
+    const warn = this.add.image(x, y, 'spawnring')
+      .setTint(0xffb15a).setScale(0.5).setAlpha(0.85).setDepth(3);
+    this.tweens.add({
+      targets: warn, alpha: 0, scale: 0.85, duration: 520,
+      onComplete: () => {
+        warn.destroy();
+        this.dropRock(x, y);
+      },
+    });
+  }
+
+  dropRock(x, y) {
+    const rock = this.add.image(x, y - 170, 'rock').setDepth(750).setScale(0.8);
+    this.tweens.add({
+      targets: rock, y, duration: 250, ease: 'Quad.In',
+      onComplete: () => {
+        rock.destroy();
+        this.fx.dust.explode(10, x, y);
+        this.fx.smoke.explode(3, x, y);
+        this.fx.ring(x, y, 0xffb15a, 0.2, 1.2, 300, 0.7, 745);
+        this.cameras.main.shake(100, 0.004);
+        if (!this.player.isDead && dist2(x, y, this.player.x, this.player.y) < 52 * 52) {
+          this.player.takeDamage(14 + (this.round - 1) * 2, x, y, this.time.now);
+        }
+      },
+    });
+  }
+
   deathBlast(x, y) {
     const dmg = Math.round(35 * this.buffs.deathBlast);
     this.enemies.getChildren().forEach((e) => {
@@ -822,6 +1019,15 @@ class GameScene extends Phaser.Scene {
 
   onBulletHitEnemy(bullet, enemy) {
     if (!bullet.active || !enemy.active || enemy.dying) return;
+    if (enemy.reflectUntil && this.time.now < enemy.reflectUntil) {
+      const bx = bullet.x, by = bullet.y;
+      bullet.destroy();
+      const ang = Math.atan2(this.player.y - by, this.player.x - bx);
+      this.spawnEnemyOrb(bx, by, ang, 8, { speed: 340, tint: 0x9fd8ff });
+      this.fx.hitSpark(bx, by);
+      Sfx.hit();
+      return;
+    }
     if (bullet.hitEnemies && bullet.hitEnemies.has(enemy)) return;
     if (bullet.hitEnemies) bullet.hitEnemies.add(enemy);
     const bx = bullet.x, by = bullet.y;
@@ -832,9 +1038,9 @@ class GameScene extends Phaser.Scene {
     } else {
       bullet.destroy();
     }
-    const wasBoss = enemy.enemyType === 'boss';
+    const wasBoss = enemy.isBoss;
     enemy.takeDamage(dmg, ang);
-    this.fx.hitSpark(bx, by);
+    this.fx.weaponHit(bx, by, bullet.qualityColor, bullet.qualityPower);
     if (enemy.dying) {
       this.cameras.main.shake(wasBoss ? 140 : 80, wasBoss ? 0.006 : 0.0028);
     } else {
@@ -846,9 +1052,29 @@ class GameScene extends Phaser.Scene {
   equipWeapon(id) {
     const w = WEAPONS[id];
     if (!w) return;
+    if (this.player && this.player.cancelCharge) this.player.cancelCharge();
     this.weaponId = id;
     this.weapon = w;
+    if (this.dualWield) this.pickSecondaryWeapon();
     this.hud.toastQueue.push(`已装备：${w.name}`);
+  }
+
+  enableDualWield() {
+    this.dualWield = true;
+    this.pickSecondaryWeapon();
+    if (this.secondaryWeapon) {
+      this.hud.toastQueue.push(`双持：${this.weapon.name} + ${this.secondaryWeapon.name}`);
+    } else {
+      this.hud.toastQueue.push('双持：暂时没有其他已解锁武器');
+    }
+  }
+
+  pickSecondaryWeapon() {
+    const owned = Store.data.ownedWeapons.filter((id) => id !== this.weaponId);
+    owned.sort((a, b) => QUALITY_ORDER.indexOf(WEAPONS[b].quality) - QUALITY_ORDER.indexOf(WEAPONS[a].quality));
+    this.secondaryId = owned[0] || null;
+    this.secondaryWeapon = this.secondaryId ? WEAPONS[this.secondaryId] : null;
+    if (this.player) this.player.secondaryNextShotAt = 0;
   }
 
   openUpgrade(isStart) {
@@ -904,6 +1130,9 @@ class GameScene extends Phaser.Scene {
       case 'twin_barrage':
         this.buffs.twinChance = Math.min(0.7, (this.buffs.twinChance || 0) + 0.35);
         break;
+      case 'dual_wield':
+        this.enableDualWield();
+        break;
       default:
         break;
     }
@@ -929,19 +1158,23 @@ class GameScene extends Phaser.Scene {
   onEnemyKilled(enemy) {
     this.kills++;
     const def = enemy.def;
-    let count = enemy.enemyType === 'boss'
+    let count = enemy.isBoss
       ? randInt(24, 34)
       : randInt(def.coins[0], def.coins[1]);
     if (enemy.isElite) count *= 2;
     this.dropCoins(enemy.x, enemy.y, count + this.buffs.coinBonus);
 
-    const hpChance = enemy.enemyType === 'boss'
+    const hpChance = enemy.isBoss
       ? 1
       : (this.player.hp < this.player.maxHp * 0.4 ? 0.16 : 0.09);
     if (Math.random() < hpChance) this.dropHealthPack(enemy.x, enemy.y);
+    const energyChance = enemy.isBoss
+      ? 1
+      : (this.player.energy < this.player.maxEnergy * 0.4 ? 0.16 : 0.10);
+    if (Math.random() < energyChance) this.dropEnergyPack(enemy.x, enemy.y);
     if (this.buffs.lifesteal > 0 && !this.player.isDead) this.player.heal(this.buffs.lifesteal);
     this.maybeDropFragment(enemy);
-    if (this.buffs.deathBlast > 0 && enemy.enemyType !== 'boss' && Math.random() < 0.3) {
+    if (this.buffs.deathBlast > 0 && !enemy.isBoss && Math.random() < 0.3) {
       this.deathBlast(enemy.x, enemy.y);
     }
 
@@ -963,6 +1196,14 @@ class GameScene extends Phaser.Scene {
 
   onPlayerHurt() {
     this.hud.hurtAt = this.time.now;
+  }
+
+  onEnergyDenied() {
+    const now = this.time.now;
+    if (now - (this.lastEnergyWarn || 0) < 1200) return;
+    this.lastEnergyWarn = now;
+    this.hud.toastQueue.push('能量不足');
+    this.cameras.main.shake(50, 0.001);
   }
 
   onPlayerDeath() {
@@ -1017,6 +1258,12 @@ class GameScene extends Phaser.Scene {
       Sfx.uiDeny();
       return;
     }
+    if (!this.player.spendEnergy(BALANCE.skillEnergyCost)) {
+      Sfx.uiDeny();
+      this.hud.toastQueue.push('能量不足，无法释放技能');
+      return;
+    }
+    if (this.player.cancelCharge) this.player.cancelCharge();
     if (this.characterId === 'swordsman') this.activateSwordSkill();
     else this.activateGunnerSkill();
   }
@@ -1162,7 +1409,7 @@ class GameScene extends Phaser.Scene {
       const py = this.player.y - 2 + Math.sin(angle) * 2;
       const fxX = this.player.x + Math.cos(angle) * 27;
       const fxY = this.player.y - 5 + Math.sin(angle) * 27;
-      this.spawnPlayerBullet(px, py, angle, SKILL.damage);
+      this.spawnPlayerBullet(px, py, angle, Math.round(SKILL.damage * (this.buffs.damage || 1)));
       this.fx.muzzle(fxX, fxY);
       if (s.shotIndex % 2 === 0) this.fx.shell(this.player.x, this.player.y - 5, angle);
       this.cameras.main.shake(28, 0.0007);
@@ -1254,7 +1501,7 @@ class GameScene extends Phaser.Scene {
           const rad = e.enemyType === 'boss' ? 64 : 38;
           if (dist2(sw.x, sw.y, e.x, e.y) < rad * rad) {
             sw.hits.add(e);
-            e.takeDamage(34, sw.travelAngle);
+            e.takeDamage(Math.round(34 * (this.buffs.damage || 1)), sw.travelAngle);
             this.fx.hitSpark(sw.x, sw.y);
             this.cameras.main.shake(45, 0.0012);
             Sfx.hit();
@@ -1410,6 +1657,36 @@ class GameScene extends Phaser.Scene {
     Sfx.heal();
   }
 
+  dropEnergyPack(x, y) {
+    const e = this.physics.add.sprite(x + rand(-8, 8), y + rand(-6, 6), 'energy_pack');
+    this.energyPacks.add(e);
+    e.setDepth(9);
+    e.body.setCircle(11, 3, 3);
+    e.body.setAllowGravity(true);
+    e.body.setGravityY(700);
+    e.setCollideWorldBounds(true);
+    e.setBounce(0.4);
+    e.setDrag(140);
+    const a = rand(0, Math.PI * 2);
+    const sp = rand(40, 130);
+    e.setVelocity(Math.cos(a) * sp, Math.sin(a) * sp - 90);
+    e.energyAmount = 35;
+    e.collectReadyAt = this.time.now + 350;
+    e.setScale(0);
+    this.tweens.add({ targets: e, scale: 1, duration: 180, ease: 'Back.Out' });
+  }
+
+  collectEnergyPack(e) {
+    if (!e.active) return;
+    const amount = e.energyAmount || 35;
+    const x = e.x, y = e.y;
+    e.destroy();
+    this.player.restoreEnergy(amount);
+    this.fx.ring(x, y, 0x5ad8ff, 0.15, 0.8, 300, 0.7, 740);
+    this.fx.floatingText(this.player.x, this.player.y - 26, `+${amount} 能量`, '#9fe8ff');
+    Sfx.energy();
+  }
+
   pickFragmentWeapon() {
     const available = Object.values(WEAPONS).filter((w) => (
       w.quality !== 'white' && w.quality !== 'rainbow' && !Store.hasWeapon(w.id)
@@ -1428,8 +1705,13 @@ class GameScene extends Phaser.Scene {
   }
 
   maybeDropFragment(enemy) {
-    if (enemy.enemyType === 'boss') {
-      this.dropFragment(FRAGMENT_RULES.bossWeapon, enemy.x, enemy.y, 1, true);
+    if (enemy.isBoss) {
+      if (enemy.bossWeapon) {
+        this.dropFragment(enemy.bossWeapon, enemy.x, enemy.y, 1, true);
+      } else {
+        const w = this.pickFragmentWeapon();
+        if (w) this.dropFragment(w.id, enemy.x, enemy.y, 3, false);
+      }
       return;
     }
     if (enemy.isElite) {
@@ -1678,6 +1960,10 @@ class GameScene extends Phaser.Scene {
     });
     this.enemyBullets.getChildren().slice().forEach((b) => {
       if (!b.active) return;
+      if (b.decelAfter && dist2(b.x, b.y, b.startX, b.startY) > b.decelAfter * b.decelAfter) {
+        b.body.velocity.scale(0.985);
+        if (b.body.velocity.length() < 14) b.body.setVelocity(0, 0);
+      }
       if (time - b.bornAt > 3400 || out(b)) b.destroy();
     });
 
@@ -1708,6 +1994,20 @@ class GameScene extends Phaser.Scene {
           h.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
         }
         if (d2 < 30 * 30) this.collectHealthPack(h);
+      });
+    }
+
+    // 能量包吸附
+    if (!this.player.isDead) {
+      this.energyPacks.getChildren().slice().forEach((e) => {
+        if (!e.active || time < e.collectReadyAt) return;
+        const d2 = dist2(e.x, e.y, this.player.x, this.player.y);
+        if (d2 < 130 * 130) {
+          const ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+          e.body.setGravityY(0);
+          e.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
+        }
+        if (d2 < 30 * 30) this.collectEnergyPack(e);
       });
     }
 

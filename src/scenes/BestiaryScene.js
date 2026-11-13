@@ -5,6 +5,9 @@ class BestiaryScene extends Phaser.Scene {
 
   create() {
     this.modalState = UI.beginModalScene(this);
+    this.page = 0;
+    this.cardObjects = [];
+
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x040a04, 0.82)
       .setOrigin(0).setDepth(0)
       .setInteractive(new Phaser.Geom.Rectangle(0, 0, GAME_W, GAME_H), Phaser.Geom.Rectangle.Contains);
@@ -19,36 +22,76 @@ class BestiaryScene extends Phaser.Scene {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
-    const entries = [
-      { id: 'slime', portrait: 'slime_0', scale: 1.0, color: 0x67b84a, name: '史莱姆' },
-      { id: 'slime_mini', portrait: 'slime_mini_0', scale: 1.15, color: 0x7cc95a, name: '小史莱姆' },
-      { id: 'goblin', portrait: 'goblin_idle', scale: 1.15, color: 0x6aa84f, name: '哥布林弓手' },
-      { id: 'bat', portrait: 'bat_0', scale: 1.4, color: 0x8c66b0, name: '蝙蝠' },
-      { id: 'mushroom', portrait: 'mushroom_0', scale: 0.95, color: 0xd96a4a, name: '蘑菇射手' },
-      { id: 'boar', portrait: 'boar_0', scale: 1.05, color: 0xb07a4a, name: '冲锋野猪' },
-      { id: 'boss', portrait: 'boss_0', scale: 0.5, color: 0xd9a84a, name: '史莱姆王' },
-      { id: 'elite', elite: true, portrait: 'slime_0', scale: 1.0, color: 0xffd76a, name: '精英怪' },
+    this.pageText = this.add.text(480, 452, '', UI.textStyle(10, {
+      color: '#93a97d', strokeThickness: 2, bold: false,
+    })).setOrigin(0.5).setDepth(3);
+
+    this.pageEntries = [
+      [
+        { id: 'slime', portrait: 'slime_0', scale: 1.0, color: 0x67b84a, name: '史莱姆' },
+        { id: 'slime_mini', portrait: 'slime_mini_0', scale: 1.15, color: 0x7cc95a, name: '小史莱姆' },
+        { id: 'goblin', portrait: 'goblin_idle', scale: 1.15, color: 0x6aa84f, name: '哥布林弓手' },
+        { id: 'bat', portrait: 'bat_0', scale: 1.4, color: 0x8c66b0, name: '蝙蝠' },
+        { id: 'mushroom', portrait: 'mushroom_0', scale: 0.95, color: 0xd96a4a, name: '蘑菇射手' },
+        { id: 'boar', portrait: 'boar_0', scale: 1.05, color: 0xb07a4a, name: '冲锋野猪' },
+        { id: 'boss', portrait: 'boss_0', scale: 0.5, color: 0xd9a84a, name: '史莱姆王' },
+        { id: 'elite', elite: true, portrait: 'slime_0', scale: 1.0, color: 0xffd76a, name: '精英怪' },
+      ],
+      [
+        { id: 'boar_boss', portrait: 'boar_0', scale: 1.05, color: 0xd9a84a, name: '野猪王' },
+        {
+          id: 'elite_slime', elite: true, portrait: 'boss_0', scale: 0.5, color: 0xffd76a, name: '精英史莱姆王',
+          lore: '第三轮的精英 Boss 之一。生命和伤害大幅提高，拥有精英金色光环。',
+          stats: ['第三轮 Boss', '生命 ×1.6 · 伤害 ×1.3'],
+        },
+        {
+          id: 'elite_boar', elite: true, portrait: 'boar_0', scale: 1.05, color: 0xffd76a, name: '精英野猪王',
+          lore: '第三轮的精英 Boss 之一。狂暴冲撞和石头雨更致命。',
+          stats: ['第三轮 Boss', '生命 ×1.6 · 伤害 ×1.3'],
+        },
+        { id: 'mushroom_boss', portrait: 'mushroom_0', scale: 0.95, color: 0xb07bff, name: '蘑菇怪客' },
+        { id: 'goat', portrait: 'goat_0', scale: 1.0, color: 0xd8d0c0, name: '山羊精' },
+      ],
     ];
 
+    UI.button(this, 400, 482, 150, 30, '关 闭', () => this.close(), {
+      variant: 'ghost', fontSize: 13,
+    }).setDepth(3);
+    this.pageBtn = UI.button(this, 570, 482, 150, 30, '下一页', () => this.togglePage(), {
+      variant: 'ghost', fontSize: 13,
+    }).setDepth(3);
+
+    this.input.keyboard.on('keydown-ESC', () => this.close());
+    this.renderPage();
+    this.cameras.main.fadeIn(180, 6, 10, 6);
+  }
+
+  togglePage() {
+    this.page = 1 - this.page;
+    this.renderPage();
+    Sfx.uiClick();
+  }
+
+  renderPage() {
+    this.cardObjects.forEach((c) => c.destroy());
+    this.cardObjects = [];
+    const entries = this.pageEntries[this.page];
     const xs = [133, 364, 595, 826];
     const ys = [196, 362];
     entries.forEach((entry, i) => {
       const x = xs[i % 4];
       const y = ys[Math.floor(i / 4)];
-      this.createCard(entry, x, y);
+      this.cardObjects.push(this.createCard(entry, x, y));
     });
-
-    UI.button(this, 480, 482, 170, 30, '关 闭', () => this.close(), {
-      variant: 'ghost', fontSize: 13,
-    }).setDepth(3);
-
-    this.input.keyboard.on('keydown-ESC', () => this.close());
-    this.cameras.main.fadeIn(180, 6, 10, 6);
+    this.pageText.setText(`第 ${this.page + 1} / ${this.pageEntries.length} 页`);
+    if (this.pageBtn && this.pageBtn.list[1]) {
+      this.pageBtn.list[1].setText(this.page === 0 ? '下一页' : '上一页');
+    }
   }
 
   createCard(entry, x, y) {
     const w = 206, h = 144;
-    const def = entry.elite ? null : ENEMY_DEFS[entry.id];
+    const def = entry.def || (entry.elite ? null : ENEMY_DEFS[entry.id]);
     const c = this.add.container(x, y).setDepth(2);
     const g = this.add.graphics();
     g.fillStyle(0x000000, 0.3);
@@ -59,7 +102,6 @@ class BestiaryScene extends Phaser.Scene {
     g.strokeRect(-w / 2, -h / 2, w, h);
     g.fillStyle(entry.color, 0.85);
     g.fillRect(-w / 2, -h / 2, w, 3);
-    // 肖像底
     g.fillStyle(0x0b1208, 0.95);
     g.fillRect(-w / 2 + 12, -h / 2 + 14, 58, 88);
     g.lineStyle(1, entry.color, 0.75);
@@ -73,7 +115,8 @@ class BestiaryScene extends Phaser.Scene {
         .setScale(0.7).setAlpha(0.5).setBlendMode(Phaser.BlendModes.ADD);
       c.add(glow);
     }
-    const portrait = this.add.image(px, py, entry.portrait).setScale(entry.scale);
+    const portrait = this.add.image(px, py, entry.portrait)
+      .setScale(entry.scale);
     if (entry.elite) portrait.setTint(0xffe0a0);
     c.add(portrait);
 
@@ -82,26 +125,38 @@ class BestiaryScene extends Phaser.Scene {
     })).setOrigin(0, 0.5);
     c.add(name);
 
-    const loreText = entry.elite
-      ? '第二轮开始出现的强化怪物。体型更大，周围有金色粒子，生命和伤害更高，金币与碎片掉落翻倍。'
-      : (ENEMY_LORE[entry.id] || '');
+    let loreText;
+    if (entry.lore != null) loreText = entry.lore;
+    else if (entry.elite) loreText = '第二轮开始出现的强化怪物。体型更大，周围有金色粒子，生命和伤害更高，金币与碎片掉落翻倍。';
+    else loreText = ENEMY_LORE[entry.id] || '';
     const lore = this.add.text(-w / 2 + 80, -h / 2 + 36, UI.wrapCJK(loreText, 11), UI.textStyle(9, {
       color: '#b9cba0', strokeThickness: 2, bold: false,
     })).setOrigin(0, 0);
     lore.setLineSpacing(2);
     c.add(lore);
 
-    const stats1 = this.add.text(
-      -w / 2 + 80, h / 2 - 32,
-      entry.elite ? '第二轮起出现' : `生命 ${def.hp}  ·  伤害 ${def.damage}`,
-      UI.textStyle(9, { color: entry.elite ? '#ffd76a' : '#8fa77a', strokeThickness: 2, bold: false })
-    ).setOrigin(0, 0.5);
-    const stats2 = this.add.text(
-      -w / 2 + 80, h / 2 - 17,
-      entry.elite ? '体型 / 属性 / 掉落翻倍' : `击杀掉落 ${def.coins[0]}-${def.coins[1]} 金币`,
-      UI.textStyle(9, { color: entry.elite ? '#ffd76a' : '#8fa77a', strokeThickness: 2, bold: false })
-    ).setOrigin(0, 0.5);
+    let stats1Text;
+    let stats2Text;
+    if (entry.stats) {
+      stats1Text = entry.stats[0];
+      stats2Text = entry.stats[1];
+    } else if (entry.elite) {
+      stats1Text = '第二轮起出现';
+      stats2Text = '体型 / 属性 / 掉落翻倍';
+    } else {
+      stats1Text = `生命 ${def.hp}  ·  伤害 ${def.damage}`;
+      stats2Text = `击杀掉落 ${def.coins[0]}-${def.coins[1]} 金币`;
+    }
+    const stats1 = this.add.text(-w / 2 + 80, h / 2 - 32,
+      stats1Text, UI.textStyle(9, {
+        color: entry.elite ? '#ffd76a' : '#8fa77a', strokeThickness: 2, bold: false,
+      })).setOrigin(0, 0.5);
+    const stats2 = this.add.text(-w / 2 + 80, h / 2 - 17,
+      stats2Text, UI.textStyle(9, {
+        color: entry.elite ? '#ffd76a' : '#8fa77a', strokeThickness: 2, bold: false,
+      })).setOrigin(0, 0.5);
     c.add([stats1, stats2]);
+    return c;
   }
 
   close() {

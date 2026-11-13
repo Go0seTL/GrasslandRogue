@@ -5,14 +5,15 @@ class UIScene extends Phaser.Scene {
 
   create() {
     this.lastHp = -1;
+    this.lastEnergy = -1;
     this.lastCoins = -1;
     this.lastRound = -1;
     this.lastStage = -1;
     this.lastHurtAt = -1;
 
     this.staticG = this.add.graphics().setDepth(100);
-    // 生命面板
-    UI.drawPanel(this.staticG, 16, 12, 300, 60, { border: 0xb9a35c, bg: 0x141e0f, alpha: 0.85 });
+    // 生命 / 能量面板
+    UI.drawPanel(this.staticG, 16, 12, 300, 78, { border: 0xb9a35c, bg: 0x141e0f, alpha: 0.85 });
     this.staticG.fillStyle(0x0b1208, 1);
     this.staticG.fillRect(24, 18, 44, 48);
     this.staticG.lineStyle(2, 0x7e9a5e, 1);
@@ -28,12 +29,20 @@ class UIScene extends Phaser.Scene {
     this.characterId = gameScene ? gameScene.characterId : 'gunner';
     const portraitKey = this.characterId === 'swordsman' ? 'swordsman_idle' : 'player_idle';
     this.add.image(46, 42, portraitKey).setDepth(102).setScale(0.95);
-    this.add.text(82, 22, '生命', UI.textStyle(11, {
+    this.add.text(82, 20, '生命', UI.textStyle(11, {
       color: '#cfd9b6', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0, 0.5).setDepth(102);
     this.hpG = this.add.graphics().setDepth(101);
-    this.hpText = this.add.text(186, 39, '', UI.textStyle(11, {
+    this.hpText = this.add.text(186, 35, '', UI.textStyle(11, {
       color: '#ffffff', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(103);
+
+    this.add.text(82, 50, '能量', UI.textStyle(10, {
+      color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0, 0.5).setDepth(102);
+    this.energyG = this.add.graphics().setDepth(101);
+    this.energyText = this.add.text(186, 63, '', UI.textStyle(9, {
+      color: '#eaffff', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(103);
 
     this.levelBig = this.add.text(480, 26, '1-1', UI.textStyle(27, {
@@ -55,9 +64,15 @@ class UIScene extends Phaser.Scene {
     this.weaponSub = this.add.text(68, 514, '无限弹药', UI.textStyle(10, {
       color: '#9ff0a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0, 0.5).setDepth(102);
+    this.lastSecondaryId = null;
+    this.secondaryIcon = this.add.image(198, 506, 'gun')
+      .setDepth(102).setScale(0.65).setVisible(false);
+    this.secondaryTag = this.add.text(176, 494, '副', UI.textStyle(8, {
+      color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(103).setVisible(false);
 
     this.bossG = this.add.graphics().setDepth(120);
-    this.bossName = this.add.text(480, 76, '', UI.textStyle(14, {
+    this.bossName = this.add.text(480, 92, '', UI.textStyle(14, {
       color: '#ffb09a', strokeThickness: 3,
     })).setOrigin(0.5).setDepth(121).setVisible(false);
 
@@ -83,6 +98,9 @@ class UIScene extends Phaser.Scene {
     this.skillState = this.add.text(884, 380, 'E · 技能', UI.textStyle(11, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
+    this.skillCostText = this.add.text(884, 449, `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
+      color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(3001);
     this.skillHit = this.add.rectangle(884, 418, 78, 78, 0x000000, 0)
       .setDepth(3002)
       .setInteractive({ useHandCursor: true });
@@ -102,6 +120,7 @@ class UIScene extends Phaser.Scene {
     this.lastWeaponId = null;
 
     this.drawHp(BALANCE.playerHP, BALANCE.playerHP);
+    this.drawEnergy(BALANCE.playerEnergy, BALANCE.playerEnergy);
     this.coinText.setText(String(Store.data.coins));
   }
 
@@ -166,7 +185,7 @@ class UIScene extends Phaser.Scene {
   drawHp(hp, maxHp) {
     const g = this.hpG;
     g.clear();
-    const x = 82, y = 30, w = 214, h = 16;
+    const x = 82, y = 28, w = 214, h = 14;
     g.fillStyle(0x0b1208, 0.95);
     g.fillRect(x, y, w, h);
     const pct = clamp(hp / maxHp, 0, 1);
@@ -185,6 +204,28 @@ class UIScene extends Phaser.Scene {
     this.hpText.setPosition(x + w / 2, y + h / 2);
   }
 
+  drawEnergy(energy, maxEnergy) {
+    const g = this.energyG;
+    if (!g) return;
+    g.clear();
+    const x = 82, y = 58, w = 214, h = 10;
+    g.fillStyle(0x0b1208, 0.95);
+    g.fillRect(x, y, w, h);
+    const pct = clamp(energy / maxEnergy, 0, 1);
+    g.fillStyle(0x2f9fd9, 1);
+    g.fillRect(x + 2, y + 2, (w - 4) * pct, h - 4);
+    g.fillStyle(0x9fe8ff, 0.75);
+    g.fillRect(x + 2, y + 2, (w - 4) * pct, 2);
+    g.lineStyle(1, 0x0b1208, 0.3);
+    for (let i = 1; i < 10; i++) {
+      g.lineBetween(x + (w / 10) * i, y + 2, x + (w / 10) * i, y + h - 2);
+    }
+    g.lineStyle(2, 0x4d7a8a, 1);
+    g.strokeRect(x, y, w, h);
+    this.energyText.setText(`${Math.ceil(energy)} / ${maxEnergy}`);
+    this.energyText.setPosition(x + w / 2, y + h / 2);
+  }
+
   update() {
     const game = this.scene.get('Game');
     if (!game || !game.scene.isActive() || !game.player) return;
@@ -193,6 +234,12 @@ class UIScene extends Phaser.Scene {
     if (hp !== this.lastHp) {
       this.lastHp = hp;
       this.drawHp(hp, game.player.maxHp);
+    }
+
+    const energy = Math.max(0, Math.ceil(game.player.energy));
+    if (energy !== this.lastEnergy) {
+      this.lastEnergy = energy;
+      this.drawEnergy(energy, game.player.maxEnergy);
     }
 
     const coins = Store.data.coins;
@@ -209,14 +256,14 @@ class UIScene extends Phaser.Scene {
       this.lastStage = game.stage;
       this.levelBig.setText(`${game.round}-${game.stage}`);
       this.levelSub.setText(game.stage === ROUND_LEN
-        ? `第 ${game.round} 轮 · BOSS · 草原`
-        : `第 ${game.round} 轮 · 草原`);
+        ? `第 ${game.round} 轮 · BOSS · ${game.mapName || '草原'}`
+        : `第 ${game.round} 轮 · ${game.mapName || '草原'}`);
     }
 
     const boss = game.boss;
     if (boss && boss.active && !boss.dying) {
-      this.bossName.setVisible(true).setText(`史莱姆王   ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`);
-      const x = 250, y = 88, w = 460, h = 16;
+      this.bossName.setVisible(true).setText(`${boss.bossName || 'BOSS'}   ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`);
+      const x = 250, y = 104, w = 460, h = 16;
       const g = this.bossG;
       g.clear();
       g.fillStyle(0x0b1208, 0.92);
@@ -263,7 +310,26 @@ class UIScene extends Phaser.Scene {
       this.lastWeaponId = game.weaponId;
       this.weaponIcon.setTexture(weapon.texture).setScale(weapon.iconScale || 1.35);
       this.weaponName.setText(weapon.name);
-      if (this.weaponSub) this.weaponSub.setText(weapon.melee ? '近战 · 无消耗' : '无限弹药');
+      if (this.weaponSub) {
+        if (weapon.melee) this.weaponSub.setText(`近战 · ${weapon.energyCost} 能量/次`);
+        else if (weapon.charge) this.weaponSub.setText(`蓄力 · ${weapon.energyCost} 能量/发`);
+        else if (!weapon.energyCost) this.weaponSub.setText('无限弹药 · 不耗能量');
+        else this.weaponSub.setText(`无限弹药 · ${weapon.energyCost} 能量/发`);
+      }
+    }
+
+    const secondary = game.dualWield ? game.secondaryWeapon : null;
+    if (secondary) {
+      if (game.secondaryId !== this.lastSecondaryId) {
+        this.lastSecondaryId = game.secondaryId;
+        this.secondaryIcon.setTexture(secondary.texture).setScale((secondary.iconScale || 1) * 0.65);
+      }
+      this.secondaryIcon.setVisible(true);
+      this.secondaryTag.setVisible(true);
+    } else {
+      this.lastSecondaryId = null;
+      this.secondaryIcon.setVisible(false);
+      this.secondaryTag.setVisible(false);
     }
 
     this.drawSkillButton(game);

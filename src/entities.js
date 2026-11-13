@@ -16,8 +16,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.walkTexture = isSword ? 'swordsman_walk' : 'player_walk';
     this.walkAnim = isSword ? 'swordsman_walk' : 'player_walk';
 
-    this.maxHp = BALANCE.playerHP;
+    const charLevel = scene.charLevel || 0;
+    this.maxHp = BALANCE.playerHP + charLevel * 10;
     this.hp = this.maxHp;
+    this.maxEnergy = BALANCE.playerEnergy + charLevel * 10;
+    this.energy = this.maxEnergy;
     this.isDead = false;
     this.aimAngle = 0;
     this.lastMoveAngle = 0;
@@ -26,10 +29,17 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.dashReadyAt = 0;
     this.nextShotAt = 0;
     this.moving = false;
+    this.charging = false;
+    this.chargeStart = 0;
+    this.chargeAim = 0;
+    this.chargeRatio = 0;
+    this.chargeFx = null;
 
+    this.secondaryNextShotAt = 0;
     this.shadow = scene.add.image(x, y + 19, 'shadow').setAlpha(0.30);
     this.gun = scene.add.image(x, y, (WEAPONS[scene.weaponId] || WEAPONS.pistol).texture)
       .setOrigin(0.22, 0.5);
+    this.secondaryGun = scene.add.image(x, y, 'gun').setOrigin(0.22, 0.5).setVisible(false);
     this.setDepth(y + 20);
     this.shadow.setDepth(y + 18);
     this.gun.setDepth(y + 21);
@@ -110,24 +120,248 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.backSword.setDepth(this.y + 19);
     }
 
-    // 开火（枪手技能扫射期间由技能接管）
-    if (!scene.isAimLockSkillActive() && time >= this.nextShotAt && scene.canPlayerAct() && scene.wantsToFire()) {
-      this.fire(time, aim);
+    if (scene.dualWield && scene.secondaryWeapon) {
+      const sw = scene.secondaryWeapon;
+      if (this.secondaryGun.texture.key !== sw.texture) this.secondaryGun.setTexture(sw.texture);
+      const perpX = -Math.sin(aim) * 7;
+      const perpY = Math.cos(aim) * 7;
+      this.secondaryGun
+        .setPosition(gx + perpX, gy + perpY)
+        .setRotation(aim)
+        .setFlipY(cos < 0)
+        .setDepth(this.y + 21)
+        .setVisible(true);
+    } else if (this.secondaryGun.visible) {
+      this.secondaryGun.setVisible(false);
     }
 
+    // 开火（枪手技能扫射期间由技能接管）
+    const weapon = scene.weapon || WEAPONS.pistol;
+    const firing = scene.canPlayerAct() && scene.wantsToFire();
+    if (!scene.isAimLockSkillActive()) {
+      if (weapon.charge) this.updateChargeWeapon(time, aim, firing, weapon);
+      else if (firing && time >= this.nextShotAt) this.fire(time, aim);
+      if (firing && scene.dualWield && scene.secondaryWeapon) {
+        this.fireSecondary(time, aim, scene.secondaryWeapon);
+      }
+    }
+
+    this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * delta / 1000);
     this.setDepth(this.y + 20);
     this.shadow.setPosition(this.x, this.y + 19).setDepth(this.y + 18);
+  }
+
+  fireSecondary(time, aim, w) {
+    if (time < this.secondaryNextShotAt) return;
+    const cost = w.energyCost || 0;
+    if (cost > 0 && this.energy < cost) return;
+    if (cost > 0) this.energy -= cost;
+    const buffs = this.scene.buffs || {};
+    const q = QUALITIES[w.quality] || QUALITIES.white;
+    const power = Math.max(0, QUALITY_ORDER.indexOf(w.quality));
+    const gx = this.secondaryGun.x;
+    const gy = this.secondaryGun.y;
+    const tip = this.secondaryGun.displayWidth * (1 - this.secondaryGun.originX);
+    const fxX = gx + Math.cos(aim) * tip;
+    const fxY = gy + Math.sin(aim) * tip;
+
+    if (w.melee) {
+      this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+      this.scene.meleeAttack(this, aim, w);
+      Sfx.slash();
+      return;
+    }
+    if (w.ringCount) {
+      this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+      for (let i = 0; i < w.ringCount; i++) {
+        const a = (i / w.ringCount) * Math.PI * 2 + rand(-0.03, 0.03);
+        this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
+          speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
+          tint: w.tint, pierce: w.pierce, color: q.color, power,
+        });
+      }
+      this.scene.fx.ring(this.x, this.y - 2, q.color, 0.2, 1.3, 320, 0.8, 720);
+      this.scene.fx.shotBurst(this.x, this.y - 2, q.color, power);
+      Sfx.shoot();
+      return;
+    }
+    if (w.charge) {
+      this.secondaryNextShotAt = time + Math.max(w.fireRate * 1000, w.chargeTime * 1000 * 0.8);
+      const ratio = 0.7;
+      const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1));
+      this.scene.spawnPlayerBullet(this.x, this.y - 2, aim, dmg, {
+        speed: w.bulletSpeed, tint: null, pierce: 2, color: q.color, power,
+        texture: 'charged_arrow', scale: 1.35,
+      });
+      this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
+      this.scene.fx.shotBurst(fxX, fxY, q.color, power);
+      this.scene.cameras.main.shake(60, 0.0018);
+      Sfx.bowRelease();
+      return;
+    }
+    const spread = w.spread * (buffs.spreadMul || 1);
+    const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
+    for (let i = 0; i < w.pellets + extra; i++) {
+      const a = aim + rand(-spread, spread);
+      this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
+        speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
+        tint: w.tint, pierce: w.pierce, color: q.color, power,
+      });
+    }
+    this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+    this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
+    this.scene.cameras.main.shake(35, 0.0007);
+    Sfx.shoot();
+  }
+
+  updateChargeWeapon(time, aim, firing, w) {
+    const holding = this.scene.touchMode ? (this.scene.touch.aim.active && firing) : firing;
+    if (holding) {
+      this.chargeAim = aim;
+      if (!this.charging) {
+        if (time < this.nextShotAt) return;
+        if (this.energy < w.energyCost) {
+          this.scene.onEnergyDenied();
+          return;
+        }
+        this.charging = true;
+        this.chargeStart = time;
+        this.createChargeFx();
+        Sfx.bowDraw();
+      }
+      const ratio = clamp((time - this.chargeStart) / (w.chargeTime * 1000), 0, 1);
+      this.chargeRatio = ratio;
+      this.updateChargeFx(ratio);
+    } else if (this.charging) {
+      const held = time - this.chargeStart;
+      const ratio = clamp(held / (w.chargeTime * 1000), 0, 1);
+      const aimAngle = this.chargeAim;
+      this.charging = false;
+      this.chargeRatio = 0;
+      this.destroyChargeFx();
+      if (held < 120) return;
+      if (!this.spendEnergy(w.energyCost)) {
+        this.scene.onEnergyDenied();
+        return;
+      }
+      this.nextShotAt = time + w.fireRate * 1000;
+      const buffs = this.scene.buffs || {};
+      const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1));
+      const pierce = ratio >= 0.65 ? 2 : w.pierce;
+      const q = QUALITIES[w.quality] || QUALITIES.white;
+      const power = 3 + Math.round(ratio * 3);
+      const px = this.x + Math.cos(aimAngle) * 24;
+      const py = this.y - 5 + Math.sin(aimAngle) * 24;
+      this.scene.spawnPlayerBullet(px, py, aimAngle, dmg, {
+        speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
+        tint: null,
+        pierce,
+        color: q.color,
+        power,
+        texture: 'charged_arrow',
+        scale: 1 + ratio * 0.45,
+      });
+      this.scene.fx.muzzle(px, py, aimAngle, q.color, power);
+      this.scene.fx.shotBurst(px, py, q.color, power);
+      this.scene.cameras.main.shake(80, 0.002 + ratio * 0.004);
+      Sfx.bowRelease();
+    }
+  }
+
+  createChargeFx() {
+    const scene = this.scene;
+    this.chargeFx = {
+      ring: scene.add.image(this.x, this.y - 4, 'ring')
+        .setTint(0xb07bff).setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(6).setAlpha(0.5),
+      glow: scene.add.image(this.x, this.y - 4, 'glow')
+        .setTint(0xb07bff).setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(5).setAlpha(0.18),
+      bar: scene.add.graphics().setDepth(726),
+    };
+  }
+
+  updateChargeFx(ratio) {
+    const fx = this.chargeFx;
+    if (!fx) return;
+    const full = ratio >= 1;
+    fx.ring.setPosition(this.x, this.y - 4)
+      .setScale(0.25 + ratio * 0.55)
+      .setAlpha(0.55 + ratio * 0.35)
+      .setTint(full ? 0xffd76a : 0xb07bff);
+    fx.glow.setPosition(this.x, this.y - 4)
+      .setScale(0.4 + ratio * 0.9)
+      .setAlpha(0.2 + ratio * 0.35)
+      .setTint(full ? 0xffd76a : 0xb07bff);
+    fx.bar.clear();
+    fx.bar.fillStyle(0x0b1208, 0.8);
+    fx.bar.fillRect(this.x - 26, this.y - 56, 52, 7);
+    fx.bar.fillStyle(full ? 0xffd76a : 0xb07bff, 0.9);
+    fx.bar.fillRect(this.x - 24, this.y - 54, 48 * ratio, 3);
+    fx.bar.lineStyle(1, 0x9a7bb0, 0.9);
+    fx.bar.strokeRect(this.x - 26, this.y - 56, 52, 7);
+  }
+
+  destroyChargeFx() {
+    const fx = this.chargeFx;
+    if (!fx) return;
+    if (fx.ring && fx.ring.active) fx.ring.destroy();
+    if (fx.glow && fx.glow.active) fx.glow.destroy();
+    if (fx.bar && fx.bar.active) fx.bar.destroy();
+    this.chargeFx = null;
+  }
+
+  cancelCharge() {
+    this.charging = false;
+    this.chargeRatio = 0;
+    this.destroyChargeFx();
+  }
+
+  spendEnergy(cost) {
+    if (cost <= 0) return true;
+    if (this.energy < cost) return false;
+    this.energy -= cost;
+    return true;
+  }
+
+  restoreEnergy(amount) {
+    this.energy = Math.min(this.maxEnergy, this.energy + amount);
   }
 
   fire(time, aim) {
     const w = this.scene.weapon || WEAPONS.pistol;
     const buffs = this.scene.buffs || {};
+    const cost = w.energyCost || 0;
+    if (cost > 0 && this.energy < cost) {
+      this.scene.onEnergyDenied();
+      return;
+    }
+    if (cost > 0) this.energy -= cost;
     this.nextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+    const q = QUALITIES[w.quality] || QUALITIES.white;
+    const power = Math.max(0, QUALITY_ORDER.indexOf(w.quality));
     if (w.melee) {
       this.scene.meleeAttack(this, aim, w);
       this.body.velocity.x -= Math.cos(aim) * 45;
       this.body.velocity.y -= Math.sin(aim) * 45;
       Sfx.slash();
+      return;
+    }
+    if (w.ringCount) {
+      for (let i = 0; i < w.ringCount; i++) {
+        const a = (i / w.ringCount) * Math.PI * 2 + rand(-0.03, 0.03);
+        this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
+          speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
+          tint: w.tint,
+          pierce: w.pierce,
+          color: q.color,
+          power,
+        });
+      }
+      this.scene.fx.ring(this.x, this.y - 2, q.color, 0.2, 1.3, 320, 0.8, 720);
+      this.scene.fx.shotBurst(this.x, this.y - 2, q.color, power);
+      this.scene.cameras.main.shake(60, 0.002);
+      Sfx.shoot();
       return;
     }
     const px = this.x + Math.cos(aim) * 2;
@@ -143,9 +377,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
         tint: w.tint,
         pierce: w.pierce,
+        color: q.color,
+        power,
       });
     }
-    this.scene.fx.muzzle(fxX, fxY, aim);
+    this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
     this.scene.fx.shell(this.x + Math.cos(aim) * 8, this.y - 5 + Math.sin(aim) * 8, aim);
     this.body.velocity.x -= Math.cos(aim) * (w.pellets > 1 ? 40 : 10);
     this.body.velocity.y -= Math.sin(aim) * (w.pellets > 1 ? 40 : 10);
@@ -154,6 +390,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   startDash(time, mx, my) {
+    if (!this.spendEnergy(BALANCE.dashEnergyCost)) {
+      this.scene.onEnergyDenied();
+      return;
+    }
+    this.cancelCharge();
     let ang;
     if (Math.hypot(mx, my) > 0.2) ang = Math.atan2(my, mx);
     else ang = this.aimAngle;
@@ -217,6 +458,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   die() {
     if (this.isDead) return;
     this.isDead = true;
+    this.cancelCharge();
     this.body.setVelocity(0, 0);
     this.body.enable = false;
     this.anims.stop();
@@ -224,6 +466,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
     this.setAlpha(1);
     this.gun.setVisible(false);
+    if (this.secondaryGun) this.secondaryGun.setVisible(false);
     if (this.backSword) this.scene.tweens.add({ targets: this.backSword, alpha: 0, duration: 400 });
     this.scene.tweens.add({ targets: this, angle: 90, alpha: 0, duration: 650, ease: 'Sine.In' });
     this.scene.tweens.add({ targets: this.shadow, alpha: 0, duration: 400 });
@@ -273,6 +516,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.chargeAngle = 0;
     this.mushroomCd = rand(900, 1600);
     this.mushroomCharge = 0;
+    this.goatState = 'idle';
+    this.goatTimer = rand(800, 1400);
+    this.goatChargeAngle = 0;
 
     if (elite) {
       this.setScale(1.3);
@@ -365,6 +611,47 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.updateMushroom(delta, dist, angTo, p);
     } else if (this.enemyType === 'boar') {
       this.updateBoar(delta, dist, angTo, p);
+    } else if (this.enemyType === 'goat') {
+      this.updateGoat(delta, dist, angTo, p);
+    }
+  }
+
+  updateGoat(delta, dist, angTo, p) {
+    this.goatTimer -= delta;
+    this.setFlipX(p.x < this.x);
+    if (this.goatState === 'idle') {
+      const sp = 100;
+      this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+      if (dist < 300 && this.goatTimer <= 0) {
+        this.goatState = 'windup';
+        this.goatTimer = 340;
+        this.setVelocity(0, 0);
+        this.setTint(0xffb08a);
+        this.scene.fx.ring(this.x, this.y, 0xffd76a, 0.1, 0.8, 300, 0.6, 740);
+      }
+    } else if (this.goatState === 'windup') {
+      this.setVelocity(0, 0);
+      if (this.goatTimer <= 0) {
+        this.goatState = 'dash';
+        this.goatTimer = 260;
+        this.goatChargeAngle = Math.atan2(p.y - this.y, p.x - this.x);
+        this.setVelocity(Math.cos(this.goatChargeAngle) * 380, Math.sin(this.goatChargeAngle) * 380);
+        this.clearTint();
+        this.scene.fx.hopDust(this.x, this.y + this.def.shadowY);
+        Sfx.boar();
+      }
+    } else if (this.goatState === 'dash') {
+      if (this.goatTimer <= 0) {
+        this.goatState = 'rest';
+        this.goatTimer = 650;
+        this.setVelocity(0, 0);
+      }
+    } else {
+      this.setVelocity(0, 0);
+      if (this.goatTimer <= 0) {
+        this.goatState = 'idle';
+        this.goatTimer = rand(900, 1500);
+      }
     }
   }
 
@@ -539,12 +826,15 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
 // ------------------------------------------------------------------ Boss
 
 class Boss extends Enemy {
-  constructor(scene, x, y, level) {
-    super(scene, x, y, 'boss', level);
+  constructor(scene, x, y, level, elite) {
+    super(scene, x, y, 'boss', level, elite);
     const round = scene.round || 1;
-    this.maxHp = Math.round(560 * (1 + 0.65 * (round - 1)));
+    this.isBoss = true;
+    this.bossName = elite ? '精英史莱姆王' : '史莱姆王';
+    this.bossWeapon = 'slime_staff';
+    this.maxHp = Math.round(560 * (1 + 0.65 * (round - 1)) * (elite ? 1.6 : 1));
     this.hp = this.maxHp;
-    this.damage = Math.round(18 * (1 + 0.32 * (round - 1)));
+    this.damage = Math.round(18 * (1 + 0.32 * (round - 1)) * (elite ? 1.3 : 1));
     this.moveSpeed = 52;
     this.mode = 'idle';
     this.modeTimer = 1500;
@@ -572,7 +862,7 @@ class Boss extends Enemy {
       Sfx.bossRoar();
       this.scene.cameras.main.shake(220, 0.007);
       this.scene.fx.bossEnrage(this.x, this.y);
-      this.scene.hud.toastQueue.push('史莱姆王暴怒了！');
+      this.scene.hud.toastQueue.push(`${this.bossName} 暴怒了！`);
     }
 
     this.modeTimer -= delta;
@@ -676,24 +966,6 @@ class Boss extends Enemy {
   }
 
   die() {
-    if (this.dying) return;
-    this.dying = true;
-    this.active = false;
-    if (this.body) this.body.enable = false;
-    this.setVelocity(0, 0);
-    this.clearTint();
-    this.scene.onEnemyKilled(this);
-    this.scene.onBossDefeated(this);
-    Sfx.explosion();
-    Sfx.bossRoar();
-    this.scene.fx.bossDeath(this.x, this.y);
-    this.scene.cameras.main.shake(420, 0.014);
-    if (this.shadow && this.shadow.active) {
-      this.scene.tweens.add({ targets: this.shadow, alpha: 0, duration: 500 });
-    }
-    this.scene.tweens.add({
-      targets: this, alpha: 0, scaleX: 0.55, scaleY: 0.55, duration: 850, ease: 'Sine.In',
-      onComplete: () => this.destroy(),
-    });
+    finishBossDeath(this);
   }
 }

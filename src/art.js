@@ -4,6 +4,7 @@ const Art = {
   build(scene) {
     this.makeUnitSprites(scene);
     this.makeGround(scene);
+    this.makeGroundMountain(scene);
     this.makeDecor(scene);
     this.makeCreatures(scene);
     this.makeFX(scene);
@@ -175,6 +176,143 @@ const Art = {
     });
   },
 
+  makeGroundMountain(scene) {
+    const rnd = mulberry32(20261114);
+    this._canvas(scene, 'ground_mountain', GAME_W, GAME_H, (ctx) => {
+      ctx.fillStyle = '#5f7449';
+      ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+      for (let i = 0; i < 80; i++) {
+        const x = rnd() * GAME_W;
+        const y = rnd() * GAME_H;
+        const rx = 28 + rnd() * 88;
+        const ry = rx * (0.4 + rnd() * 0.5);
+        ctx.globalAlpha = 0.08 + rnd() * 0.10;
+        this._ellipse(ctx, x, y, rx, ry, rnd() < 0.5 ? '#748a58' : '#4e633c', 3, rnd, 8);
+      }
+      ctx.globalAlpha = 1;
+
+      const noise = ['#566b42', '#6b8052', '#5f7449', '#71875a', '#4c603a'];
+      for (let i = 0; i < 14000; i++) {
+        const x = Math.floor(rnd() * GAME_W);
+        const y = Math.floor(rnd() * GAME_H);
+        ctx.fillStyle = noise[(rnd() * noise.length) | 0];
+        ctx.fillRect(x, y, 2, 2);
+      }
+      for (let i = 0; i < 700; i++) {
+        const x = Math.floor(rnd() * GAME_W);
+        const y = Math.floor(rnd() * GAME_H);
+        ctx.fillStyle = rnd() < 0.5 ? '#4b6038' : '#7a9060';
+        ctx.fillRect(x, y, 1, 2 + Math.floor(rnd() * 3));
+      }
+
+      // 中央石地
+      const cx = 480, cy = 318;
+      this._ellipse(ctx, cx, cy, 224, 104, '#887f6e', 2, rnd, 5);
+      this._ellipse(ctx, 370, 322, 108, 70, '#887f6e', 2, rnd, 5);
+      this._ellipse(ctx, 596, 320, 112, 72, '#887f6e', 2, rnd, 5);
+      this._ellipse(ctx, 480, 448, 58, 30, '#887f6e', 2, rnd, 4);
+
+      for (let i = 0; i < 380; i++) {
+        const x = cx + (rnd() * 2 - 1) * 226;
+        const y = cy + (rnd() * 2 - 1) * 104;
+        if (((x - cx) / 224) ** 2 + ((y - cy) / 104) ** 2 > 1) continue;
+        const c = rnd() < 0.45 ? '#736b5c' : (rnd() < 0.5 ? '#9c927e' : '#665f52');
+        ctx.fillStyle = c;
+        ctx.fillRect(Math.floor(x), Math.floor(y), 2 + Math.floor(rnd() * 3), 2);
+      }
+
+      // 石地边的碎石和草丛
+      for (let i = 0; i < 46; i++) {
+        const a = rnd() * Math.PI * 2;
+        const x = cx + Math.cos(a) * 222;
+        const y = cy + Math.sin(a) * 102;
+        this._boulder(ctx, x, y, 3 + rnd() * 5, rnd);
+      }
+      for (let i = 0; i < 45; i++) {
+        const x = ARENA.left + 26 + rnd() * (ARENA.right - ARENA.left - 52);
+        const y = ARENA.top + 26 + rnd() * (ARENA.bottom - ARENA.top - 52);
+        if (((x - cx) / 200) ** 2 + ((y - cy) / 92) ** 2 < 0.8) continue;
+        if (rnd() < 0.5) {
+          ctx.fillStyle = '#4b6038';
+          ctx.fillRect(Math.floor(x), Math.floor(y), 1, 3);
+          ctx.fillRect(Math.floor(x) + 2, Math.floor(y) + 1, 1, 2);
+        } else {
+          this._boulder(ctx, x, y, 3 + rnd() * 4, rnd);
+        }
+      }
+
+      // 边界的松林
+      ctx.fillStyle = '#1a2d1b';
+      ctx.fillRect(0, 0, GAME_W, ARENA.top);
+      ctx.fillRect(0, ARENA.bottom, GAME_W, GAME_H - ARENA.bottom);
+      ctx.fillRect(0, 0, ARENA.left, GAME_H);
+      ctx.fillRect(ARENA.right, 0, GAME_W - ARENA.right, GAME_H);
+
+      for (let x = -10; x < GAME_W + 10; x += 24) {
+        this._pine(ctx, x + rnd() * 10, ARENA.top - 10 - rnd() * 10, 20 + rnd() * 16, rnd);
+        this._pine(ctx, x + rnd() * 10, ARENA.bottom + 12 + rnd() * 10, 20 + rnd() * 16, rnd);
+      }
+      for (let y = -10; y < GAME_H + 10; y += 26) {
+        this._pine(ctx, ARENA.left - 12 - rnd() * 10, y + rnd() * 10, 20 + rnd() * 16, rnd);
+        this._pine(ctx, ARENA.right + 12 + rnd() * 10, y + rnd() * 10, 20 + rnd() * 16, rnd);
+      }
+      this._pine(ctx, 16, 14, 44, rnd);
+      this._pine(ctx, GAME_W - 16, 14, 44, rnd);
+      this._pine(ctx, 16, GAME_H - 10, 48, rnd);
+      this._pine(ctx, GAME_W - 16, GAME_H - 10, 48, rnd);
+
+      // 场地内零散大石与松树
+      const spots = [[190, 180], [760, 170], [150, 400], [820, 395], [680, 165], [280, 155]];
+      spots.forEach(([x, y]) => {
+        if (rnd() < 0.5) this._pine(ctx, x, y, 18 + rnd() * 10, rnd);
+        else this._boulder(ctx, x, y, 8 + rnd() * 6, rnd);
+      });
+
+      const innerW = ARENA.right - ARENA.left;
+      const innerH = ARENA.bottom - ARENA.top;
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = `rgba(7,16,8,${0.22 - i * 0.034})`;
+        ctx.fillRect(ARENA.left + i * 3, ARENA.top + i * 3, innerW - i * 6, 2);
+        ctx.fillRect(ARENA.left + i * 3, ARENA.top + i * 3, 2, innerH - i * 6);
+        ctx.fillRect(ARENA.right - i * 3 - 2, ARENA.top + i * 3, 2, innerH - i * 6);
+        ctx.fillRect(ARENA.left + i * 3, ARENA.bottom - i * 3 - 2, innerW - i * 6, 2);
+      }
+      ctx.strokeStyle = 'rgba(170,200,150,0.22)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ARENA.left + 1, ARENA.top + 1, innerW - 2, innerH - 2);
+    });
+  },
+
+  _pine(ctx, x, y, r, rnd) {
+    ctx.fillStyle = '#3a2618';
+    ctx.fillRect(Math.round(x - 1), Math.round(y + 1), 3, 6);
+    const cols = ['#1c3a1d', '#285126', '#356b2c', '#4a853a'];
+    for (let layer = 0; layer < 4; layer++) {
+      const w = r * (1 - layer * 0.2);
+      const top = y - r * 0.75 + layer * r * 0.28;
+      ctx.fillStyle = cols[Math.min(cols.length - 1, layer)];
+      for (let dy = 0; dy < r * 0.36; dy += 2) {
+        const half = (w / 2) * (dy / (r * 0.36));
+        ctx.fillRect(Math.round(x - half), Math.round(top + dy), Math.max(1, Math.round(half * 2)), 2);
+      }
+    }
+    if (rnd && rnd() < 0.3) {
+      ctx.fillStyle = '#6aa64a';
+      ctx.fillRect(Math.round(x - r * 0.2), Math.round(y - r * 0.55), 2, 2);
+    }
+  },
+
+  _boulder(ctx, x, y, r, rnd) {
+    this._ellipse(ctx, x, y, r, r * 0.72, '#3a3a30', 1);
+    this._ellipse(ctx, x, y - 1, r * 0.86, r * 0.6, '#777264', 1);
+    this._ellipse(ctx, x - r * 0.2, y - r * 0.18, r * 0.42, r * 0.28, '#9a9586', 1);
+    if (rnd && rnd() < 0.4) {
+      ctx.fillStyle = '#4f4b42';
+      ctx.fillRect(Math.round(x - r * 0.5), Math.round(y + r * 0.2), Math.max(1, Math.round(r * 0.6)), 2);
+    }
+  },
+
   _ellipse(ctx, cx, cy, rx, ry, color, step, rnd, jitter) {
     const s = step || 1;
     ctx.fillStyle = color;
@@ -332,7 +470,68 @@ const Art = {
     this._bow(scene);
     this._mushroom(scene);
     this._boar(scene);
+    this._goat(scene);
+    this._crown(scene);
     this._coins(scene);
+  },
+
+  _goat(scene) {
+    this._canvas(scene, 'goat_0', 18, 16, (ctx) => {
+      // 腿
+      ctx.fillStyle = '#4a4a44';
+      ctx.fillRect(3, 11, 2, 5);
+      ctx.fillRect(7, 11, 2, 5);
+      ctx.fillRect(12, 11, 2, 5);
+      ctx.fillRect(15, 11, 2, 5);
+      // 身体轮廓和身体
+      this._ellipse(ctx, 9, 9, 7.3, 4.6, '#2a2a24', 1);
+      this._ellipse(ctx, 9, 9, 6.7, 4.0, '#d8d0c0', 1);
+      // 腹部阴影
+      this._ellipse(ctx, 9, 11, 5.5, 2.2, '#b8b0a0', 1);
+      // 头
+      this._ellipse(ctx, 15, 7, 3.8, 3.2, '#2a2a24', 1);
+      this._ellipse(ctx, 15, 7, 3.2, 2.7, '#e8e0d0', 1);
+      // 羊角
+      ctx.fillStyle = '#8a806a';
+      ctx.fillRect(13, 2, 2, 4);
+      ctx.fillRect(12, 1, 2, 2);
+      ctx.fillRect(16, 2, 2, 4);
+      ctx.fillRect(17, 1, 2, 2);
+      ctx.fillStyle = '#c8c0a8';
+      ctx.fillRect(13, 2, 1, 3);
+      ctx.fillRect(16, 2, 1, 3);
+      // 眼睛和胡须
+      ctx.fillStyle = '#d94f3d';
+      ctx.fillRect(15, 6, 1, 1);
+      ctx.fillStyle = '#f4f0e0';
+      ctx.fillRect(16, 9, 2, 1);
+      ctx.fillRect(16, 10, 1, 2);
+    }, 2);
+  },
+
+  _crown(scene) {
+    this._canvas(scene, 'crown', 20, 12, (ctx) => {
+      ctx.fillStyle = '#5a3a12';
+      ctx.fillRect(3, 4, 14, 7);
+      ctx.fillRect(4, 2, 3, 4);
+      ctx.fillRect(9, 0, 3, 6);
+      ctx.fillRect(14, 2, 3, 4);
+      ctx.fillStyle = '#e8b54a';
+      ctx.fillRect(3, 4, 14, 6);
+      ctx.fillRect(4, 1, 2, 4);
+      ctx.fillRect(9, 0, 2, 5);
+      ctx.fillRect(14, 1, 2, 4);
+      ctx.fillStyle = '#ffe08a';
+      ctx.fillRect(4, 4, 12, 1);
+      ctx.fillRect(5, 1, 1, 3);
+      ctx.fillRect(9, 0, 1, 4);
+      ctx.fillRect(14, 1, 1, 3);
+      ctx.fillStyle = '#d94f3d';
+      ctx.fillRect(9, 6, 2, 2);
+      ctx.fillStyle = '#8fd463';
+      ctx.fillRect(6, 6, 2, 2);
+      ctx.fillRect(12, 6, 2, 2);
+    }, 2);
   },
 
   _mushroom(scene) {
@@ -525,6 +724,45 @@ const Art = {
       ctx.fillRect(3, 3, 1, 2);
       ctx.fillStyle = '#5a3a22';
       ctx.fillRect(1, 4, 2, 1);
+    }, 2);
+
+    this._canvas(scene, 'weapon_axe', 18, 14, (ctx) => {
+      ctx.fillStyle = '#3a2313';
+      ctx.fillRect(2, 6, 12, 2);
+      ctx.fillStyle = '#7a4a21';
+      ctx.fillRect(2, 6, 11, 1);
+      ctx.fillStyle = '#2a1a12';
+      ctx.fillRect(10, 1, 7, 11);
+      ctx.fillStyle = '#c9d0de';
+      ctx.fillRect(11, 2, 5, 9);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(12, 3, 3, 2);
+      ctx.fillStyle = '#8a94a8';
+      ctx.fillRect(11, 7, 5, 3);
+      ctx.fillStyle = '#ff8ae8';
+      ctx.fillRect(12, 5, 2, 2);
+      ctx.fillStyle = '#e8b54a';
+      ctx.fillRect(9, 5, 2, 4);
+      ctx.fillStyle = '#5a3a22';
+      ctx.fillRect(2, 6, 2, 3);
+    }, 2);
+
+    this._canvas(scene, 'weapon_orb', 18, 14, (ctx) => {
+      ctx.fillStyle = '#3a2313';
+      ctx.fillRect(1, 6, 11, 2);
+      ctx.fillStyle = '#7a4a21';
+      ctx.fillRect(1, 6, 10, 1);
+      ctx.fillStyle = '#2a1a12';
+      this._ellipse(ctx, 13, 7, 4.4, 4.4, '#2a1a12', 1);
+      ctx.fillStyle = '#b07bff';
+      this._ellipse(ctx, 13, 7, 3.6, 3.6, '#b07bff', 1);
+      ctx.fillStyle = '#d8c8ff';
+      this._ellipse(ctx, 12, 6, 1.7, 1.5, '#d8c8ff', 1);
+      ctx.fillStyle = '#8fd463';
+      ctx.fillRect(12, 4, 2, 1);
+      ctx.fillRect(15, 8, 1, 2);
+      ctx.fillStyle = '#e8b54a';
+      ctx.fillRect(10, 5, 2, 1);
     }, 2);
 
     this._canvas(scene, 'weapon_katana', 22, 7, (ctx) => {
@@ -868,6 +1106,22 @@ const Art = {
       ctx.fillRect(5, 5, 1, 1);
     }, 2);
 
+    this._canvas(scene, 'energy_pack', 14, 14, (ctx) => {
+      ctx.fillStyle = '#123d4a';
+      ctx.fillRect(1, 1, 12, 12);
+      ctx.fillStyle = '#e8fbff';
+      ctx.fillRect(2, 2, 10, 10);
+      ctx.fillStyle = '#2f9fd9';
+      ctx.fillRect(7, 3, 2, 3);
+      ctx.fillRect(5, 6, 4, 2);
+      ctx.fillRect(6, 8, 2, 3);
+      ctx.fillStyle = '#9fe8ff';
+      ctx.fillRect(6, 4, 1, 2);
+      ctx.fillRect(5, 6, 2, 1);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(3, 3, 2, 1);
+    }, 2);
+
     this._canvas(scene, 'sword', 7, 22, (ctx) => {
       ctx.fillStyle = '#20242e';
       ctx.fillRect(2, 0, 3, 16);
@@ -916,6 +1170,35 @@ const Art = {
         ctx.fillRect(Math.round(x - 2), Math.round(y - 2), 4, 4);
       }
     });
+
+    this._canvas(scene, 'charged_arrow', 28, 8, (ctx) => {
+      ctx.fillStyle = 'rgba(176,123,255,0.35)';
+      ctx.fillRect(2, 2, 24, 4);
+      ctx.fillStyle = '#3a2a4a';
+      ctx.fillRect(4, 3, 18, 2);
+      ctx.fillStyle = '#b07bff';
+      ctx.fillRect(5, 3, 15, 1);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(20, 2, 3, 4);
+      ctx.fillRect(23, 3, 3, 2);
+      ctx.fillStyle = '#d8c8ff';
+      ctx.fillRect(2, 2, 3, 1);
+      ctx.fillRect(2, 5, 3, 1);
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(6, 2, 1, 1);
+    }, 2);
+
+    this._canvas(scene, 'rock', 16, 14, (ctx) => {
+      this._ellipse(ctx, 8, 8, 7, 5.5, '#2a2a24', 1);
+      this._ellipse(ctx, 8, 8, 6.4, 5, '#6a6258', 1);
+      this._ellipse(ctx, 7, 7, 4.5, 3.2, '#8a8274', 1);
+      ctx.fillStyle = '#a8a090';
+      ctx.fillRect(5, 5, 3, 2);
+      ctx.fillRect(10, 6, 2, 1);
+      ctx.fillStyle = '#4a443c';
+      ctx.fillRect(6, 10, 5, 2);
+      ctx.fillRect(11, 9, 2, 2);
+    }, 2);
 
     this._canvas(scene, 'slash', 96, 96, (ctx) => {
       for (let a = -0.95; a <= 0.95; a += 0.028) {

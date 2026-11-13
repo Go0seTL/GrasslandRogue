@@ -189,6 +189,17 @@ const Sfx = {
     this._tone(420, 0.5, { type: 'sine', vol: 0.06, slide: 1200 });
     this._noise(0.3, { filter: 1600, filterSlide: 4200, vol: 0.04, q: 1.2 });
   },
+  energy() {
+    this._tone(520, 0.1, { type: 'sine', vol: 0.04, slide: 880 });
+    this._tone(880, 0.12, { type: 'triangle', vol: 0.03, delay: 0.06, slide: 1320 });
+  },
+  bowDraw() {
+    this._tone(260, 0.45, { type: 'triangle', vol: 0.025, slide: 520 });
+  },
+  bowRelease() {
+    this._tone(640, 0.16, { type: 'sawtooth', vol: 0.045, slide: 160 });
+    this._noise(0.12, { filter: 2200, filterSlide: 600, vol: 0.05, q: 1.1 });
+  },
 
   // —— 背景音乐：简单 8-bit 循环 ——
   startMusic() {

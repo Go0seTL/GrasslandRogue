@@ -6,6 +6,7 @@ const Store = {
     unlocked: ['gunner'],
     ownedWeapons: ['pistol', 'knife'],
     fragments: {},
+    charLevels: {},
     swordsmanPurchased: false,
     muted: false,
     activationUsed: false,
@@ -39,6 +40,10 @@ const Store = {
     Object.keys(WEAPONS).forEach((id) => {
       if (WEAPONS[id].quality === 'white') return;
       if (typeof this.data.fragments[id] !== 'number') this.data.fragments[id] = 0;
+    });
+    if (!this.data.charLevels || typeof this.data.charLevels !== 'object') this.data.charLevels = {};
+    CHAR_DEFS.forEach((def) => {
+      if (typeof this.data.charLevels[def.id] !== 'number') this.data.charLevels[def.id] = 0;
     });
     this.data.coins = Math.max(0, Number(this.data.coins) || 0);
     return this.data;
@@ -76,6 +81,24 @@ const Store = {
 
   hasWeapon(id) {
     return this.data.ownedWeapons.includes(id);
+  },
+
+  getCharLevel(id) {
+    if (!this.data.charLevels) this.data.charLevels = {};
+    return this.data.charLevels[id] || 0;
+  },
+
+  charUpgradeCost(id) {
+    return 200 * Math.pow(2, this.getCharLevel(id));
+  },
+
+  upgradeChar(id) {
+    const cost = this.charUpgradeCost(id);
+    if (this.data.coins < cost) return false;
+    this.data.coins -= cost;
+    this.data.charLevels[id] = this.getCharLevel(id) + 1;
+    this.save();
+    return true;
   },
 
   updateBest(round, stage, kills) {

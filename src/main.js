@@ -53,3 +53,9 @@ function unlockAudio() {
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 window.addEventListener('keydown', unlockAudio, { once: true });
+
+// 切后台 / 关闭页面时把金币、碎片等脏数据立即落盘
+window.addEventListener('pagehide', () => Store.flush());
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) Store.flush();
+});

@@ -41,6 +41,9 @@ class CharacterSelectScene extends Phaser.Scene {
     UI.button(this, 828, 502, 194, 48, '开始冒险', () => this.startGame(), {
       fontSize: 21, once: true,
     }).setDepth(20);
+    UI.button(this, 480, 454, 220, 36, '角色升级', () => this.openCharUpgrade(), {
+      variant: 'ghost', fontSize: 15,
+    }).setDepth(20);
     this.add.text(480, 502, '金币在死亡后也会保留，放心攒', UI.textStyle(12, {
       color: '#93a97d', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(20);
@@ -95,7 +98,8 @@ class CharacterSelectScene extends Phaser.Scene {
         label = isUnlocked ? '已解锁 · 制作中' : `未开放 · ${def.price} 金币`;
         color = isUnlocked ? '#ffd76a' : '#8b927d';
       } else if (isUnlocked) {
-        label = def.price === 0 ? '免费 · 已解锁' : '已解锁';
+        const lvl = Store.getCharLevel(def.id);
+        label = (def.price === 0 ? '免费' : '已解锁') + ` · Lv.${lvl}`;
         color = '#9ff0a8';
       } else {
         label = `${def.price} 金币`;
@@ -160,6 +164,88 @@ class CharacterSelectScene extends Phaser.Scene {
     });
     hit.on('pointerup', () => this.choose(def));
     this.cards.push(card);
+  }
+
+  openCharUpgrade() {
+    if (this.upgradeOverlay) return;
+    const def = CHAR_DEFS.find((d) => d.id === this.selectedId);
+    if (!def || !def.playable) {
+      Sfx.uiDeny();
+      this.toast.show('这个角色还没有完成', '#ffd0a0');
+      return;
+    }
+    if (!Store.isUnlocked(def.id)) {
+      Sfx.uiDeny();
+      this.toast.show(`先花 ${def.price} 金币解锁「${def.name}」`, '#ffd0a0');
+      return;
+    }
+
+    const root = this.add.container(0, 0).setDepth(5000);
+    const dim = this.add.rectangle(0, 0, GAME_W, GAME_H, 0x000000, 0.66).setOrigin(0);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, GAME_W, GAME_H), Phaser.Geom.Rectangle.Contains);
+    const g = this.add.graphics();
+    UI.drawPanel(g, 270, 96, 420, 360, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.98 });
+    const title = this.add.text(480, 130, '角色升级', UI.textStyle(28, {
+      color: '#ffe9a8', strokeThickness: 6,
+    })).setOrigin(0.5);
+    const sub = this.add.text(480, 158, def.name, UI.textStyle(15, {
+      color: '#b9cba0', strokeThickness: 3,
+    })).setOrigin(0.5);
+    const stats = this.add.text(318, 184, '', UI.textStyle(13, {
+      color: '#dfe8c8', strokeThickness: 3, bold: false, align: 'left', shadow: false,
+    })).setOrigin(0, 0);
+    stats.setLineSpacing(8);
+    const cost = this.add.text(480, 338, '', UI.textStyle(14, {
+      color: '#ffe9a8', strokeThickness: 3,
+    })).setOrigin(0.5);
+    const wallet = this.add.text(480, 360, '', UI.textStyle(12, {
+      color: '#b9cba0', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0.5);
+    const msg = this.add.text(480, 382, '', UI.textStyle(10, {
+      color: '#ffb09a', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0.5);
+
+    const refresh = () => {
+      const lvl = Store.getCharLevel(def.id);
+      const upgradeCost = Store.charUpgradeCost(def.id);
+      const hp = BALANCE.playerHP + lvl * 10;
+      const energy = BALANCE.playerEnergy + lvl * 10;
+      const dmg = lvl * 4;
+      const aspd = Math.min(55, lvl * 2);
+      stats.setText(
+        `等级        Lv.${lvl}\n` +
+        `生命上限    ${hp}\n` +
+        `能量上限    ${energy}\n` +
+        `攻击/技能   +${dmg}%\n` +
+        `攻击速度    +${aspd}%`
+      );
+      cost.setText(`升级消耗：${upgradeCost} 金币`);
+      cost.setColor(Store.data.coins >= upgradeCost ? '#ffe9a8' : '#ff9a8a');
+      wallet.setText(`当前金币：${Store.data.coins}`);
+    };
+
+    const upBtn = UI.button(this, 480, 410, 200, 38, '升 级', () => {
+      if (Store.upgradeChar(def.id)) {
+        Sfx.unlock();
+        msg.setText('升级成功！').setColor('#9ff0a8');
+        refresh();
+        this.refreshCards();
+        this.walletText.setText(String(Store.data.coins));
+      } else {
+        Sfx.uiDeny();
+        msg.setText('金币不足').setColor('#ffb09a');
+        refresh();
+      }
+    }, { fontSize: 16 });
+    const closeBtn = UI.button(this, 480, 436, 150, 24, '关 闭', () => {
+      root.destroy();
+      this.upgradeOverlay = null;
+    }, { variant: 'ghost', fontSize: 11 });
+
+    root.add([dim, g, title, sub, stats, cost, wallet, msg, upBtn, closeBtn]);
+    root.setDepth(5000);
+    this.upgradeOverlay = root;
+    refresh();
   }
 
   choose(def) {
