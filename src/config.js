@@ -31,7 +31,7 @@ const BALANCE = {
   bossClearHeal: 28,
 };
 
-// 枪手技能：锁定最近 3 名敌人，机枪扫射 3 秒
+// 枪手技能：锁定最近 3 名敌人，用当前手持武器自动攻击 3 秒
 const SKILL = {
   duration: 3000,
   cooldown: 12000,

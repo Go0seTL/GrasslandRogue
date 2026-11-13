@@ -135,7 +135,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.secondaryGun.setVisible(false);
     }
 
-    // 开火（枪手技能扫射期间由技能接管）
+    // 开火（枪手技能自动攻击期间由技能接管）
     const weapon = scene.weapon || WEAPONS.pistol;
     const firing = scene.canPlayerAct() && scene.wantsToFire();
     if (!scene.isAimLockSkillActive()) {
