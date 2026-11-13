@@ -40,6 +40,7 @@ const gameConfig = {
     ForgeScene,
     UpgradeScene,
     CharUpgradeScene,
+    InventoryScene,
   ],
 };
 

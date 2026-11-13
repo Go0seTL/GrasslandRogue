@@ -159,6 +159,66 @@ const SWORDSMAN_PALETTE = {
 SPRITE_DATA.swordsman_idle = { palette: SWORDSMAN_PALETTE, rows: SPRITE_DATA.player_idle.rows };
 SPRITE_DATA.swordsman_walk = { palette: SWORDSMAN_PALETTE, rows: SPRITE_DATA.player_walk.rows };
 
+// 科学怪人：绿色皮肤、黑色头发、护目镜、白色实验服、脖子两侧金属螺栓
+const FRANKENSTEIN_PALETTE = {
+  o: '#1c1a16', H: '#2a2830', h: '#403d4a',
+  s: '#8fcf6a', S: '#6fae4d', w: '#f4f0d8', e: '#ffdf6b',
+  C: '#d8d8c8', c: '#a8b0a0', b: '#9aa0a8',
+  p: '#3c3a4a', P: '#55536a', t: '#4a3020', T: '#6b4a30',
+};
+
+SPRITE_DATA.frankenstein_idle = {
+  palette: FRANKENSTEIN_PALETTE,
+  rows: [
+    '......oooooo......',
+    '....ooHHHHHHoo....',
+    '...oHHHHHHHHHHo...',
+    '...oHhhhhhhhhHo...',
+    '..oHHHHHHHHHHHHo..',
+    '.oHHHHHHHHHHHHHHo.',
+    '.oooooooooooooooo.',
+    '...osssssssssso...',
+    '..obssssssssssbo..',
+    '...oswessssweso...',
+    '...osssssssssso...',
+    '...osSssssssSso...',
+    '..oCCccccccccCCo..',
+    '..occcccccccccco..',
+    '.occcCccccccCccco.',
+    '.osccccccccccccso.',
+    '..oCCCCCCCCCCCCo..',
+    '...oppppppppppo...',
+    '..otttto..otttto..',
+    '..oTTTTo..oTTTTo..',
+  ],
+};
+
+SPRITE_DATA.frankenstein_walk = {
+  palette: FRANKENSTEIN_PALETTE,
+  rows: [
+    '......oooooo......',
+    '....ooHHHHHHoo....',
+    '...oHHHHHHHHHHo...',
+    '...oHhhhhhhhhHo...',
+    '..oHHHHHHHHHHHHo..',
+    '.oHHHHHHHHHHHHHHo.',
+    '.oooooooooooooooo.',
+    '...osssssssssso...',
+    '..obssssssssssbo..',
+    '...oswessssweso...',
+    '...osssssssssso...',
+    '...osSssssssSso...',
+    '..oCCccccccccCCo..',
+    '..occcccccccccco..',
+    '.occcCccccccCccco.',
+    '.osccccccccccccso.',
+    '..oCCCCCCCCCCCCo..',
+    '...oppppppppppo...',
+    '.otttto....otttto.',
+    '.oTTTTo....oTTTTo.',
+  ],
+};
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = SPRITE_DATA;
 }

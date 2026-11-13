@@ -200,6 +200,24 @@ const Sfx = {
     this._tone(640, 0.16, { type: 'sawtooth', vol: 0.045, slide: 160 });
     this._noise(0.12, { filter: 2200, filterSlide: 600, vol: 0.05, q: 1.1 });
   },
+  giantPunch() {
+    this._tone(95, 0.2, { type: 'sawtooth', vol: 0.07, slide: 48 });
+    this._noise(0.15, { filter: 520, filterSlide: 140, vol: 0.09, filterType: 'lowpass', q: 0.9 });
+    this._tone(360, 0.06, { type: 'square', vol: 0.025, slide: 140 });
+  },
+  laserCharge() {
+    this._tone(520, 0.32, { type: 'sawtooth', vol: 0.035, slide: 1350 });
+    this._tone(880, 0.22, { type: 'sine', vol: 0.025, slide: 1700, delay: 0.08 });
+  },
+  laser() {
+    this._tone(1500, 0.22, { type: 'sawtooth', vol: 0.06, slide: 180 });
+    this._tone(260, 0.2, { type: 'square', vol: 0.04, slide: 90 });
+    this._noise(0.16, { filter: 3600, filterSlide: 500, vol: 0.05, q: 1.4 });
+  },
+  rockRain() {
+    this._tone(70, 0.6, { type: 'sawtooth', vol: 0.06, slide: 45 });
+    this._noise(0.5, { filter: 300, filterSlide: 900, vol: 0.06, filterType: 'lowpass', q: 0.8 });
+  },
 
   // —— 背景音乐：简单 8-bit 循环 ——
   startMusic() {

@@ -14,7 +14,7 @@ class CharacterSelectScene extends Phaser.Scene {
     this.add.text(480, 40, '选择角色', UI.textStyle(36, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(10);
-    this.add.text(480, 72, '枪手免费 · 剑客 800 金币 · 其余角色制作中', UI.textStyle(12, {
+    this.add.text(480, 72, '枪手免费 · 剑客 800 · 科学怪人 3000 金币 · 其余角色制作中', UI.textStyle(12, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(10);
 

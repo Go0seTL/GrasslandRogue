@@ -27,7 +27,8 @@ class UIScene extends Phaser.Scene {
 
     const gameScene = this.scene.get('Game');
     this.characterId = gameScene ? gameScene.characterId : 'gunner';
-    const portraitKey = this.characterId === 'swordsman' ? 'swordsman_idle' : 'player_idle';
+    const portraitKey = this.characterId === 'swordsman' ? 'swordsman_idle'
+      : (this.characterId === 'frankenstein' ? 'frankenstein_idle' : 'player_idle');
     this.add.image(46, 42, portraitKey).setDepth(102).setScale(0.95);
     this.add.text(82, 20, '生命', UI.textStyle(11, {
       color: '#cfd9b6', strokeThickness: 2, bold: true, shadow: false,
@@ -75,6 +76,9 @@ class UIScene extends Phaser.Scene {
     this.bossName = this.add.text(480, 92, '', UI.textStyle(14, {
       color: '#ffb09a', strokeThickness: 3,
     })).setOrigin(0.5).setDepth(121).setVisible(false);
+    this.bossName2 = this.add.text(480, 126, '', UI.textStyle(13, {
+      color: '#ffb09a', strokeThickness: 3,
+    })).setOrigin(0.5).setDepth(121).setVisible(false);
 
     this.hintText = this.add.text(480, 516, '', UI.textStyle(13, {
       color: '#dfe8c8', strokeThickness: 3, bold: false,
@@ -87,11 +91,14 @@ class UIScene extends Phaser.Scene {
     // 技能按钮
     this.skillCharacter = this.characterId;
     const isSword = this.characterId === 'swordsman';
+    const isFrankenstein = this.characterId === 'frankenstein';
     this.skillG = this.add.graphics().setDepth(3000);
-    this.skillIcon = this.add.image(884, 418, isSword ? 'sword' : 'flame_icon')
+    this.skillIcon = this.add.image(884, 418, isSword ? 'sword' : (isFrankenstein ? 'fist_icon' : 'flame_icon'))
       .setDepth(3001);
     if (isSword) {
       this.skillIcon.setScale(0.6).setRotation(-0.7);
+    } else if (isFrankenstein) {
+      this.skillIcon.setScale(1.0);
     } else {
       this.skillIcon.setScale(0.82);
     }
@@ -118,6 +125,9 @@ class UIScene extends Phaser.Scene {
     });
     this.upgradeBtn = this.createHudButton(922, 236, 54, 32, '升级', () => {
       this.scene.launch('CharUpgrade', { characterId: this.characterId });
+    });
+    this.bagBtn = this.createHudButton(922, 284, 54, 32, '背包', () => {
+      this.scene.launch('Inventory', { from: 'game' });
     });
 
     this.lastWeaponId = null;
@@ -263,12 +273,18 @@ class UIScene extends Phaser.Scene {
         : `第 ${game.round} 轮 · ${game.mapName || '草原'}`);
     }
 
-    const boss = game.boss;
-    if (boss && boss.active && !boss.dying) {
-      this.bossName.setVisible(true).setText(`${boss.bossName || 'BOSS'}   ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`);
-      const x = 250, y = 104, w = 460, h = 16;
+    const bosses = game.enemies
+      ? game.enemies.getChildren().filter((e) => e.isBoss && e.active && !e.dying).slice(0, 2)
+      : [];
+    this.bossG.clear();
+    this.bossName.setVisible(false);
+    this.bossName2.setVisible(false);
+    bosses.forEach((boss, i) => {
+      const x = 250, y = 104 + i * 34, w = 460, h = 16;
+      const nameText = i === 0 ? this.bossName : this.bossName2;
+      nameText.setVisible(true).setPosition(480, y - 12)
+        .setText(`${boss.bossName || 'BOSS'}   ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`);
       const g = this.bossG;
-      g.clear();
       g.fillStyle(0x0b1208, 0.92);
       g.fillRect(x, y, w, h);
       const pct = clamp(boss.hp / boss.maxHp, 0, 1);
@@ -281,11 +297,8 @@ class UIScene extends Phaser.Scene {
       g.lineStyle(2, 0xd9b45a, 1);
       g.strokeRect(x, y, w, h);
       g.lineStyle(1, 0x0b1208, 0.4);
-      for (let i = 1; i < 12; i++) g.lineBetween(x + (w / 12) * i, y + 2, x + (w / 12) * i, y + h - 2);
-    } else {
-      this.bossG.clear();
-      this.bossName.setVisible(false);
-    }
+      for (let j = 1; j < 12; j++) g.lineBetween(x + (w / 12) * j, y + 2, x + (w / 12) * j, y + h - 2);
+    });
 
     while (game.hud.bannerQueue.length > 0) {
       this.showBanner(game.hud.bannerQueue.shift());
@@ -308,20 +321,29 @@ class UIScene extends Phaser.Scene {
       this.tweens.add({ targets: this.redVignette, alpha: 0, duration: 480, ease: 'Sine.Out' });
     }
 
+    const giantActive = !!(game.characterId === 'frankenstein'
+      && game.skill && game.skill.active && game.skill.type === 'giant');
+    const weaponViewKey = giantActive ? '__giant__' : game.weaponId;
     const weapon = game.weapon;
-    if (weapon && game.weaponId !== this.lastWeaponId) {
-      this.lastWeaponId = game.weaponId;
-      this.weaponIcon.setTexture(weapon.texture).setScale(weapon.iconScale || 1.35);
-      this.weaponName.setText(weapon.name);
-      if (this.weaponSub) {
-        if (weapon.melee) this.weaponSub.setText(`近战 · ${weapon.energyCost} 能量/次`);
-        else if (weapon.charge) this.weaponSub.setText(`蓄力 · ${weapon.energyCost} 能量/发`);
-        else if (!weapon.energyCost) this.weaponSub.setText('无限弹药 · 不耗能量');
-        else this.weaponSub.setText(`无限弹药 · ${weapon.energyCost} 能量/发`);
+    if (weapon && weaponViewKey !== this.lastWeaponId) {
+      this.lastWeaponId = weaponViewKey;
+      if (giantActive) {
+        this.weaponIcon.setTexture('giant_fist').setScale(1.15);
+        this.weaponName.setText('巨人铁拳');
+        if (this.weaponSub) this.weaponSub.setText('近战 · 高伤害');
+      } else {
+        this.weaponIcon.setTexture(weapon.texture).setScale(weapon.iconScale || 1.35);
+        this.weaponName.setText(weapon.name);
+        if (this.weaponSub) {
+          if (weapon.melee) this.weaponSub.setText(`近战 · ${weapon.energyCost} 能量/次`);
+          else if (weapon.charge) this.weaponSub.setText(`蓄力 · ${weapon.energyCost} 能量/发`);
+          else if (!weapon.energyCost) this.weaponSub.setText('无限弹药 · 不耗能量');
+          else this.weaponSub.setText(`无限弹药 · ${weapon.energyCost} 能量/发`);
+        }
       }
     }
 
-    const secondary = game.dualWield ? game.secondaryWeapon : null;
+    const secondary = game.dualWield && !giantActive ? game.secondaryWeapon : null;
     if (secondary) {
       if (game.secondaryId !== this.lastSecondaryId) {
         this.lastSecondaryId = game.secondaryId;
@@ -374,14 +396,16 @@ class UIScene extends Phaser.Scene {
       g.strokeCircle(x, y, r - 5);
     }
 
-    const baseScale = this.skillCharacter === 'swordsman' ? 0.6 : 0.82;
+    const baseScale = this.skillCharacter === 'swordsman' ? 0.6
+      : (this.skillCharacter === 'frankenstein' ? 1.0 : 0.82);
     this.skillIcon.setAlpha(state === 'cool' ? 0.42 : 1);
     this.skillIcon.setTint(state === 'ready' ? 0xffffff : (state === 'active' ? 0xffe08a : 0x8f9a84));
     this.skillIcon.setScale(state === 'active'
       ? baseScale * (1.1 + Math.sin(now * 0.02) * 0.1)
       : baseScale);
     this.skillState.setText(state === 'active'
-      ? (this.skillCharacter === 'swordsman' ? '剑阵中' : '射击中')
+      ? (this.skillCharacter === 'swordsman' ? '剑阵中'
+        : (this.skillCharacter === 'frankenstein' ? '巨人中' : '射击中'))
       : (state === 'cool'
         ? `${Math.ceil((s.cooldownUntil - now) / 1000)}s`
         : (game.touchMode ? '技能' : 'E · 技能')));

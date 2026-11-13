@@ -73,6 +73,12 @@ class GameScene extends Phaser.Scene {
     }
     this.lastEnergyWarn = 0;
     this.ghost = null;
+    this.giantAura = null;
+    this.visionUntil = 0;
+    this.visionRadius = 120;
+    this.visionOverlay = null;
+    this.visionMask = null;
+    this.visionMaskG = null;
     this.dualWield = cp ? !!cp.dualWield : false;
     this.secondaryId = cp && cp.secondaryId && WEAPONS[cp.secondaryId] ? cp.secondaryId : null;
     this.secondaryWeapon = this.secondaryId ? WEAPONS[this.secondaryId] : null;
@@ -80,6 +86,7 @@ class GameScene extends Phaser.Scene {
     this.lastUpgradeRound = 0;
     this.startUpgradeShown = false;
     this.fragmentPity = 0;
+    this.slimeStaffShots = 0;
 
     this.portal = null;
     this.boss = null;
@@ -516,6 +523,7 @@ class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------ 房间流程
 
   startRoom(round, stage) {
+    this.clearVision();
     this.round = round;
     this.stage = stage;
     this.enemyLevel = levelIndex(round, stage);
@@ -590,6 +598,51 @@ class GameScene extends Phaser.Scene {
     Store.save();
   }
 
+  startVisionShrink(duration, radius) {
+    this.visionUntil = Math.max(this.visionUntil || 0, this.time.now + duration);
+    this.visionRadius = radius || 120;
+    if (!this.visionOverlay) {
+      this.visionMaskG = this.make.graphics({ x: 0, y: 0, add: false });
+      this.visionMask = this.visionMaskG.createGeometryMask();
+      this.visionMask.invertAlpha = true;
+      this.visionOverlay = this.add.rectangle(0, 0, GAME_W, GAME_H, 0x000000, 0.94)
+        .setOrigin(0)
+        .setDepth(880)
+        .setScrollFactor(0)
+        .setMask(this.visionMask);
+    }
+  }
+
+  updateVision() {
+    if (!this.visionUntil) return;
+    if (this.time.now >= this.visionUntil) {
+      this.clearVision();
+      return;
+    }
+    if (this.visionMaskG && this.player) {
+      this.visionMaskG.clear();
+      this.visionMaskG.fillStyle(0xffffff, 1);
+      this.visionMaskG.fillCircle(this.player.x, this.player.y - 4, this.visionRadius);
+    }
+  }
+
+  clearVision() {
+    this.visionUntil = 0;
+    if (this.visionOverlay) {
+      this.visionOverlay.clearMask();
+      this.visionOverlay.destroy();
+      this.visionOverlay = null;
+    }
+    if (this.visionMask) {
+      this.visionMask.destroy();
+      this.visionMask = null;
+    }
+    if (this.visionMaskG) {
+      this.visionMaskG.destroy();
+      this.visionMaskG = null;
+    }
+  }
+
   clearRoomObjects() {
     this.enemies.getChildren().slice().forEach((e) => {
       if (e.active) e.destroy();
@@ -626,12 +679,13 @@ class GameScene extends Phaser.Scene {
     for (let i = 0; i < total; i++) {
       const r = Math.random();
       let type = 'slime';
-      // 第二轮加入蘑菇射手/冲锋野猪，第三轮加入山羊精
-      if (round >= 3 && r < 0.14) type = 'goat';
-      else if (round >= 2 && r < 0.30) type = 'mushroom';
-      else if (round >= 2 && r < 0.46) type = 'boar';
-      else if (n >= 4 && r < 0.62) type = 'bat';
-      else if (n >= 2 && r < 0.82) type = 'goblin';
+      // 第二轮加入蘑菇射手/冲锋野猪，第三轮加入山羊精，第六轮加入亡灵
+      if (round >= 6 && r < 0.10) type = 'ghost';
+      else if (round >= 3 && r < 0.24) type = 'goat';
+      else if (round >= 2 && r < 0.38) type = 'mushroom';
+      else if (round >= 2 && r < 0.52) type = 'boar';
+      else if (n >= 4 && r < 0.66) type = 'bat';
+      else if (n >= 2 && r < 0.84) type = 'goblin';
       else type = 'slime';
       types.push(type);
     }
@@ -687,6 +741,14 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(750, () => {
       if (!this.scene.isActive() || this.roomState !== 'fighting') return;
       this.pendingSpawns = 0;
+      if (spec.kind === 'bat_combo') {
+        this.spawnBossCombo();
+        return;
+      }
+      if (spec.kind === 'goat_combo') {
+        this.spawnBossCombo6();
+        return;
+      }
       this.spawnBoss(spec);
       this.spawnEnemyAt('slime', 300, 250, true);
       this.spawnEnemyAt('slime', 660, 250, true);
@@ -694,11 +756,51 @@ class GameScene extends Phaser.Scene {
   }
 
   bossSpecForRound(round) {
+    if (round === 5) return { kind: 'bat_combo', elite: true };
+    if (round === 6) return { kind: 'goat_combo', elite: true };
     const r = ((round - 1) % 4) + 1;
     if (r === 1) return { kind: 'slime', elite: false };
     if (r === 2) return { kind: 'boar', elite: false };
     if (r === 3) return { kind: Math.random() < 0.5 ? 'slime' : 'boar', elite: true };
     return { kind: 'mushroom', elite: false };
+  }
+
+  spawnBossCombo() {
+    const mushroom = new MushroomFiendBoss(this, 350, 225, this.enemyLevel, true);
+    const bat = new BatKingBoss(this, 610, 205, this.enemyLevel, false);
+    [mushroom, bat].forEach((boss) => {
+      this.enemies.add(boss);
+      boss.setAlpha(1);
+    });
+    this.boss = bat;
+    this.cameras.main.shake(360, 0.009);
+    Sfx.bossRoar();
+    this.hud.toastQueue.push('精英蘑菇怪客 与 蝙蝠王 出现了！');
+    this.fx.ring(mushroom.x, mushroom.y, 0xb07bff, 0.3, 2.2, 700, 0.9, 745);
+    this.fx.ring(bat.x, bat.y, 0xff8a6a, 0.3, 2.2, 700, 0.9, 745);
+  }
+
+  spawnBossCombo6() {
+    const goat = new GoatKingBoss(this, 350, 220, this.enemyLevel, false);
+    let king;
+    const roll = Math.random();
+    if (roll < 1 / 3) {
+      king = new Boss(this, 610, 205, this.enemyLevel, true);
+    } else if (roll < 2 / 3) {
+      king = new BoarKingBoss(this, 610, 205, this.enemyLevel, true);
+    } else {
+      king = new MushroomFiendBoss(this, 610, 215, this.enemyLevel, true);
+    }
+    [goat, king].forEach((boss) => {
+      this.enemies.add(boss);
+      boss.setAlpha(1);
+    });
+    this.boss = king;
+    this.cameras.main.shake(380, 0.009);
+    Sfx.bossRoar();
+    this.hud.toastQueue.push(`山羊王 与 ${king.bossName} 出现了！`);
+    this.fx.ring(goat.x, goat.y, 0xd9b45a, 0.3, 2.2, 700, 0.9, 745);
+    this.fx.ring(king.x, king.y, 0xff8a6a, 0.3, 2.2, 700, 0.9, 745);
   }
 
   spawnBoss(spec) {
@@ -737,7 +839,7 @@ class GameScene extends Phaser.Scene {
       this.fx.ring(x, y, 0xffd76a, 0.2, 1.5, 520, 0.9, 745);
       this.fx.floatingText(x, y - 42, '精英', '#ffd76a');
     }
-    if (instant) enemy.setAlpha(1);
+    if (instant) enemy.setAlpha(enemy.enemyType === 'ghost' ? 0.06 : 1);
     return enemy;
   }
 
@@ -870,6 +972,7 @@ class GameScene extends Phaser.Scene {
     b.hitEnemies = new Set();
     b.qualityColor = o.color == null ? 0xffe066 : o.color;
     b.qualityPower = o.power || 0;
+    b.burn = o.burn || null;
     b.bornAt = this.time.now;
     return b;
   }
@@ -1032,13 +1135,32 @@ class GameScene extends Phaser.Scene {
     return true;
   }
 
-  spawnFallingRock(x, y) {
-    // 落点红圈：先亮起、收缩，再落石
-    const disc = this.add.circle(x, y, 30, 0xff3a2a, 0.18)
+  summonBoarAxeRain(player) {
+    if (!player || player.isDead) return;
+    const count = BOAR_AXE.rockCount;
+    for (let i = 0; i < count; i++) {
+      const x = Phaser.Math.Clamp(player.x + rand(-220, 220), ARENA.left + 46, ARENA.right - 46);
+      const y = Phaser.Math.Clamp(player.y + rand(-155, 155), ARENA.top + 70, ARENA.bottom - 40);
+      this.time.delayedCall(i * 75, () => {
+        if (!this.scene.isActive() || !this.player || this.player.isDead) return;
+        this.spawnFallingRock(x, y, true);
+      });
+    }
+    this.cameras.main.shake(520, 0.004);
+    this.cameras.main.flash(120, 255, 180, 80);
+    this.hud.toastQueue.push('野猪王之斧：石头雨！');
+    Sfx.rockRain();
+  }
+
+  spawnFallingRock(x, y, friendly) {
+    // 落点红圈：先亮起、收缩，再落石；玩家召唤用橙色，Boss 用红色
+    const baseColor = friendly ? 0xffb15a : 0xff3a2a;
+    const edgeColor = friendly ? 0xffd76a : 0xff5a4a;
+    const disc = this.add.circle(x, y, 30, baseColor, 0.18)
       .setDepth(704)
-      .setStrokeStyle(2, 0xff5a4a, 0.95);
+      .setStrokeStyle(2, edgeColor, 0.95);
     const warn = this.add.image(x, y, 'spawnring')
-      .setTint(0xff4a3a).setScale(0.95).setAlpha(0.95).setDepth(705);
+      .setTint(friendly ? 0xffb15a : 0xff4a3a).setScale(0.95).setAlpha(0.95).setDepth(705);
     this.tweens.add({
       targets: warn, scale: 0.38, duration: 520, ease: 'Quad.In',
     });
@@ -1047,12 +1169,12 @@ class GameScene extends Phaser.Scene {
       onComplete: () => {
         warn.destroy();
         disc.destroy();
-        this.dropRock(x, y);
+        this.dropRock(x, y, friendly);
       },
     });
   }
 
-  dropRock(x, y) {
+  dropRock(x, y, friendly) {
     const rock = this.add.image(x, y - 170, 'rock').setDepth(750).setScale(0.8);
     this.tweens.add({
       targets: rock, y, duration: 250, ease: 'Quad.In',
@@ -1060,9 +1182,18 @@ class GameScene extends Phaser.Scene {
         rock.destroy();
         this.fx.dust.explode(10, x, y);
         this.fx.smoke.explode(3, x, y);
-        this.fx.ring(x, y, 0xffb15a, 0.2, 1.2, 300, 0.7, 745);
+        this.fx.ring(x, y, friendly ? 0xffd76a : 0xffb15a, 0.2, 1.2, 300, 0.7, 745);
         this.cameras.main.shake(100, 0.004);
-        if (!this.player.isDead && dist2(x, y, this.player.x, this.player.y) < 52 * 52) {
+        if (friendly) {
+          const dmg = 24 + this.round * 2;
+          this.enemies.getChildren().forEach((e) => {
+            if (!e.active || e.dying) return;
+            if (dist2(x, y, e.x, e.y) < 58 * 58) {
+              e.takeDamage(dmg, Math.atan2(e.y - y, e.x - x));
+              this.fx.weaponHit(e.x, e.y, 0xffd76a, 4);
+            }
+          });
+        } else if (!this.player.isDead && dist2(x, y, this.player.x, this.player.y) < 52 * 52) {
           this.player.takeDamage(14 + (this.round - 1) * 2, x, y, this.time.now);
         }
       },
@@ -1107,6 +1238,9 @@ class GameScene extends Phaser.Scene {
     }
     const wasBoss = enemy.isBoss;
     enemy.takeDamage(dmg, ang);
+    if (!enemy.dying && bullet.burn && enemy.applyBurn) {
+      enemy.applyBurn(bullet.burn.duration, bullet.burn.dps);
+    }
     this.fx.weaponHit(bx, by, bullet.qualityColor, bullet.qualityPower);
     if (enemy.dying) {
       this.cameras.main.shake(wasBoss ? 140 : 80, wasBoss ? 0.006 : 0.0028);
@@ -1120,8 +1254,10 @@ class GameScene extends Phaser.Scene {
     const w = WEAPONS[id];
     if (!w) return;
     if (this.player && this.player.cancelCharge) this.player.cancelCharge();
+    if (this.player && this.player.cancelAxeChannel) this.player.cancelAxeChannel();
     this.weaponId = id;
     this.weapon = w;
+    this.slimeStaffShots = 0;
     if (this.dualWield) this.pickSecondaryWeapon();
     this.hud.toastQueue.push(`已装备：${w.name}`);
     this.saveCheckpoint();
@@ -1174,9 +1310,7 @@ class GameScene extends Phaser.Scene {
     switch (id) {
       case 'big':
         this.buffs.size *= 1.10;
-        this.player.setScale(this.buffs.size);
-        if (this.player.shadow) this.player.shadow.setScale(this.buffs.size);
-        if (this.player.backSword) this.player.backSword.setScale(this.buffs.size);
+        this.player.refreshScale();
         this.player.addMaxHp(35);
         break;
       case 'swift':
@@ -1275,7 +1409,7 @@ class GameScene extends Phaser.Scene {
 
   onBossDefeated(boss) {
     if (this.boss === boss) this.boss = null;
-    this.hud.toastQueue.push('史莱姆王 被击败了！');
+    this.hud.toastQueue.push(`${boss.bossName || 'BOSS'} 被击败了！`);
   }
 
   onPlayerHurt() {
@@ -1293,6 +1427,7 @@ class GameScene extends Phaser.Scene {
   onPlayerDeath() {
     if (this.gameOverStarted) return;
     this.gameOverStarted = true;
+    this.clearVision();
     Store.data.runCheckpoint = null;
     Store.save();
     this.locked = true;
@@ -1350,8 +1485,37 @@ class GameScene extends Phaser.Scene {
       return;
     }
     if (this.player.cancelCharge) this.player.cancelCharge();
+    if (this.player.cancelAxeChannel) this.player.cancelAxeChannel();
     if (this.characterId === 'swordsman') this.activateSwordSkill();
+    else if (this.characterId === 'frankenstein') this.activateGiantSkill();
     else this.activateGunnerSkill();
+  }
+
+  activateGiantSkill() {
+    const s = this.skill;
+    const now = this.time.now;
+    s.type = 'giant';
+    s.active = true;
+    s.endsAt = now + GIANT.duration;
+    s.cooldown = GIANT.cooldown * (this.buffs.skillCd || 1);
+    s.cooldownUntil = now + s.cooldown;
+    s.duration = GIANT.duration;
+    s.targets = [];
+    s.locks = [];
+    s.swords = [];
+    s.aimTarget = null;
+    s.lastSound = 0;
+    this.player.setGiantForm(true);
+    this.giantAura = this.add.image(this.player.x, this.player.y + 8, 'glow')
+      .setTint(0x7dff5a).setScale(2.1).setAlpha(0.22)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(this.player.y - 2);
+    this.fx.ring(this.player.x, this.player.y + 6, 0x8fff5a, 0.25, 2.2, 520, 0.9, 732);
+    this.fx.sparks.explode(16, this.player.x, this.player.y);
+    this.cameras.main.shake(240, 0.007);
+    Sfx.skillStart();
+    Sfx.giantPunch();
+    this.hud.toastQueue.push('科学怪人：巨型化！10 秒内用绿色铁拳锤击敌人');
   }
 
   activateGunnerSkill() {
@@ -1436,7 +1600,22 @@ class GameScene extends Phaser.Scene {
     const s = this.skill;
     if (!s.active) return;
     if (s.type === 'sword') this.updateSwordSkill(time, delta);
+    else if (s.type === 'giant') this.updateGiantSkill(time);
     else this.updateGunnerSkill(time);
+  }
+
+  updateGiantSkill(time) {
+    const s = this.skill;
+    if (this.player.isDead || time >= s.endsAt) {
+      this.endSkill();
+      return;
+    }
+    if (this.giantAura && this.giantAura.active) {
+      this.giantAura.setPosition(this.player.x, this.player.y + 8)
+        .setDepth(this.player.y - 2);
+      this.giantAura.setAlpha(0.18 + Math.sin(time * 0.012) * 0.06);
+      this.giantAura.rotation += 0.012;
+    }
   }
 
   updateGunnerSkill(time) {
@@ -1580,8 +1759,10 @@ class GameScene extends Phaser.Scene {
         pierce: weapon.pierce,
         color: q.color,
         power,
+        burn: weapon.id === 'flamer' ? FLAMER_BURN : null,
       });
     }
+    this.maybeSlimeStaffRing(weapon, q, power);
     const tip = p.gun.displayWidth * (1 - p.gun.originX);
     const fxX = p.x + Math.cos(angle) * (8 + tip);
     const fxY = p.y - 5 + Math.sin(angle) * (8 + tip);
@@ -1597,6 +1778,33 @@ class GameScene extends Phaser.Scene {
       Sfx.shoot();
       s.lastSound = time;
     }
+  }
+
+  maybeSlimeStaffRing(weapon, q, power) {
+    if (!weapon || weapon.id !== 'slime_staff') return;
+    this.slimeStaffShots = (this.slimeStaffShots || 0) + 1;
+    if (this.slimeStaffShots % 3 !== 0) return;
+    this.fireSlimeStaffRing(weapon, q, power);
+  }
+
+  fireSlimeStaffRing(weapon, q, power) {
+    if (!this.player || this.player.isDead) return;
+    const buffs = this.buffs || {};
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + rand(-0.025, 0.025);
+      this.spawnPlayerBullet(this.player.x, this.player.y - 2, a, Math.round(weapon.damage * (buffs.damage || 1)), {
+        speed: weapon.bulletSpeed * (buffs.bulletSpeed || 1),
+        tint: weapon.tint,
+        pierce: weapon.pierce,
+        color: q.color,
+        power,
+      });
+    }
+    this.fx.ring(this.player.x, this.player.y - 2, 0xff8ae8, 0.22, 1.6, 360, 0.85, 720);
+    this.fx.shotBurst(this.player.x, this.player.y - 2, q.color, power);
+    this.cameras.main.shake(80, 0.003);
+    Sfx.shoot();
   }
 
   updateSwordSkill(time, delta) {
@@ -1721,14 +1929,37 @@ class GameScene extends Phaser.Scene {
       });
     }
     s.swords = [];
+    if (s.type === 'giant' && this.player && this.player.setGiantForm) {
+      this.player.setGiantForm(false);
+      this.clearGiantAura();
+    }
     Sfx.skillEnd();
+  }
+
+  clearGiantAura() {
+    if (!this.giantAura) return;
+    const aura = this.giantAura;
+    this.giantAura = null;
+    this.tweens.killTweensOf(aura);
+    this.tweens.add({
+      targets: aura,
+      alpha: 0,
+      scale: 2.6,
+      duration: 240,
+      onComplete: () => aura.destroy(),
+    });
   }
 
   cancelSkill() {
     const s = this.skill;
     if (!s) return;
+    const wasGiant = s.type === 'giant';
     s.active = false;
     s.aimTarget = null;
+    if (wasGiant && this.player && this.player.setGiantForm) {
+      this.player.setGiantForm(false);
+      this.clearGiantAura();
+    }
     if (this.fx && this.fx.flames) this.fx.flames.stop();
     if (this.fx && this.fx.skillGlow) {
       this.tweens.killTweensOf(this.fx.skillGlow);
@@ -2119,10 +2350,13 @@ class GameScene extends Phaser.Scene {
     if (!this.player) return;
     this.updateSkill(time, delta);
     if (!this.player.isDead) this.player.update(time, delta);
+    this.updateVision();
     this.updateGhost(time);
     this.updateTouchUI();
 
     this.enemies.getChildren().forEach((e) => {
+      if (!e.active || e.dying) return;
+      if (e.updateBurn) e.updateBurn(time);
       if (e.active && !e.dying && e.updateAI) e.updateAI(time, delta);
     });
 

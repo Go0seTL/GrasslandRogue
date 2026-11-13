@@ -3,7 +3,9 @@
 class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, character) {
     const isSword = character === 'swordsman';
-    const idle = isSword ? 'swordsman_idle' : 'player_idle';
+    const isFrankenstein = character === 'frankenstein';
+    const idle = isSword ? 'swordsman_idle'
+      : (isFrankenstein ? 'frankenstein_idle' : 'player_idle');
     super(scene, x, y, idle);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -13,8 +15,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.characterId = character || 'gunner';
     this.idleTexture = idle;
-    this.walkTexture = isSword ? 'swordsman_walk' : 'player_walk';
-    this.walkAnim = isSword ? 'swordsman_walk' : 'player_walk';
+    this.walkTexture = isSword ? 'swordsman_walk'
+      : (isFrankenstein ? 'frankenstein_walk' : 'player_walk');
+    this.walkAnim = this.walkTexture;
+    this.giant = false;
+    this.axeChanneling = false;
+    this.axeChanneled = false;
+    this.axeChannelStart = 0;
 
     const charLevel = scene.charLevel || 0;
     this.maxHp = BALANCE.playerHP + charLevel * 10;
@@ -52,6 +59,115 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  refreshScale() {
+    const base = (this.scene.buffs && this.scene.buffs.size) || 1;
+    this.setScale(this.giant ? base * GIANT.scale : base);
+    if (this.shadow) {
+      this.shadow.setScale(this.giant ? base * 1.7 : base);
+    }
+    if (this.backSword) this.backSword.setScale(base);
+  }
+
+  setGiantForm(active) {
+    if (this.giant === active) return;
+    if (active) this.cancelAxeChannel();
+    this.giant = active;
+    if (active) {
+      this.idleTexture = 'frankenstein_giant_0';
+      this.walkTexture = 'frankenstein_giant_1';
+      this.walkAnim = 'frankenstein_giant_walk';
+      this.setTexture(this.idleTexture);
+      if (this.gun) this.gun.setVisible(false);
+      if (this.secondaryGun) this.secondaryGun.setVisible(false);
+      this.nextShotAt = this.scene.time.now + 220;
+    } else {
+      this.idleTexture = 'frankenstein_idle';
+      this.walkTexture = 'frankenstein_walk';
+      this.walkAnim = 'frankenstein_walk';
+      this.setTexture(this.idleTexture);
+      if (this.gun) this.gun.setVisible(true);
+    }
+    this.refreshScale();
+  }
+
+  giantPunch(aim, time) {
+    const scene = this.scene;
+    const buffs = scene.buffs || {};
+    this.nextShotAt = time + Math.max(360, GIANT.attackInterval * (buffs.fireRate || 1));
+    const fakeWeapon = {
+      damage: GIANT.damage,
+      range: GIANT.range,
+      arc: GIANT.arc,
+      quality: 'green',
+    };
+    scene.meleeAttack(this, aim, fakeWeapon);
+    const px = this.x + Math.cos(aim) * GIANT.range * 0.55;
+    const py = this.y - 8 + Math.sin(aim) * GIANT.range * 0.55;
+    const fist = scene.add.image(px, py, 'giant_fist')
+      .setDepth(731).setRotation(aim).setScale(1.0);
+    scene.tweens.add({
+      targets: fist,
+      x: this.x + Math.cos(aim) * GIANT.range * 0.82,
+      y: this.y - 8 + Math.sin(aim) * GIANT.range * 0.82,
+      alpha: 0,
+      scale: 1.35,
+      duration: 150,
+      onComplete: () => fist.destroy(),
+    });
+    scene.fx.ring(px, py, 0x8fff5a, 0.18, 1.25, 230, 0.75, 730);
+    scene.fx.dust.explode(4, this.x, this.y + 18);
+    scene.cameras.main.shake(70, 0.0035);
+    Sfx.giantPunch();
+  }
+
+  cancelAxeChannel() {
+    if (!this.axeChanneling) return;
+    this.axeChanneling = false;
+    this.axeChanneled = false;
+    this.clearTint();
+  }
+
+  updateBoarAxe(time, aim, firing, w) {
+    const scene = this.scene;
+    if (firing && scene.dualWield && scene.secondaryWeapon) {
+      this.fireSecondary(time, aim, scene.secondaryWeapon);
+    }
+    if (firing) {
+      if (!this.axeChanneling) {
+        this.axeChanneling = true;
+        this.axeChannelStart = time;
+        this.axeChanneled = false;
+        this.setTint(0xffb15a);
+        scene.fx.ring(this.x, this.y, 0xffb15a, 0.16, 1.1, 420, 0.7, 730);
+      }
+      if (!this.axeChanneled && time - this.axeChannelStart >= BOAR_AXE.channelMs) {
+        if (this.spendEnergy(w.energyCost)) {
+          this.axeChanneled = true;
+          this.nextShotAt = time + BOAR_AXE.rainCooldown;
+          scene.summonBoarAxeRain(this);
+        } else {
+          this.axeChanneled = true;
+          this.nextShotAt = time + 500;
+          scene.onEnergyDenied();
+        }
+      }
+    } else if (this.axeChanneling) {
+      const held = time - this.axeChannelStart;
+      if (!this.axeChanneled && held < BOAR_AXE.channelMs) {
+        if (this.spendEnergy(w.energyCost)) {
+          scene.meleeAttack(this, aim, w);
+          Sfx.slash();
+          this.nextShotAt = time + w.fireRate * 1000 * ((scene.buffs && scene.buffs.fireRate) || 1);
+        } else {
+          scene.onEnergyDenied();
+        }
+      }
+      this.axeChanneling = false;
+      this.axeChanneled = false;
+      this.clearTint();
+    }
+  }
+
   update(time, delta) {
     if (this.isDead) return;
     const scene = this.scene;
@@ -84,7 +200,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       // 冲刺期间保持冲刺速度
     } else {
       const sp = BALANCE.playerSpeed * ((scene.buffs && scene.buffs.speed) || 1);
-      this.body.setVelocity(mx * sp, my * sp);
+      const axeSlow = this.axeChanneling && scene.weapon && scene.weapon.id === 'boar_axe'
+        ? BOAR_AXE.slow : 1;
+      this.body.setVelocity(mx * sp * axeSlow, my * sp * axeSlow);
     }
 
     // 走路动画
@@ -104,41 +222,53 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (cos < -0.08) this.setFlipX(true);
     else if (cos > 0.08) this.setFlipX(false);
 
-    // 枪的位置
-    if (scene.weapon && this.gun.texture.key !== scene.weapon.texture) {
-      this.gun.setTexture(scene.weapon.texture);
-    }
-    const gx = this.x + cos * 8;
-    const gy = this.y - 5 + Math.sin(aim) * 8;
-    this.gun.setPosition(gx, gy);
-    this.gun.setRotation(aim);
-    this.gun.setFlipY(cos < 0);
-    this.gun.setDepth(this.y + 21);
+    // 枪的位置（巨人形态用拳头，不显示枪）
+    if (!this.giant) {
+      if (scene.weapon && this.gun.texture.key !== scene.weapon.texture) {
+        this.gun.setTexture(scene.weapon.texture);
+      }
+      const gx = this.x + cos * 8;
+      const gy = this.y - 5 + Math.sin(aim) * 8;
+      this.gun.setPosition(gx, gy);
+      this.gun.setRotation(aim);
+      this.gun.setFlipY(cos < 0);
+      this.gun.setDepth(this.y + 21);
 
-    if (this.backSword) {
-      this.backSword.setPosition(this.x - 3, this.y + 2);
-      this.backSword.setDepth(this.y + 19);
+      if (this.backSword) {
+        this.backSword.setPosition(this.x - 3, this.y + 2);
+        this.backSword.setDepth(this.y + 19);
+      }
+
+      if (scene.dualWield && scene.secondaryWeapon) {
+        const sw = scene.secondaryWeapon;
+        if (this.secondaryGun.texture.key !== sw.texture) this.secondaryGun.setTexture(sw.texture);
+        const perpX = -Math.sin(aim) * 7;
+        const perpY = Math.cos(aim) * 7;
+        this.secondaryGun
+          .setPosition(gx + perpX, gy + perpY)
+          .setRotation(aim)
+          .setFlipY(cos < 0)
+          .setDepth(this.y + 21)
+          .setVisible(true);
+      } else if (this.secondaryGun.visible) {
+        this.secondaryGun.setVisible(false);
+      }
+    } else {
+      if (this.gun.visible) this.gun.setVisible(false);
+      if (this.secondaryGun.visible) this.secondaryGun.setVisible(false);
     }
 
-    if (scene.dualWield && scene.secondaryWeapon) {
-      const sw = scene.secondaryWeapon;
-      if (this.secondaryGun.texture.key !== sw.texture) this.secondaryGun.setTexture(sw.texture);
-      const perpX = -Math.sin(aim) * 7;
-      const perpY = Math.cos(aim) * 7;
-      this.secondaryGun
-        .setPosition(gx + perpX, gy + perpY)
-        .setRotation(aim)
-        .setFlipY(cos < 0)
-        .setDepth(this.y + 21)
-        .setVisible(true);
-    } else if (this.secondaryGun.visible) {
-      this.secondaryGun.setVisible(false);
-    }
-
-    // 开火（枪手技能自动攻击期间由技能接管）
+    // 开火（枪手技能自动攻击期间由技能接管；巨人形态改为铁拳）
     const weapon = scene.weapon || WEAPONS.pistol;
     const firing = scene.canPlayerAct() && scene.wantsToFire();
-    if (!scene.isAimLockSkillActive()) {
+    if (this.giant) {
+      if (firing && time >= this.nextShotAt) this.giantPunch(aim, time);
+    } else if (scene.isAimLockSkillActive()) {
+      // 枪手技能自动接管攻击
+    } else if (weapon.id === 'boar_axe') {
+      this.updateBoarAxe(time, aim, firing, weapon);
+    } else {
+      if (this.axeChanneling) this.cancelAxeChannel();
       if (weapon.charge) this.updateChargeWeapon(time, aim, firing, weapon);
       else if (firing && time >= this.nextShotAt) this.fire(time, aim);
       if (firing && scene.dualWield && scene.secondaryWeapon) {
@@ -148,7 +278,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * delta / 1000);
     this.setDepth(this.y + 20);
-    this.shadow.setPosition(this.x, this.y + 19).setDepth(this.y + 18);
+    this.shadow.setPosition(this.x, this.y + (this.giant ? 30 : 19)).setDepth(this.y + 18);
   }
 
   fireSecondary(time, aim, w) {
@@ -206,11 +336,15 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
         speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
         tint: w.tint, pierce: w.pierce, color: q.color, power,
+        burn: w.id === 'flamer' ? FLAMER_BURN : null,
       });
     }
     this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
     this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
     this.scene.cameras.main.shake(35, 0.0007);
+    if (this.scene.maybeSlimeStaffRing) {
+      this.scene.maybeSlimeStaffRing(w, q, power);
+    }
     Sfx.shoot();
   }
 
@@ -379,6 +513,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         pierce: w.pierce,
         color: q.color,
         power,
+        burn: w.id === 'flamer' ? FLAMER_BURN : null,
       });
     }
     this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
@@ -386,6 +521,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.velocity.x -= Math.cos(aim) * (w.pellets > 1 ? 40 : 10);
     this.body.velocity.y -= Math.sin(aim) * (w.pellets > 1 ? 40 : 10);
     this.scene.cameras.main.shake(45, w.pellets > 1 ? 0.0022 : 0.0009);
+    if (this.scene.maybeSlimeStaffRing) {
+      this.scene.maybeSlimeStaffRing(w, q, power);
+    }
     Sfx.shoot();
   }
 
@@ -519,6 +657,16 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.goatState = 'idle';
     this.goatTimer = rand(800, 1400);
     this.goatChargeAngle = 0;
+    this.goatAim = null;
+    this.goatBeam = null;
+    this.ghostRevealUntil = 0;
+    this.ghostVisible = false;
+
+    this.burnUntil = 0;
+    this.burnTickAt = 0;
+    this.burnDps = 0;
+    this.burnEmitter = null;
+    this.burnGlow = null;
 
     if (elite) {
       this.setScale(1.3);
@@ -551,10 +699,16 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.play('slime_mini_idle');
     } else if (type === 'bat') {
       this.play('bat_fly');
+    } else if (type === 'ghost') {
+      this.play('ghost_float');
+      this.setAlpha(0.06);
+      this.shadow.setAlpha(0);
     }
 
-    this.setAlpha(0);
-    scene.tweens.add({ targets: this, alpha: 1, duration: 220 });
+    if (type !== 'ghost') {
+      this.setAlpha(0);
+      scene.tweens.add({ targets: this, alpha: 1, duration: 220 });
+    }
   }
 
   _visualTick() {
@@ -572,6 +726,108 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.shadow.setPosition(this.x, this.y + this.def.shadowY);
     this.shadow.setDepth(this.y + this.def.depthY - 1);
     this.setDepth(this.y + this.def.depthY);
+  }
+
+  applyBurn(duration, dps) {
+    if (this.dying || !this.active) return;
+    const now = this.scene.time.now;
+    this.burnUntil = Math.max(this.burnUntil || 0, now + duration);
+    this.burnDps = Math.max(this.burnDps || 0, dps);
+    if (!this.burnTickAt) this.burnTickAt = now + 360;
+    if (!this.burnEmitter) {
+      this.burnEmitter = this.scene.add.particles(0, 0, 'spark', {
+        lifespan: { min: 300, max: 600 },
+        speed: { min: 25, max: 85 },
+        angle: { min: 235, max: 305 },
+        scale: { start: 1.35, end: 0 },
+        alpha: { start: 1, end: 0 },
+        tint: [0xffe066, 0xff8a2a, 0xff3a1a],
+        frequency: 38,
+        quantity: 2,
+        blendMode: 'ADD',
+      }).setDepth(810);
+      this.burnEmitter.startFollow(this, 0, -8);
+    }
+    if (!this.burnGlow) {
+      const size = this.isBoss ? 2.4 : 1.0;
+      this.burnGlow = this.scene.add.image(this.x, this.y, 'glow')
+        .setTint(0xff6a2a).setScale(size).setAlpha(0.24)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(this.y + this.def.depthY + 3);
+    }
+  }
+
+  updateBurn(time) {
+    if (!this.burnUntil) return;
+    if (time >= this.burnUntil) {
+      this.clearBurn();
+      return;
+    }
+    if (this.burnEmitter) {
+      this.burnEmitter.setDepth(this.y + this.def.depthY + 4);
+    }
+    if (this.burnGlow && this.burnGlow.active) {
+      this.burnGlow.setPosition(this.x, this.y - 2)
+        .setDepth(this.y + this.def.depthY + 3)
+        .setAlpha(0.18 + Math.sin(time * 0.02) * 0.07);
+    }
+    if (time >= this.burnTickAt) {
+      this.burnTickAt = time + 400;
+      const dmg = Math.max(1, Math.round((this.burnDps || 8) * 0.4));
+      if (this.enemyType === 'ghost') {
+        this.ghostRevealUntil = time + 3000;
+        this.ghostVisible = true;
+      }
+      this.hp -= dmg;
+      this.scene.fx.hitSpark(this.x, this.y - 8);
+      if (this.hp <= 0) {
+        this.clearBurn();
+        this.die();
+      }
+    }
+  }
+
+  clearBurn() {
+    this.burnUntil = 0;
+    this.burnTickAt = 0;
+    this.burnDps = 0;
+    if (this.burnEmitter) {
+      this.burnEmitter.stop();
+      const emitter = this.burnEmitter;
+      this.burnEmitter = null;
+      this.scene.tweens.add({
+        targets: emitter,
+        alpha: 0,
+        duration: 180,
+        onComplete: () => emitter.destroy(),
+      });
+    }
+    if (this.burnGlow) {
+      const glow = this.burnGlow;
+      this.burnGlow = null;
+      this.scene.tweens.add({
+        targets: glow,
+        alpha: 0,
+        duration: 180,
+        onComplete: () => glow.destroy(),
+      });
+    }
+  }
+
+  clearGoatFx() {
+    if (this.goatAim) {
+      this.scene.tweens.killTweensOf(this.goatAim);
+      if (this.goatAim.active) this.goatAim.destroy();
+      this.goatAim = null;
+    }
+    if (this.goatBeam) {
+      const beam = this.goatBeam;
+      this.goatBeam = null;
+      this.scene.tweens.killTweensOf(beam.glow);
+      this.scene.tweens.killTweensOf(beam.core);
+      if (beam.glow.active) beam.glow.destroy();
+      if (beam.core.active) beam.core.destroy();
+    }
   }
 
   updateAI(time, delta) {
@@ -613,38 +869,43 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.updateBoar(delta, dist, angTo, p);
     } else if (this.enemyType === 'goat') {
       this.updateGoat(delta, dist, angTo, p);
+    } else if (this.enemyType === 'ghost') {
+      this.updateGhostEnemy(time, delta, dist, angTo, p);
     }
+  }
+
+  updateGhostEnemy(time, delta, dist, angTo, p) {
+    const near = dist < 135;
+    const visible = near || time < this.ghostRevealUntil;
+    this.ghostVisible = visible;
+    const target = visible ? 1 : 0.06;
+    this.setAlpha(Phaser.Math.Linear(this.alpha, target, 0.16));
+    if (this.shadow) this.shadow.setAlpha(visible ? 0.2 : 0);
+    const sp = 32;
+    this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+    this.setFlipX(p.x < this.x);
   }
 
   updateGoat(delta, dist, angTo, p) {
     this.goatTimer -= delta;
     this.setFlipX(p.x < this.x);
     if (this.goatState === 'idle') {
-      const sp = 100;
+      const sp = 96;
       this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
-      if (dist < 300 && this.goatTimer <= 0) {
-        this.goatState = 'windup';
-        this.goatTimer = 340;
-        this.setVelocity(0, 0);
-        this.setTint(0xffb08a);
-        this.scene.fx.ring(this.x, this.y, 0xffd76a, 0.1, 0.8, 300, 0.6, 740);
+      if (dist < 430 && this.goatTimer <= 0) {
+        this.startGoatLaser(p);
       }
     } else if (this.goatState === 'windup') {
       this.setVelocity(0, 0);
-      if (this.goatTimer <= 0) {
-        this.goatState = 'dash';
-        this.goatTimer = 260;
-        this.goatChargeAngle = Math.atan2(p.y - this.y, p.x - this.x);
-        this.setVelocity(Math.cos(this.goatChargeAngle) * 380, Math.sin(this.goatChargeAngle) * 380);
-        this.clearTint();
-        this.scene.fx.hopDust(this.x, this.y + this.def.shadowY);
-        Sfx.boar();
+      if (this.goatAim && this.goatAim.active) {
+        this.goatAim.setPosition(this.x, this.y);
       }
-    } else if (this.goatState === 'dash') {
+      if (this.goatTimer <= 0) this.fireGoatLaser();
+    } else if (this.goatState === 'fire') {
+      this.setVelocity(0, 0);
       if (this.goatTimer <= 0) {
         this.goatState = 'rest';
-        this.goatTimer = 650;
-        this.setVelocity(0, 0);
+        this.goatTimer = 600;
       }
     } else {
       this.setVelocity(0, 0);
@@ -653,6 +914,74 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.goatTimer = rand(900, 1500);
       }
     }
+  }
+
+  startGoatLaser(p) {
+    this.goatState = 'windup';
+    this.goatTimer = 700;
+    this.setVelocity(0, 0);
+    this.goatChargeAngle = Math.atan2(p.y - this.y, p.x - this.x);
+    this.setTint(0xffb08a);
+    this.clearGoatFx();
+    this.goatAim = this.scene.add.rectangle(
+      this.x, this.y, 760, 4, 0xff5a4a, 0.35
+    ).setOrigin(0, 0.5)
+      .setRotation(this.goatChargeAngle)
+      .setDepth(744)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.scene.tweens.add({
+      targets: this.goatAim, alpha: 0.8, duration: 140, yoyo: true, repeat: -1,
+    });
+    this.scene.fx.ring(this.x, this.y, 0xffb08a, 0.12, 0.9, 300, 0.6, 740);
+    Sfx.laserCharge();
+  }
+
+  fireGoatLaser() {
+    const angle = this.goatChargeAngle;
+    const len = 900;
+    this.clearGoatFx();
+    this.goatState = 'fire';
+    this.goatTimer = 300;
+    this.setVelocity(0, 0);
+    this.clearTint();
+
+    const glow = this.scene.add.rectangle(
+      this.x, this.y, len, 16, 0xff5a3a, 0.28
+    ).setOrigin(0, 0.5)
+      .setRotation(angle)
+      .setDepth(744)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const core = this.scene.add.rectangle(
+      this.x, this.y, len, 5, 0xfff0c0, 0.95
+    ).setOrigin(0, 0.5)
+      .setRotation(angle)
+      .setDepth(745)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.goatBeam = { glow, core };
+    this.scene.tweens.add({
+      targets: [glow, core],
+      alpha: 0,
+      duration: 300,
+      onComplete: () => {
+        if (this.goatBeam && this.goatBeam.glow === glow) this.goatBeam = null;
+        if (glow.active) glow.destroy();
+        if (core.active) core.destroy();
+      },
+    });
+
+    const p = this.scene.player;
+    if (p && !p.isDead) {
+      const dx = p.x - this.x;
+      const dy = p.y - this.y;
+      const along = dx * Math.cos(angle) + dy * Math.sin(angle);
+      const perp = Math.abs(-dx * Math.sin(angle) + dy * Math.cos(angle));
+      if (along > 0 && along < len && perp < 24) {
+        p.takeDamage(Math.round(this.damage * 1.25), this.x, this.y, this.scene.time.now);
+        this.scene.fx.hitSpark(p.x, p.y);
+      }
+    }
+    this.scene.cameras.main.shake(160, 0.006);
+    Sfx.laser();
   }
 
   updateMushroom(delta, dist, angTo, p) {
@@ -782,6 +1111,10 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(dmg, angle) {
     if (this.dying) return;
+    if (this.enemyType === 'ghost') {
+      this.ghostRevealUntil = this.scene.time.now + 3000;
+      this.ghostVisible = true;
+    }
     this.hp -= dmg;
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(60, () => {
@@ -797,6 +1130,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.dying) return;
     this.dying = true;
     this.active = false;
+    this.clearBurn();
+    this.clearGoatFx();
     if (this.body) this.body.enable = false;
     if (this.aura) this.aura.stop();
     if (this.eliteGlow) this.scene.tweens.add({ targets: this.eliteGlow, alpha: 0, duration: 200 });
@@ -814,6 +1149,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   destroy(fromScene) {
+    this.clearBurn();
+    this.clearGoatFx();
     if (this.shadow && this.shadow.active) this.shadow.destroy();
     if (this.bow && this.bow.active) this.bow.destroy();
     if (this.aura && this.aura.active) this.aura.destroy();
@@ -957,8 +1294,9 @@ class Boss extends Enemy {
     Sfx.bossRoar();
     this.scene.cameras.main.shake(180, 0.005);
     this.scene.fx.summonBurst(this.x, this.y);
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI / 2 + (i - 1) * 0.8;
+    const count = this.isElite ? 6 : 3;
+    for (let i = 0; i < count; i++) {
+      const a = -Math.PI / 2 + (i - (count - 1) / 2) * 0.62;
       const sx = clamp(this.x + Math.cos(a) * 78, ARENA.left + 34, ARENA.right - 34);
       const sy = clamp(this.y + Math.sin(a) * 62, ARENA.top + 34, ARENA.bottom - 34);
       this.scene.spawnEnemyAt('slime', sx, sy, true);

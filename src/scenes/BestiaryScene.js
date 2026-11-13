@@ -38,19 +38,22 @@ class BestiaryScene extends Phaser.Scene {
         { id: 'elite', elite: true, portrait: 'slime_0', scale: 1.0, color: 0xffd76a, name: '精英怪' },
       ],
       [
-        { id: 'boar_boss', portrait: 'boar_0', scale: 1.05, color: 0xd9a84a, name: '野猪王' },
+        { id: 'boar_boss', portrait: 'boar_king_0', scale: 1.05, color: 0xd9a84a, name: '野猪王' },
         {
           id: 'elite_slime', elite: true, portrait: 'boss_0', scale: 0.5, color: 0xffd76a, name: '精英史莱姆王',
-          lore: '第三轮的精英 Boss 之一。生命和伤害大幅提高，拥有精英金色光环。',
+          lore: '第三轮的精英 Boss 之一。生命和伤害大幅提高，拥有精英金色光环；召唤史莱姆数量翻倍。',
           stats: ['第三轮 Boss', '生命 ×1.6 · 伤害 ×1.3'],
         },
         {
-          id: 'elite_boar', elite: true, portrait: 'boar_0', scale: 1.05, color: 0xffd76a, name: '精英野猪王',
-          lore: '第三轮的精英 Boss 之一。狂暴冲撞和石头雨更致命。',
+          id: 'elite_boar', elite: true, portrait: 'boar_king_0', scale: 1.05, color: 0xffd76a, name: '精英野猪王',
+          lore: '第三轮的精英 Boss 之一。狂暴冲撞更致命，石头雨数量翻倍。',
           stats: ['第三轮 Boss', '生命 ×1.6 · 伤害 ×1.3'],
         },
-        { id: 'mushroom_boss', portrait: 'mushroom_0', scale: 0.95, color: 0xb07bff, name: '蘑菇怪客' },
+        { id: 'mushroom_boss', portrait: 'mushroom_fiend_0', scale: 0.95, color: 0xb07bff, name: '蘑菇怪客' },
         { id: 'goat', portrait: 'goat_0', scale: 1.0, color: 0xd8d0c0, name: '山羊精' },
+        { id: 'bat_king', portrait: 'bat_king_0', scale: 0.9, color: 0xb07bff, name: '蝙蝠王' },
+        { id: 'goat_king', portrait: 'goat_king_0', scale: 0.9, color: 0xd9b45a, name: '山羊王' },
+        { id: 'ghost', portrait: 'ghost_0', scale: 1.0, color: 0xbfe8e0, name: '亡灵' },
       ],
     ];
 

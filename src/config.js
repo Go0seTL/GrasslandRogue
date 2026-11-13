@@ -40,6 +40,28 @@ const SKILL = {
   maxTargets: 3,
 };
 
+// 科学怪人：绿色巨人形态
+const GIANT = {
+  duration: 10000,
+  cooldown: 30000,
+  damage: 95,
+  range: 116,
+  arc: 1.45,
+  attackInterval: 560,
+  scale: 1.55,
+};
+
+// 火焰喷射器：命中后 2 秒灼烧
+const FLAMER_BURN = { duration: 2000, dps: 8 };
+
+// 野猪王之斧：长按蓄力召唤石头雨，期间大幅减速
+const BOAR_AXE = {
+  channelMs: 650,
+  rainCooldown: 1600,
+  slow: 0.35,
+  rockCount: 12,
+};
+
 // 品质：白 -> 绿 -> 蓝 -> 紫 -> 红 -> 金 -> 彩色
 const QUALITY_ORDER = ['white', 'green', 'blue', 'purple', 'red', 'gold', 'rainbow'];
 const QUALITIES = {
@@ -129,6 +151,7 @@ const WEAPONS = {
 const CHAR_DEFS = [
   { id: 'gunner',    name: '枪手',     price: 0,    desc: '当前武器 · 自动索敌',     color: 0x2f7f78, playable: true,  portrait: 'player_idle' },
   { id: 'swordsman', name: '剑客',     price: 800,  desc: '手枪 · 万剑归宗',        color: 0x557fb0, playable: true,  portrait: 'swordsman_idle' },
+  { id: 'frankenstein', name: '科学怪人', price: 3000, desc: '巨型化 · 铁拳',        color: 0x6fbf4f, playable: true,  portrait: 'frankenstein_idle' },
   { id: 'knight',    name: '骑士',     price: 1200, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
   { id: 'mage',      name: '法师',     price: 1800, desc: '法术 · 范围爆发',        color: 0x7a4fa5, playable: false, portrait: 'player_idle' },
   { id: 'ranger',    name: '游侠',     price: 2500, desc: '弓箭 · 高机动',          color: 0x3f8f4a, playable: false, portrait: 'player_idle' },
@@ -172,10 +195,13 @@ const ENEMY_LORE = {
   bat: '绕着玩家盘旋的快速敌人。血量低，但接触伤害很烦。',
   mushroom: '第二轮开始出现的远程怪。移动缓慢，会停顿蓄力后吐出三颗孢子，注意横向走位。',
   boar: '第二轮开始出现的冲锋怪。会先停顿蓄力，然后沿直线高速冲撞，撞到墙或时间结束才停下。',
-  goat: '第三轮开始出现的山羊精。会快速蓄力后头槌冲锋，体型比野猪小但更灵活。',
+  goat: '第三轮开始出现的山羊精。会先在原地停顿蓄力，再朝锁定方向发射一道贯穿激光；看到红线就赶快横向躲开。',
+  ghost: '第六轮开始出现的亡灵。平时隐身且移动缓慢，靠近玩家才会现形；受到伤害后会强制现形 3 秒，期间再次受伤会重置时间。',
+  goat_king: '第六轮 Boss 之一。会停顿蓄力后扇形发射多道贯穿激光；半血后激光数量增加。',
   boss: '草原的统治者。会跳跃砸地放出环形弹幕、蓄力冲锋，半血后暴怒并召唤史莱姆。',
   boar_boss: '第二轮 Boss。会进入狂暴状态到处乱撞，撞击伤害很高；还会召唤持续一段时间的石头雨。',
-  mushroom_boss: '第四轮 Boss。会短时间反射子弹，并连续发射三轮会逐渐减速的环形弹幕。',
+  mushroom_boss: '第四轮 Boss。会短时间反射子弹，并连续发射三轮会逐渐减速的环形弹幕；精英版会发射六轮。',
+  bat_king: '第五轮 Boss 之一。会遮蔽玩家视野 4 秒，也会瞬移到玩家身后发射环形弹幕；精英版效果翻倍。',
 };
 
 // 敌人基础数值（等级会在此基础上按关数成长）
@@ -196,6 +222,10 @@ const ENEMY_DEFS = {
     name: '蝙蝠', texture: 'bat_0', hp: 22, damage: 7, coins: [1, 2],
     body: [20, 10], offset: [6, 4], shadowY: 10, shadowScale: 0.6, depthY: 8,
   },
+  bat_king: {
+    name: '蝙蝠王', texture: 'bat_king_0', hp: 720, damage: 15, coins: [24, 34],
+    body: [40, 20], offset: [12, 6], shadowY: 16, shadowScale: 1.5, depthY: 12,
+  },
   mushroom: {
     name: '蘑菇射手', texture: 'mushroom_0', hp: 62, damage: 9, coins: [2, 4],
     body: [20, 14], offset: [8, 20], shadowY: 17, shadowScale: 1.0, depthY: 16,
@@ -208,13 +238,21 @@ const ENEMY_DEFS = {
     name: '山羊精', texture: 'goat_0', hp: 85, damage: 12, coins: [3, 5],
     body: [24, 16], offset: [6, 14], shadowY: 14, shadowScale: 1.0, depthY: 14,
   },
+  ghost: {
+    name: '亡灵', texture: 'ghost_0', hp: 62, damage: 10, coins: [2, 4],
+    body: [24, 18], offset: [8, 18], shadowY: 16, shadowScale: 0.9, depthY: 16,
+  },
+  goat_king: {
+    name: '山羊王', texture: 'goat_king_0', hp: 760, damage: 18, coins: [30, 42],
+    body: [44, 22], offset: [10, 18], shadowY: 22, shadowScale: 1.45, depthY: 20,
+  },
   boar_boss: {
-    name: '野猪王', texture: 'boar_0', hp: 560, damage: 20, coins: [24, 34],
-    body: [32, 16], offset: [4, 10], shadowY: 13, shadowScale: 1.2, depthY: 13,
+    name: '野猪王', texture: 'boar_king_0', hp: 560, damage: 20, coins: [24, 34],
+    body: [40, 20], offset: [6, 14], shadowY: 18, shadowScale: 1.35, depthY: 18,
   },
   mushroom_boss: {
-    name: '蘑菇怪客', texture: 'mushroom_0', hp: 560, damage: 16, coins: [24, 34],
-    body: [20, 14], offset: [8, 20], shadowY: 17, shadowScale: 1.2, depthY: 16,
+    name: '蘑菇怪客', texture: 'mushroom_fiend_0', hp: 560, damage: 16, coins: [24, 34],
+    body: [28, 18], offset: [10, 28], shadowY: 23, shadowScale: 1.35, depthY: 22,
   },
   boss: {
     name: '史莱姆王', texture: 'boss_0', hp: 460, damage: 16, coins: [20, 30],

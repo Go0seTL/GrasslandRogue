@@ -3,6 +3,7 @@
 const Art = {
   build(scene) {
     this.makeUnitSprites(scene);
+    this.makeCharacters(scene);
     this.makeGround(scene);
     this.makeGroundMountain(scene);
     this.makeDecor(scene);
@@ -47,6 +48,105 @@ const Art = {
       const def = SPRITE_DATA[key];
       this._pix(scene, key, def.rows, def.palette, 2);
     }
+  },
+
+  // 科学怪人的巨人形态与拳头特效
+  makeCharacters(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `frankenstein_giant_${frame}`, 28, 28, (ctx) => {
+        const step = frame ? 1 : 0;
+        // 腿和靴子
+        ctx.fillStyle = '#24232a';
+        ctx.fillRect(7, 18, 6, 6);
+        ctx.fillRect(15, 18, 6, 6);
+        ctx.fillStyle = '#111016';
+        ctx.fillRect(6, 21 + step, 8, 4);
+        ctx.fillRect(14, 21 - step, 8, 4);
+        // 身体轮廓与绿色皮肤
+        this._ellipse(ctx, 14, 15, 10.4, 8.2, '#1b2415', 1);
+        this._ellipse(ctx, 14, 15, 9.4, 7.3, '#6fbf4f', 1);
+        this._ellipse(ctx, 14, 17, 7.0, 4.4, '#4f9a37', 1);
+        // 破裤子与腰带
+        ctx.fillStyle = '#2a2420';
+        ctx.fillRect(7, 20, 14, 4);
+        ctx.fillStyle = '#c8a04a';
+        ctx.fillRect(13, 20, 3, 4);
+        // 胸口缝合线
+        ctx.fillStyle = '#2a3a1e';
+        ctx.fillRect(10, 11, 1, 5);
+        ctx.fillRect(9, 12, 3, 1);
+        ctx.fillRect(9, 14, 3, 1);
+        ctx.fillRect(18, 11, 1, 5);
+        ctx.fillRect(17, 12, 3, 1);
+        // 巨大手臂
+        this._ellipse(ctx, 4, 15 + step, 4.6, 7.2, '#1b2415', 1);
+        this._ellipse(ctx, 4, 15 + step, 4.0, 6.4, '#6fbf4f', 1);
+        this._ellipse(ctx, 24, 15 - step, 4.6, 7.2, '#1b2415', 1);
+        this._ellipse(ctx, 24, 15 - step, 4.0, 6.4, '#6fbf4f', 1);
+        // 拳头
+        this._ellipse(ctx, 4, 21 + step, 4.0, 3.4, '#1b2415', 1);
+        this._ellipse(ctx, 4, 21 + step, 3.4, 2.8, '#7fd05a', 1);
+        this._ellipse(ctx, 24, 21 - step, 4.0, 3.4, '#1b2415', 1);
+        this._ellipse(ctx, 24, 21 - step, 3.4, 2.8, '#7fd05a', 1);
+        // 头
+        this._ellipse(ctx, 14, 7, 5.8, 5.4, '#1b2415', 1);
+        this._ellipse(ctx, 14, 7, 5.0, 4.7, '#7fd05a', 1);
+        // 平头黑发
+        ctx.fillStyle = '#19181e';
+        ctx.fillRect(9, 2, 10, 3);
+        ctx.fillRect(8, 4, 2, 2);
+        ctx.fillRect(18, 4, 2, 2);
+        // 脖子螺栓
+        ctx.fillStyle = '#b8c0c8';
+        ctx.fillRect(8, 9, 2, 3);
+        ctx.fillRect(18, 9, 2, 3);
+        // 发光的眼睛和嘴
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(11, 7, 2, 2);
+        ctx.fillRect(15, 7, 2, 2);
+        ctx.fillStyle = '#2b160a';
+        ctx.fillRect(11, 8, 1, 1);
+        ctx.fillRect(16, 8, 1, 1);
+        ctx.fillStyle = '#2a3a1e';
+        ctx.fillRect(11, 11, 6, 1);
+        ctx.fillRect(12, 12, 1, 1);
+        ctx.fillRect(15, 12, 1, 1);
+      }, 2);
+    }
+
+    // 拳头特效
+    this._canvas(scene, 'giant_fist', 18, 16, (ctx) => {
+      this._ellipse(ctx, 9, 9, 7.2, 6.0, '#1b2415', 1);
+      this._ellipse(ctx, 9, 9, 6.4, 5.2, '#7fd05a', 1);
+      this._ellipse(ctx, 9, 10.5, 4.8, 2.8, '#5cae3d', 1);
+      ctx.fillStyle = '#2a3a1e';
+      ctx.fillRect(4, 6, 1, 4);
+      ctx.fillRect(7, 5, 1, 4);
+      ctx.fillRect(10, 5, 1, 4);
+      ctx.fillRect(13, 6, 1, 4);
+      ctx.fillStyle = '#d8ffb0';
+      ctx.fillRect(5, 4, 2, 1);
+      ctx.fillRect(11, 4, 2, 1);
+    }, 2);
+
+    // 技能图标：绿色拳头 + 冲击线
+    this._canvas(scene, 'fist_icon', 24, 24, (ctx) => {
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(2, 4, 3, 1);
+      ctx.fillRect(1, 8, 3, 1);
+      ctx.fillRect(3, 12, 2, 1);
+      this._ellipse(ctx, 13, 13, 8.0, 7.0, '#1b2415', 1);
+      this._ellipse(ctx, 13, 13, 7.2, 6.2, '#7fd05a', 1);
+      this._ellipse(ctx, 13, 15, 5.6, 3.2, '#5cae3d', 1);
+      ctx.fillStyle = '#2a3a1e';
+      ctx.fillRect(7, 9, 1, 5);
+      ctx.fillRect(10, 8, 1, 5);
+      ctx.fillRect(13, 8, 1, 5);
+      ctx.fillRect(16, 9, 1, 5);
+      ctx.fillStyle = '#d8ffb0';
+      ctx.fillRect(8, 6, 2, 1);
+      ctx.fillRect(14, 6, 2, 1);
+    }, 2);
   },
 
   // ---------------------------------------------------------------- 地面
@@ -470,9 +570,106 @@ const Art = {
     this._bow(scene);
     this._mushroom(scene);
     this._boar(scene);
+    this._boarKing(scene);
+    this._mushroomFiend(scene);
+    this._batKing(scene);
+    this._ghost(scene);
     this._goat(scene);
+    this._goatKing(scene);
     this._crown(scene);
     this._coins(scene);
+  },
+
+  _ghost(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `ghost_${frame}`, 20, 22, (ctx) => {
+        const wobble = frame ? 1 : 0;
+        // 幽灵身体轮廓和半透明灵体
+        this._ellipse(ctx, 10, 10, 7.6, 8.6, '#0e2230', 1);
+        this._ellipse(ctx, 10, 10, 6.8, 7.8, '#bfe8e0', 1);
+        // 下摆的波浪
+        ctx.fillStyle = '#bfe8e0';
+        ctx.fillRect(3, 16 + wobble, 3, 4);
+        ctx.fillRect(7, 17 - wobble, 3, 4);
+        ctx.fillRect(11, 16 + wobble, 3, 4);
+        ctx.fillRect(15, 17 - wobble, 2, 3);
+        // 手臂
+        this._ellipse(ctx, 2, 11 + wobble, 2.2, 4.0, '#0e2230', 1);
+        this._ellipse(ctx, 2, 11 + wobble, 1.6, 3.2, '#d8f4ee', 1);
+        this._ellipse(ctx, 18, 11 - wobble, 2.2, 4.0, '#0e2230', 1);
+        this._ellipse(ctx, 18, 11 - wobble, 1.6, 3.2, '#d8f4ee', 1);
+        // 头部亮面
+        this._ellipse(ctx, 10, 6.5, 5.6, 5.0, '#d8f4ee', 1);
+        // 发光的眼睛和嘴
+        ctx.fillStyle = '#123040';
+        ctx.fillRect(7, 5, 2, 3);
+        ctx.fillRect(11, 5, 2, 3);
+        ctx.fillStyle = '#8fffe0';
+        ctx.fillRect(7, 5, 1, 1);
+        ctx.fillRect(11, 5, 1, 1);
+        ctx.fillStyle = '#2a4a50';
+        ctx.fillRect(9, 9, 2, 2);
+        // 灵体高光
+        ctx.fillStyle = '#f4ffff';
+        ctx.fillRect(6, 3, 2, 1);
+        ctx.fillRect(12, 3, 1, 1);
+      }, 2);
+    }
+  },
+
+  _goatKing(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `goat_king_${frame}`, 30, 24, (ctx) => {
+        const step = frame ? 1 : 0;
+        // 腿
+        ctx.fillStyle = '#3a3a32';
+        ctx.fillRect(5, 16 + step, 3, 7);
+        ctx.fillRect(11, 16 - step, 3, 7);
+        ctx.fillRect(18, 16 + step, 3, 7);
+        ctx.fillRect(24, 16 - step, 3, 7);
+        // 身体
+        this._ellipse(ctx, 15, 14, 11.5, 7.2, '#22221c', 1);
+        this._ellipse(ctx, 15, 14, 10.7, 6.4, '#d8d0c0', 1);
+        this._ellipse(ctx, 15, 16, 8.0, 3.8, '#b8b0a0', 1);
+        // 披风/肩甲
+        this._ellipse(ctx, 7, 13, 4.0, 5.0, '#3a2a4a', 1);
+        ctx.fillStyle = '#6b3f8a';
+        ctx.fillRect(6, 11, 3, 2);
+        // 头
+        this._ellipse(ctx, 25, 9, 5.6, 4.8, '#22221c', 1);
+        this._ellipse(ctx, 25, 9, 4.9, 4.1, '#e8e0d0', 1);
+        // 山羊胡
+        ctx.fillStyle = '#e8e0d0';
+        ctx.fillRect(27, 13, 2, 4);
+        ctx.fillRect(28, 16, 1, 2);
+        // 羊角
+        ctx.fillStyle = '#8a806a';
+        ctx.fillRect(23, 2, 2, 5);
+        ctx.fillRect(22, 1, 2, 2);
+        ctx.fillRect(28, 2, 2, 5);
+        ctx.fillRect(29, 1, 1, 2);
+        ctx.fillStyle = '#d8d0b0';
+        ctx.fillRect(23, 2, 1, 4);
+        ctx.fillRect(28, 2, 1, 4);
+        // 王冠
+        ctx.fillStyle = '#8a5a1a';
+        ctx.fillRect(21, 0, 8, 3);
+        ctx.fillStyle = '#e8b54a';
+        ctx.fillRect(21, 0, 8, 2);
+        ctx.fillRect(21, 0, 2, 1);
+        ctx.fillRect(24, 0, 1, 2);
+        ctx.fillRect(27, 0, 2, 1);
+        // 红眼和鼻
+        ctx.fillStyle = '#ff3a2a';
+        ctx.fillRect(24, 8, 2, 2);
+        ctx.fillRect(28, 8, 1, 2);
+        ctx.fillStyle = '#d98a7a';
+        ctx.fillRect(28, 11, 2, 1);
+        // 金项圈
+        ctx.fillStyle = '#d9b45a';
+        ctx.fillRect(21, 13, 4, 2);
+      }, 2);
+    }
   },
 
   _goat(scene) {
@@ -604,6 +801,196 @@ const Art = {
       ctx.fillStyle = '#4a2a1a';
       ctx.fillRect(2, 6, 2, 1);
     }, 2);
+  },
+
+  // 野猪王：比普通冲锋野猪更大、更黑红，带背甲、金铆钉、双獠牙和伤疤
+  _boarKing(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `boar_king_${frame}`, 28, 20, (ctx) => {
+        const step = frame ? 1 : 0;
+        // 尾巴
+        ctx.fillStyle = '#2a0f0a';
+        ctx.fillRect(2, 8, 3, 2);
+        ctx.fillRect(1, 7, 2, 1);
+        // 四条粗腿
+        ctx.fillStyle = '#3a1712';
+        ctx.fillRect(4, 13 + step, 3, 6);
+        ctx.fillRect(9, 13 - step, 3, 6);
+        ctx.fillRect(16, 13 + step, 3, 6);
+        ctx.fillRect(21, 13 - step, 3, 6);
+        ctx.fillStyle = '#160a08';
+        ctx.fillRect(3, 18 + step, 5, 2);
+        ctx.fillRect(8, 18 - step, 5, 2);
+        ctx.fillRect(15, 18 + step, 5, 2);
+        ctx.fillRect(20, 18 - step, 5, 2);
+        // 身体轮廓和黑红毛皮
+        this._ellipse(ctx, 13, 10, 10.5, 6.8, '#160a08', 1);
+        this._ellipse(ctx, 13, 10, 9.6, 6.0, '#6b2a20', 1);
+        this._ellipse(ctx, 13, 11.5, 7.5, 3.6, '#4a1c15', 1);
+        // 背部尖鬃
+        ctx.fillStyle = '#2a0f0a';
+        for (let x = 5; x < 18; x += 3) {
+          ctx.fillRect(x, 4 + (x % 2), 2, 4);
+        }
+        // 背甲与金铆钉
+        ctx.fillStyle = '#4a4a52';
+        ctx.fillRect(8, 5, 8, 3);
+        ctx.fillRect(10, 7, 5, 2);
+        ctx.fillStyle = '#8a8a96';
+        ctx.fillRect(9, 5, 6, 1);
+        ctx.fillStyle = '#d9b45a';
+        ctx.fillRect(9, 6, 1, 1);
+        ctx.fillRect(13, 6, 1, 1);
+        // 头
+        this._ellipse(ctx, 22, 9, 5.8, 5.2, '#160a08', 1);
+        this._ellipse(ctx, 22, 9, 5.0, 4.4, '#7a3528', 1);
+        // 猪鼻
+        ctx.fillStyle = '#b06a5a';
+        ctx.fillRect(23, 10, 5, 4);
+        ctx.fillStyle = '#2a0f0a';
+        ctx.fillRect(25, 11, 1, 1);
+        ctx.fillRect(27, 11, 1, 1);
+        ctx.fillRect(25, 13, 3, 1);
+        // 巨型獠牙
+        ctx.fillStyle = '#f4f0d8';
+        ctx.fillRect(22, 14, 2, 2);
+        ctx.fillRect(21, 15, 1, 2);
+        ctx.fillRect(26, 14, 2, 2);
+        ctx.fillRect(27, 15, 1, 2);
+        // 红眼
+        ctx.fillStyle = '#ff3a22';
+        ctx.fillRect(20, 7, 2, 2);
+        ctx.fillRect(24, 7, 2, 2);
+        ctx.fillStyle = '#ffd76a';
+        ctx.fillRect(20, 7, 1, 1);
+        ctx.fillRect(24, 7, 1, 1);
+        // 伤疤和耳朵
+        ctx.fillStyle = '#d98a7a';
+        ctx.fillRect(19, 10, 1, 3);
+        ctx.fillRect(18, 11, 2, 1);
+        ctx.fillStyle = '#4a1c15';
+        ctx.fillRect(19, 3, 3, 3);
+        ctx.fillRect(24, 3, 2, 2);
+      }, 2);
+    }
+  },
+
+  // 蘑菇怪客：紫黑色巨伞、发光眼、根部触须，和普通蘑菇射手明显不同
+  _mushroomFiend(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `mushroom_fiend_${frame}`, 24, 28, (ctx) => {
+        const bob = frame ? 1 : 0;
+        // 根部触须
+        ctx.fillStyle = '#24122a';
+        ctx.fillRect(2, 22, 5, 3);
+        ctx.fillRect(17, 21, 5, 4);
+        ctx.fillRect(4, 25, 3, 2);
+        ctx.fillRect(18, 25, 3, 2);
+        ctx.fillRect(8, 26, 2, 2);
+        ctx.fillRect(14, 26, 2, 2);
+        // 菌柄
+        this._ellipse(ctx, 12, 20, 6.8, 7.2, '#1a0e1a', 1);
+        this._ellipse(ctx, 12, 20, 6.0, 6.4, '#d8c8b0', 1);
+        this._ellipse(ctx, 12, 22, 4.2, 4.4, '#b8a890', 1);
+        // 脸：发光的眼睛、锯齿嘴
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(9, 18, 2, 3);
+        ctx.fillRect(14, 18, 2, 3);
+        ctx.fillStyle = '#2a0e1a';
+        ctx.fillRect(9, 19, 1, 1);
+        ctx.fillRect(15, 19, 1, 1);
+        ctx.fillRect(9, 23, 7, 3);
+        ctx.fillStyle = '#f4f0d8';
+        ctx.fillRect(10, 23, 1, 2);
+        ctx.fillRect(12, 23, 1, 2);
+        ctx.fillRect(14, 23, 1, 2);
+        // 大菌盖轮廓、紫色伞面与高光
+        this._ellipse(ctx, 12, 11 - bob, 11.5, 8.5, '#1a0e1a', 1);
+        this._ellipse(ctx, 12, 10.5 - bob, 10.6, 7.6, '#5a2a7a', 1);
+        this._ellipse(ctx, 12, 9 - bob, 8.8, 5.2, '#8a4fb0', 1);
+        this._ellipse(ctx, 8, 7 - bob, 3.0, 2.0, '#b07bff', 1);
+        // 伞面斑点
+        this._ellipse(ctx, 6, 9 - bob, 1.8, 1.4, '#f4f0d8', 1);
+        this._ellipse(ctx, 12, 6 - bob, 2.2, 1.6, '#ff8a8a', 1);
+        this._ellipse(ctx, 17, 9 - bob, 1.6, 1.2, '#f4f0d8', 1);
+        this._ellipse(ctx, 9, 12 - bob, 1.4, 1.0, '#ff8a8a', 1);
+        // 菌盖下沿菌褶
+        ctx.fillStyle = '#3a1a4a';
+        ctx.fillRect(2, 14 - bob, 20, 2);
+        ctx.fillStyle = '#b07bff';
+        for (let x = 4; x < 21; x += 3) ctx.fillRect(x, 14 - bob, 1, 2);
+        // 侧边小菌盖
+        this._ellipse(ctx, 3, 16, 2.6, 2.0, '#2a1230', 1);
+        this._ellipse(ctx, 3, 15.6, 2.0, 1.5, '#7a3fa0', 1);
+        this._ellipse(ctx, 21, 17, 2.4, 1.8, '#2a1230', 1);
+        this._ellipse(ctx, 21, 16.6, 1.8, 1.3, '#7a3fa0', 1);
+      }, 2);
+    }
+  },
+
+  // 蝙蝠王：巨大蝠翼、紫黑身体、红眼、獠牙和金色王冠
+  _batKing(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `bat_king_${frame}`, 34, 22, (ctx) => {
+        const flap = frame ? 2 : 0;
+        // 外侧翼膜轮廓
+        this._ellipse(ctx, 8, 10 + flap, 9.5, 5.5, '#120a18', 1);
+        this._ellipse(ctx, 8, 10 + flap, 8.6, 4.7, '#3a1f4a', 1);
+        this._ellipse(ctx, 26, 10 + flap, 9.5, 5.5, '#120a18', 1);
+        this._ellipse(ctx, 26, 10 + flap, 8.6, 4.7, '#3a1f4a', 1);
+        // 翼膜亮面与骨架
+        this._ellipse(ctx, 8, 9 + flap, 6.8, 3.5, '#6b3f8a', 1);
+        this._ellipse(ctx, 26, 9 + flap, 6.8, 3.5, '#6b3f8a', 1);
+        ctx.fillStyle = '#b07bff';
+        ctx.fillRect(3, 7 + flap, 1, 7);
+        ctx.fillRect(8, 6 + flap, 1, 8);
+        ctx.fillRect(13, 7 + flap, 1, 7);
+        ctx.fillRect(20, 7 + flap, 1, 7);
+        ctx.fillRect(25, 6 + flap, 1, 8);
+        ctx.fillRect(30, 7 + flap, 1, 7);
+        // 尾巴
+        ctx.fillStyle = '#120a18';
+        ctx.fillRect(16, 16, 2, 4);
+        ctx.fillRect(15, 19, 4, 1);
+        // 身体
+        this._ellipse(ctx, 17, 12, 6.3, 5.3, '#120a18', 1);
+        this._ellipse(ctx, 17, 12, 5.5, 4.5, '#4a2360', 1);
+        this._ellipse(ctx, 17, 13, 3.8, 2.8, '#2a1230', 1);
+        // 头与耳朵
+        this._ellipse(ctx, 17, 7, 4.8, 4.2, '#120a18', 1);
+        this._ellipse(ctx, 17, 7, 4.0, 3.5, '#5a2a7a', 1);
+        ctx.fillStyle = '#120a18';
+        ctx.fillRect(12, 2, 2, 4);
+        ctx.fillRect(20, 2, 2, 4);
+        ctx.fillStyle = '#7a3fa0';
+        ctx.fillRect(13, 2, 1, 3);
+        ctx.fillRect(20, 2, 1, 3);
+        // 红眼
+        ctx.fillStyle = '#ff3a2a';
+        ctx.fillRect(14, 6, 2, 2);
+        ctx.fillRect(18, 6, 2, 2);
+        ctx.fillStyle = '#ffd76a';
+        ctx.fillRect(14, 6, 1, 1);
+        ctx.fillRect(18, 6, 1, 1);
+        // 獠牙
+        ctx.fillStyle = '#f4f0d8';
+        ctx.fillRect(15, 10, 1, 2);
+        ctx.fillRect(18, 10, 1, 2);
+        // 金色王冠
+        ctx.fillStyle = '#8a5a1a';
+        ctx.fillRect(13, 1, 8, 3);
+        ctx.fillStyle = '#e8b54a';
+        ctx.fillRect(13, 1, 8, 2);
+        ctx.fillRect(13, 0, 2, 2);
+        ctx.fillRect(17, -1, 2, 3);
+        ctx.fillRect(20, 0, 2, 2);
+        ctx.fillStyle = '#ffe08a';
+        ctx.fillRect(14, 1, 1, 1);
+        ctx.fillRect(18, 1, 1, 1);
+        ctx.fillStyle = '#d94f3d';
+        ctx.fillRect(17, 2, 1, 1);
+      }, 2);
+    }
   },
 
   _gun(scene) {
@@ -1316,6 +1703,12 @@ const Art = {
     if (!A.exists('swordsman_walk')) {
       A.create({ key: 'swordsman_walk', frames: [{ key: 'swordsman_idle' }, { key: 'swordsman_walk' }], frameRate: 9, repeat: -1 });
     }
+    if (!A.exists('frankenstein_walk')) {
+      A.create({ key: 'frankenstein_walk', frames: [{ key: 'frankenstein_idle' }, { key: 'frankenstein_walk' }], frameRate: 9, repeat: -1 });
+    }
+    if (!A.exists('frankenstein_giant_walk')) {
+      A.create({ key: 'frankenstein_giant_walk', frames: [{ key: 'frankenstein_giant_0' }, { key: 'frankenstein_giant_1' }], frameRate: 7, repeat: -1 });
+    }
     if (!A.exists('goblin_walk')) {
       A.create({ key: 'goblin_walk', frames: [{ key: 'goblin_idle' }, { key: 'goblin_walk' }], frameRate: 7, repeat: -1 });
     }
@@ -1333,6 +1726,21 @@ const Art = {
     }
     if (!A.exists('boss_idle')) {
       A.create({ key: 'boss_idle', frames: [{ key: 'boss_0' }, { key: 'boss_1' }], frameRate: 3.4, repeat: -1 });
+    }
+    if (!A.exists('boar_king_idle')) {
+      A.create({ key: 'boar_king_idle', frames: [{ key: 'boar_king_0' }, { key: 'boar_king_1' }], frameRate: 3.2, repeat: -1 });
+    }
+    if (!A.exists('mushroom_fiend_idle')) {
+      A.create({ key: 'mushroom_fiend_idle', frames: [{ key: 'mushroom_fiend_0' }, { key: 'mushroom_fiend_1' }], frameRate: 2.8, repeat: -1 });
+    }
+    if (!A.exists('bat_king_fly')) {
+      A.create({ key: 'bat_king_fly', frames: [{ key: 'bat_king_0' }, { key: 'bat_king_1' }], frameRate: 9, repeat: -1 });
+    }
+    if (!A.exists('ghost_float')) {
+      A.create({ key: 'ghost_float', frames: [{ key: 'ghost_0' }, { key: 'ghost_1' }], frameRate: 3.5, repeat: -1 });
+    }
+    if (!A.exists('goat_king_idle')) {
+      A.create({ key: 'goat_king_idle', frames: [{ key: 'goat_king_0' }, { key: 'goat_king_1' }], frameRate: 3.2, repeat: -1 });
     }
   },
 };
