@@ -26,16 +26,16 @@ class ForgeScene extends Phaser.Scene {
 
     this.toast = UI.toastContainer(this);
 
-    const ids = ['pistol', 'shotgun', 'smg', 'rifle', 'flamer', 'railgun', 'slime_staff'];
+    const ids = ['pistol', 'knife', 'shotgun', 'smg', 'rifle', 'katana', 'flamer', 'railgun', 'slime_staff'];
     ids.forEach((id, i) => {
-      const col = i < 4 ? 0 : 1;
-      const row = i < 4 ? i : i - 4;
+      const col = i < 5 ? 0 : 1;
+      const row = i < 5 ? i : i - 5;
       const x = col === 0 ? 310 : 650;
-      const y = 158 + row * 68;
+      const y = 150 + row * 64;
       this.createRow(WEAPONS[id], x, y);
     });
 
-    this.add.text(480, 432, '碎片与已解锁武器永久保存 · 本局初始武器固定为手枪', UI.textStyle(10, {
+    this.add.text(480, 444, '碎片与已解锁武器永久保存 · 本局初始武器固定为手枪', UI.textStyle(10, {
       color: '#93a97d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
@@ -69,7 +69,7 @@ class ForgeScene extends Phaser.Scene {
   }
 
   createRow(w, x, y) {
-    const rw = 320, rh = 66;
+    const rw = 320, rh = 58;
     const q = QUALITIES[w.quality];
     const c = this.add.container(x, y).setDepth(2);
     const g = this.add.graphics();
@@ -78,17 +78,17 @@ class ForgeScene extends Phaser.Scene {
     const icon = this.add.image(-134, 0, w.texture).setScale(w.id === 'slime_staff' ? 0.9 : 1.0);
     c.add(icon);
 
-    const name = this.add.text(-104, -18, w.name, UI.textStyle(15, {
+    const name = this.add.text(-104, -16, w.name, UI.textStyle(15, {
       color: '#fff1c4', strokeThickness: 3,
     })).setOrigin(0, 0.5);
     c.add(name);
 
-    const quality = this.add.text(-104, 0, `${q.name}品质`, UI.textStyle(9, {
+    const quality = this.add.text(-104, 1, `${q.name}品质`, UI.textStyle(9, {
       color: q.hex, strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0, 0.5);
     c.add(quality);
 
-    const progress = this.add.text(-104, 15, '', UI.textStyle(9, {
+    const progress = this.add.text(-104, 14, '', UI.textStyle(9, {
       color: '#a9bd8f', strokeThickness: 2, bold: false, shadow: false,
     })).setOrigin(0, 0.5);
     c.add(progress);
@@ -96,7 +96,7 @@ class ForgeScene extends Phaser.Scene {
     const bar = this.add.graphics();
     c.add(bar);
 
-    const btn = UI.button(this, 122, 6, 80, 28, '合成', () => this.action(w), {
+    const btn = UI.button(this, 122, 4, 80, 26, '合成', () => this.action(w), {
       fontSize: 11, variant: 'ghost',
     });
     c.add(btn);
@@ -145,7 +145,7 @@ class ForgeScene extends Phaser.Scene {
       const { w, q, g, bar, progress, btn } = row;
       const have = Store.data.fragments[w.id] || 0;
       const owned = Store.hasWeapon(w.id);
-      const rw = 320, rh = 66;
+      const rw = 320, rh = 58;
 
       g.clear();
       g.fillStyle(0x000000, 0.28);
@@ -158,7 +158,7 @@ class ForgeScene extends Phaser.Scene {
       g.fillRect(-rw / 2, -rh / 2, 3, rh);
 
       bar.clear();
-      const bx = -104, by = 25, bw = 150, bh = 5;
+      const bx = -104, by = 23, bw = 150, bh = 5;
       bar.fillStyle(0x0b1208, 1);
       bar.fillRect(bx, by, bw, bh);
       const pct = w.fragReq <= 0 ? 1 : clamp(have / w.fragReq, 0, 1);

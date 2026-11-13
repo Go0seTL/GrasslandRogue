@@ -48,8 +48,9 @@ class GameScene extends Phaser.Scene {
     this.buffs = {
       speed: 1, damage: 1, fireRate: 1, dashCd: 1, skillCd: 1,
       coinBonus: 0, hpBonus: 0, size: 1, healBonus: 0,
-      bulletSpeed: 1, spreadMul: 1, lifesteal: 0,
+      bulletSpeed: 1, spreadMul: 1, lifesteal: 0, twinChance: 0, deathBlast: 0,
     };
+    this.ghost = null;
     this.upgradeOpen = false;
     this.lastUpgradeRound = 0;
     this.startUpgradeShown = false;
@@ -697,6 +698,128 @@ class GameScene extends Phaser.Scene {
     return b;
   }
 
+  meleeAttack(player, aim, w) {
+    const px = player.x;
+    const py = player.y - 5;
+    const range = w.range || 70;
+    const arc = w.arc || 1.1;
+    const dmg = Math.round(w.damage * (this.buffs.damage || 1));
+    const q = QUALITIES[w.quality] || QUALITIES.white;
+    const sl = this.add.image(px, py, 'slash')
+      .setTint(q.color)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(720)
+      .setScale(range / 39)
+      .setAlpha(0.95)
+      .setRotation(aim);
+    this.tweens.add({
+      targets: sl, alpha: 0, scale: range / 39 + 0.12, duration: 140,
+      onComplete: () => sl.destroy(),
+    });
+
+    let hits = 0;
+    this.enemies.getChildren().forEach((e) => {
+      if (!e.active || e.dying) return;
+      if (dist2(px, py, e.x, e.y) > range * range) return;
+      const diff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - py, e.x - px) - aim));
+      if (diff > arc / 2) return;
+      e.takeDamage(dmg, aim);
+      this.fx.hitSpark(e.x, e.y);
+      hits++;
+    });
+    this.cameras.main.shake(55, hits > 0 ? 0.002 : 0.0008);
+    if (hits > 0) Sfx.hit();
+  }
+
+  summonGhost() {
+    if (this.ghost) {
+      this.ghost.level++;
+      this.ghost.ready = true;
+      this.hud.toastQueue.push('幽灵宝宝变强了，并且恢复了守护能力');
+      return;
+    }
+    const p = this.player;
+    const sprite = this.add.image(p.x - 34, p.y - 34, 'ghost_baby').setScale(1.05);
+    const glow = this.add.image(sprite.x, sprite.y, 'glow')
+      .setTint(0xbfe8ff).setScale(0.45).setAlpha(0.35)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.ghost = { sprite, glow, level: 1, ready: true, nextShotAt: 0 };
+    this.fx.ring(p.x, p.y, 0x9fd8ff, 0.2, 1.5, 600, 0.9, 740);
+    Sfx.ghostSummon();
+    this.hud.toastQueue.push('幽灵宝宝加入了战斗');
+  }
+
+  updateGhost(time) {
+    const g = this.ghost;
+    if (!g || !g.sprite || this.player.isDead) return;
+    const p = this.player;
+    const tx = p.x + (p.flipX ? 36 : -36);
+    const ty = p.y - 30 + Math.sin(time * 0.004) * 4;
+    g.sprite.x = lerp(g.sprite.x, tx, 0.09);
+    g.sprite.y = lerp(g.sprite.y, ty, 0.09);
+    g.sprite.setDepth(g.sprite.y + 40);
+    g.glow.setPosition(g.sprite.x, g.sprite.y).setDepth(g.sprite.y + 39);
+
+    const target = this.findNearestEnemy(g.sprite.x, g.sprite.y, 560);
+    if (target && time >= g.nextShotAt) {
+      g.nextShotAt = time + Math.max(520, 950 - g.level * 120);
+      const ang = Math.atan2(target.y - g.sprite.y, target.x - g.sprite.x);
+      this.spawnPlayerBullet(g.sprite.x, g.sprite.y, ang, 10 + g.level * 4, {
+        speed: 560, tint: 0xdff6ff,
+      });
+      this.fx.ring(g.sprite.x, g.sprite.y, 0x9fd8ff, 0.1, 0.4, 160, 0.5, 741);
+      Sfx.ghostShot();
+    }
+  }
+
+  tryGhostSave() {
+    if (!this.ghost || !this.ghost.ready || this.player.isDead) return false;
+    this.ghost.ready = false;
+    const spots = [[480, 410], [480, 150], [170, 420], [790, 420], [170, 170], [790, 170]];
+    let best = spots[0];
+    let bestScore = -1;
+    for (const spot of spots) {
+      let minD = Infinity;
+      this.enemies.getChildren().forEach((e) => {
+        if (e.active && !e.dying) minD = Math.min(minD, dist2(spot[0], spot[1], e.x, e.y));
+      });
+      if (minD > bestScore) {
+        bestScore = minD;
+        best = spot;
+      }
+    }
+    const p = this.player;
+    if (p.body) p.body.reset(best[0], best[1]);
+    p.hp = Math.max(25, Math.round(p.maxHp * 0.35));
+    p.invulnUntil = this.time.now + 3000;
+    p.setAlpha(1);
+    p.clearTint();
+    this.enemyBullets.getChildren().slice().forEach((b) => {
+      if (dist2(b.x, b.y, p.x, p.y) < 150 * 150) b.destroy();
+    });
+    this.hud.hpDirty = true;
+    this.cameras.main.flash(320, 170, 230, 255);
+    this.fx.ring(p.x, p.y, 0x9fd8ff, 0.3, 2.2, 700, 0.9, 760);
+    this.hud.bannerQueue.push({ title: '幽灵宝宝', sub: '把主人传送到安全位置 · 3 秒无敌', color: '#bfe8ff' });
+    Sfx.ghostSave();
+    return true;
+  }
+
+  deathBlast(x, y) {
+    const dmg = Math.round(35 * this.buffs.deathBlast);
+    this.enemies.getChildren().forEach((e) => {
+      if (!e.active || e.dying) return;
+      if (dist2(x, y, e.x, e.y) <= 95 * 95) {
+        e.takeDamage(dmg, Math.atan2(e.y - y, e.x - x));
+      }
+    });
+    this.fx.ring(x, y, 0xff8a4a, 0.2, 1.8, 400, 0.9, 745);
+    this.fx.sparks.explode(12, x, y);
+    this.fx.smoke.explode(4, x, y);
+    this.cameras.main.shake(90, 0.003);
+    Sfx.hit();
+  }
+
   onBulletHitEnemy(bullet, enemy) {
     if (!bullet.active || !enemy.active || enemy.dying) return;
     if (bullet.hitEnemies && bullet.hitEnemies.has(enemy)) return;
@@ -772,6 +895,15 @@ class GameScene extends Phaser.Scene {
         this.buffs.bulletSpeed *= 1.15;
         this.buffs.spreadMul *= 0.72;
         break;
+      case 'ghost_baby':
+        this.summonGhost();
+        break;
+      case 'death_blast':
+        this.buffs.deathBlast += 1;
+        break;
+      case 'twin_barrage':
+        this.buffs.twinChance = Math.min(0.7, (this.buffs.twinChance || 0) + 0.35);
+        break;
       default:
         break;
     }
@@ -809,6 +941,9 @@ class GameScene extends Phaser.Scene {
     if (Math.random() < hpChance) this.dropHealthPack(enemy.x, enemy.y);
     if (this.buffs.lifesteal > 0 && !this.player.isDead) this.player.heal(this.buffs.lifesteal);
     this.maybeDropFragment(enemy);
+    if (this.buffs.deathBlast > 0 && enemy.enemyType !== 'boss' && Math.random() < 0.3) {
+      this.deathBlast(enemy.x, enemy.y);
+    }
 
     if (enemy.enemyType === 'slime' && this.roomState === 'fighting' && Math.random() < 0.3) {
       const x = clamp(enemy.x, ARENA.left + 30, ARENA.right - 30);
@@ -1528,6 +1663,7 @@ class GameScene extends Phaser.Scene {
     if (!this.player) return;
     this.updateSkill(time, delta);
     if (!this.player.isDead) this.player.update(time, delta);
+    this.updateGhost(time);
     this.updateTouchUI();
 
     this.enemies.getChildren().forEach((e) => {

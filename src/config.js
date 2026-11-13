@@ -94,16 +94,26 @@ const WEAPONS = {
     bulletSpeed: 720, pellets: 3, spread: 0.16, pierce: 1, tint: 0x8fd463,
     texture: 'gun_staff', desc: '史莱姆王的力量。一次喷出 3 颗粘液弹，穿透 1 个敌人。', iconScale: 1.15,
   },
+  knife: {
+    id: 'knife', name: '小刀', quality: 'white', fragReq: 0, melee: true,
+    damage: 22, fireRate: 0.30, range: 64, arc: 1.0,
+    texture: 'weapon_knife', desc: '免费近战武器。挥刀范围短，但无限使用。', iconScale: 1.5,
+  },
+  katana: {
+    id: 'katana', name: '武士刀', quality: 'purple', fragReq: 45, melee: true,
+    damage: 48, fireRate: 0.50, range: 88, arc: 1.35,
+    texture: 'weapon_katana', desc: '紫色品质近战武器。大范围挥砍，可同时命中多个敌人。', iconScale: 1.3,
+  },
 };
 
 const CHAR_DEFS = [
-  { id: 'gunner',    name: '枪手',     price: 0,   desc: '手枪 · 锁定扫射',        color: 0x2f7f78, playable: true,  portrait: 'player_idle' },
-  { id: 'swordsman', name: '剑客',     price: 0,   desc: '手枪 · 万剑归宗',        color: 0x557fb0, playable: true,  portrait: 'swordsman_idle' },
-  { id: 'knight',    name: '骑士',     price: 120, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
-  { id: 'mage',      name: '法师',     price: 220, desc: '法术 · 范围爆发',        color: 0x7a4fa5, playable: false, portrait: 'player_idle' },
-  { id: 'ranger',    name: '游侠',     price: 320, desc: '弓箭 · 高机动',          color: 0x3f8f4a, playable: false, portrait: 'player_idle' },
-  { id: 'rogue',     name: '刺客',     price: 460, desc: '匕首 · 暴击 · 闪避',     color: 0x8a3f4a, playable: false, portrait: 'player_idle' },
-  { id: 'alchemist', name: '炼金术士', price: 600, desc: '药水 · 控制 · 召唤',     color: 0xa58a3f, playable: false, portrait: 'player_idle' },
+  { id: 'gunner',    name: '枪手',     price: 0,    desc: '手枪 · 锁定扫射',        color: 0x2f7f78, playable: true,  portrait: 'player_idle' },
+  { id: 'swordsman', name: '剑客',     price: 800,  desc: '手枪 · 万剑归宗',        color: 0x557fb0, playable: true,  portrait: 'swordsman_idle' },
+  { id: 'knight',    name: '骑士',     price: 1200, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
+  { id: 'mage',      name: '法师',     price: 1800, desc: '法术 · 范围爆发',        color: 0x7a4fa5, playable: false, portrait: 'player_idle' },
+  { id: 'ranger',    name: '游侠',     price: 2500, desc: '弓箭 · 高机动',          color: 0x3f8f4a, playable: false, portrait: 'player_idle' },
+  { id: 'rogue',     name: '刺客',     price: 3500, desc: '匕首 · 暴击 · 闪避',     color: 0x8a3f4a, playable: false, portrait: 'player_idle' },
+  { id: 'alchemist', name: '炼金术士', price: 5000, desc: '药水 · 控制 · 召唤',     color: 0xa58a3f, playable: false, portrait: 'player_idle' },
 ];
 
 // 海克斯式三选一强化
@@ -116,7 +126,23 @@ const UPGRADES = [
   { id: 'skillmaster', name: '技能大师', icon: '技', color: 0x9a6ad9, desc: '技能冷却 -20%。' },
   { id: 'vampire', name: '吸血', icon: '血', color: 0xa84a5a, desc: '击杀敌人时回复 2 点生命。' },
   { id: 'focus', name: '专注', icon: '准', color: 0x8ac8e8, desc: '子弹速度 +15%，散射更小。' },
+  { id: 'ghost_baby', name: '幽灵宝宝', icon: '灵', color: 0x9fd8ff, rarity: 'epic', desc: '召唤幽灵宝宝跟随作战，远程吐白色小球。主人濒死时把主人传送到安全位置并免疫 3 秒。' },
+  { id: 'death_blast', name: '死亡爆破', icon: '爆', color: 0xff7a4a, rarity: 'epic', desc: '击杀敌人时有 30% 概率引发爆炸，对周围敌人造成伤害。' },
+  { id: 'twin_barrage', name: '双生弹幕', icon: '双', color: 0xffa8e8, rarity: 'epic', desc: '每次射击有 35% 概率额外发射一颗子弹。' },
 ];
+
+const UPGRADE_REFRESH_COST = 30;
+
+// 激活码只存哈希，不在界面/文档里写明文
+const ACTIVATION_HASH = {
+  tangle: 3275243731,
+  super: 3517085611,
+};
+function hashActivation(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 131 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
 
 const ENEMY_LORE = {
   slime: '草原上最常见的史莱姆。会一蹦一蹦地靠近，死亡时有概率分裂成两只小史莱姆。',

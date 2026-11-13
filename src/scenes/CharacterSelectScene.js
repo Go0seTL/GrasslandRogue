@@ -14,14 +14,14 @@ class CharacterSelectScene extends Phaser.Scene {
     this.add.text(480, 40, '选择角色', UI.textStyle(36, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(10);
-    this.add.text(480, 72, '枪手与剑客已开放 · 其余角色会随金币解锁陆续开放', UI.textStyle(12, {
+    this.add.text(480, 72, '枪手免费 · 剑客 800 金币 · 其余角色制作中', UI.textStyle(12, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(10);
 
     const wallet = UI.panel(this, 742, 8, 202, 40, { border: 0x9aa86a, bg: 0x15200f, alpha: 0.85 });
     wallet.setDepth(10);
     this.add.image(766, 28, 'coin_icon').setDepth(11);
-    this.add.text(784, 28, String(Store.data.coins), UI.textStyle(19, {
+    this.walletText = this.add.text(784, 28, String(Store.data.coins), UI.textStyle(19, {
       color: '#ffe9a8', strokeThickness: 3,
     })).setOrigin(0, 0.5).setDepth(11);
 
@@ -82,25 +82,31 @@ class CharacterSelectScene extends Phaser.Scene {
     desc.setLineSpacing(2);
     c.add(desc);
 
-    let statusLabel;
-    let statusColor;
-    if (!def.playable) {
-      statusLabel = unlocked ? '已解锁 · 制作中' : `未开放 · ${def.price} 金币`;
-      statusColor = unlocked ? '#ffd76a' : '#8b927d';
-    } else if (unlocked) {
-      statusLabel = def.price === 0 ? '免费 · 已解锁' : '已解锁';
-      statusColor = '#9ff0a8';
-    } else {
-      statusLabel = `${def.price} 金币`;
-      statusColor = '#e0b96a';
-    }
-    const status = this.add.text(-w / 2 + 94, h / 2 - 22, statusLabel, UI.textStyle(10, {
-      color: statusColor, strokeThickness: 2,
+    const status = this.add.text(-w / 2 + 94, h / 2 - 22, '', UI.textStyle(10, {
+      color: '#e0b96a', strokeThickness: 2,
     })).setOrigin(0, 0.5);
     c.add(status);
 
+    const updateStatus = () => {
+      const isUnlocked = Store.isUnlocked(def.id);
+      let label;
+      let color;
+      if (!def.playable) {
+        label = isUnlocked ? '已解锁 · 制作中' : `未开放 · ${def.price} 金币`;
+        color = isUnlocked ? '#ffd76a' : '#8b927d';
+      } else if (isUnlocked) {
+        label = def.price === 0 ? '免费 · 已解锁' : '已解锁';
+        color = '#9ff0a8';
+      } else {
+        label = `${def.price} 金币`;
+        color = '#e0b96a';
+      }
+      status.setText(label).setColor(color);
+    };
+    updateStatus();
+
     const card = {
-      def, container: c, g, portrait, status, w, h,
+      def, container: c, g, portrait, status, updateStatus, w, h,
       hovered: false,
       selected: false,
       draw: () => {
@@ -170,6 +176,7 @@ class CharacterSelectScene extends Phaser.Scene {
       }
       Store.data.coins -= def.price;
       Store.data.unlocked.push(def.id);
+      if (def.id === 'swordsman') Store.data.swordsmanPurchased = true;
       Store.save();
       Sfx.unlock();
       this.toast.show(`已解锁「${def.name}」！`, '#9ff0a8');
@@ -183,8 +190,10 @@ class CharacterSelectScene extends Phaser.Scene {
   refreshCards() {
     this.cards.forEach((c) => {
       c.selected = c.def.id === this.selectedId;
+      c.updateStatus();
       c.draw();
     });
+    if (this.walletText) this.walletText.setText(String(Store.data.coins));
   }
 
   startGame() {

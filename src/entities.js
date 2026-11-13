@@ -123,13 +123,21 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const w = this.scene.weapon || WEAPONS.pistol;
     const buffs = this.scene.buffs || {};
     this.nextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+    if (w.melee) {
+      this.scene.meleeAttack(this, aim, w);
+      this.body.velocity.x -= Math.cos(aim) * 45;
+      this.body.velocity.y -= Math.sin(aim) * 45;
+      Sfx.slash();
+      return;
+    }
     const px = this.x + Math.cos(aim) * 2;
     const py = this.y - 2 + Math.sin(aim) * 2;
     const tip = this.gun.displayWidth * (1 - this.gun.originX);
     const fxX = this.x + Math.cos(aim) * (8 + tip);
     const fxY = this.y - 5 + Math.sin(aim) * (8 + tip);
     const spread = w.spread * (buffs.spreadMul || 1);
-    for (let i = 0; i < w.pellets; i++) {
+    const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
+    for (let i = 0; i < w.pellets + extra; i++) {
       const a = aim + rand(-spread, spread);
       this.scene.spawnPlayerBullet(px, py, a, Math.round(w.damage * (buffs.damage || 1)), {
         speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
@@ -185,7 +193,12 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.cameras.main.shake(150, 0.006);
     Sfx.hurt();
     this.scene.onPlayerHurt();
-    if (this.hp <= 0) this.die();
+    if (this.hp <= 0) {
+      if (this.scene.tryGhostSave && this.scene.tryGhostSave()) {
+        return true;
+      }
+      this.die();
+    }
     return true;
   }
 
@@ -529,10 +542,10 @@ class Boss extends Enemy {
   constructor(scene, x, y, level) {
     super(scene, x, y, 'boss', level);
     const round = scene.round || 1;
-    this.maxHp = Math.round(460 * (1 + 0.55 * (round - 1)));
+    this.maxHp = Math.round(560 * (1 + 0.65 * (round - 1)));
     this.hp = this.maxHp;
-    this.damage = Math.round(16 * (1 + 0.28 * (round - 1)));
-    this.moveSpeed = 44;
+    this.damage = Math.round(18 * (1 + 0.32 * (round - 1)));
+    this.moveSpeed = 52;
     this.mode = 'idle';
     this.modeTimer = 1500;
     this.nextMode = 'leap';
@@ -555,11 +568,11 @@ class Boss extends Enemy {
 
     if (!this.phase2 && this.hp < this.maxHp * 0.5) {
       this.phase2 = true;
-      this.moveSpeed = 64;
+      this.moveSpeed = 78;
       Sfx.bossRoar();
       this.scene.cameras.main.shake(220, 0.007);
       this.scene.fx.bossEnrage(this.x, this.y);
-      this.scene.hud.toast = '史莱姆王暴怒了！';
+      this.scene.hud.toastQueue.push('史莱姆王暴怒了！');
     }
 
     this.modeTimer -= delta;
@@ -633,7 +646,7 @@ class Boss extends Enemy {
     this.scene.fx.bossSlam(this.x, this.y + 30);
     this.scene.cameras.main.shake(240, 0.009);
     Sfx.explosion();
-    const n = this.phase2 ? 16 : 12;
+    const n = this.phase2 ? 18 : 14;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + rand(-0.08, 0.08);
       this.scene.spawnEnemyOrb(this.x, this.y + 20, a, Math.round(this.damage * 0.75));

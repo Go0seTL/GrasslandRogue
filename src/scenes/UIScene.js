@@ -52,7 +52,7 @@ class UIScene extends Phaser.Scene {
     this.weaponName = this.add.text(68, 498, '手枪', UI.textStyle(14, {
       color: '#fff1c4', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0, 0.5).setDepth(102);
-    this.add.text(68, 514, '无限弹药', UI.textStyle(10, {
+    this.weaponSub = this.add.text(68, 514, '无限弹药', UI.textStyle(10, {
       color: '#9ff0a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0, 0.5).setDepth(102);
 
@@ -263,6 +263,7 @@ class UIScene extends Phaser.Scene {
       this.lastWeaponId = game.weaponId;
       this.weaponIcon.setTexture(weapon.texture).setScale(weapon.iconScale || 1.35);
       this.weaponName.setText(weapon.name);
+      if (this.weaponSub) this.weaponSub.setText(weapon.melee ? '近战 · 无消耗' : '无限弹药');
     }
 
     this.drawSkillButton(game);

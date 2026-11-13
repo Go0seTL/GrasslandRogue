@@ -174,6 +174,21 @@ const Sfx = {
     this._tone(120, 0.25, { type: 'sawtooth', vol: 0.05, slide: 70 });
     this._noise(0.18, { filter: 400, vol: 0.05, filterType: 'lowpass' });
   },
+  slash() {
+    this._noise(0.09, { filter: 2600, vol: 0.04, q: 1.4 });
+    this._tone(720, 0.05, { type: 'triangle', vol: 0.03, slide: 300 });
+  },
+  ghostSummon() {
+    this._tone(520, 0.4, { type: 'sine', vol: 0.04, slide: 980 });
+    this._tone(780, 0.3, { type: 'triangle', vol: 0.025, slide: 1200, delay: 0.08 });
+  },
+  ghostShot() {
+    this._tone(980, 0.04, { type: 'sine', vol: 0.025, slide: 520 });
+  },
+  ghostSave() {
+    this._tone(420, 0.5, { type: 'sine', vol: 0.06, slide: 1200 });
+    this._noise(0.3, { filter: 1600, filterSlide: 4200, vol: 0.04, q: 1.2 });
+  },
 
   // —— 背景音乐：简单 8-bit 循环 ——
   startMusic() {

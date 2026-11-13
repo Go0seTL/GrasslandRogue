@@ -191,9 +191,7 @@ class MenuScene extends Phaser.Scene {
     const box = this.add.rectangle(480, 246, 280, 44, 0x0b1208, 1);
     box.setStrokeStyle(2, 0x7e9a5e, 1);
     const usedAll = Store.data.activationUsed && Store.data.superActivationUsed;
-    const hint = usedAll
-      ? '两个激活码都已使用过'
-      : 'tanglenb：500 金币   ·   050912：全解锁';
+    const hint = usedAll ? '激活码已全部使用' : '请输入激活码';
     const status = this.add.text(480, 284, hint, UI.textStyle(12, {
       color: usedAll ? '#ffd0a0' : '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5);
@@ -253,10 +251,11 @@ class MenuScene extends Phaser.Scene {
   submitActivation(statusText) {
     if (!this.activationInput) return;
     const code = (this.activationInput.value || '').trim().toLowerCase();
-    if (code === 'tanglenb') {
+    const h = hashActivation(code);
+    if (h === ACTIVATION_HASH.tangle) {
       if (Store.data.activationUsed) {
         Sfx.uiDeny();
-        statusText.setText('tanglenb 已经使用过了').setColor('#ffd0a0');
+        statusText.setText('该激活码已经使用过了').setColor('#ffd0a0');
         return;
       }
       Store.data.activationUsed = true;
@@ -266,14 +265,14 @@ class MenuScene extends Phaser.Scene {
       this.tweens.add({ targets: this.coinText, scale: 1.3, duration: 160, yoyo: true });
       Sfx.unlock();
       this.activationInput.value = '';
-      statusText.setText('tanglenb 激活成功：金币 +500').setColor('#9ff0a8');
+      statusText.setText('激活成功：金币 +500').setColor('#9ff0a8');
       this.time.delayedCall(1400, () => this.closeActivation());
       return;
     }
-    if (code === '050912') {
+    if (h === ACTIVATION_HASH.super) {
       if (Store.data.superActivationUsed) {
         Sfx.uiDeny();
-        statusText.setText('050912 已经使用过了').setColor('#ffd0a0');
+        statusText.setText('该激活码已经使用过了').setColor('#ffd0a0');
         return;
       }
       Store.data.superActivationUsed = true;

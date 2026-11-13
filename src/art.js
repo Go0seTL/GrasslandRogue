@@ -513,6 +513,36 @@ const Art = {
       ctx.fillRect(17, 3, 1, 1);
     }, 2);
 
+    this._canvas(scene, 'weapon_knife', 12, 7, (ctx) => {
+      ctx.fillStyle = '#2a1a12';
+      ctx.fillRect(3, 2, 8, 3);
+      ctx.fillRect(1, 3, 3, 3);
+      ctx.fillStyle = '#c9d0de';
+      ctx.fillRect(4, 3, 6, 1);
+      ctx.fillStyle = '#8a94a8';
+      ctx.fillRect(4, 4, 6, 1);
+      ctx.fillStyle = '#e8b54a';
+      ctx.fillRect(3, 3, 1, 2);
+      ctx.fillStyle = '#5a3a22';
+      ctx.fillRect(1, 4, 2, 1);
+    }, 2);
+
+    this._canvas(scene, 'weapon_katana', 22, 7, (ctx) => {
+      ctx.fillStyle = '#20242e';
+      ctx.fillRect(4, 2, 18, 3);
+      ctx.fillRect(0, 3, 4, 2);
+      ctx.fillStyle = '#c9d0de';
+      ctx.fillRect(5, 3, 16, 1);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(5, 3, 8, 1);
+      ctx.fillStyle = '#8a94a8';
+      ctx.fillRect(5, 4, 16, 1);
+      ctx.fillStyle = '#e8b54a';
+      ctx.fillRect(2, 2, 2, 4);
+      ctx.fillStyle = '#5a3a22';
+      ctx.fillRect(0, 3, 2, 2);
+    }, 2);
+
     this._canvas(scene, 'gun_staff', 17, 9, (ctx) => {
       ctx.fillStyle = '#3a2313';
       ctx.fillRect(0, 4, 11, 2);
@@ -776,6 +806,34 @@ const Art = {
       ctx.fillRect(4, 6, 2, 4);
     });
 
+    this._canvas(scene, 'ghost_baby', 18, 18, (ctx) => {
+      // 幽灵轮廓
+      this._ellipse(ctx, 9, 8, 7.2, 6.2, '#3a6a8a', 1);
+      this._ellipse(ctx, 9, 7.8, 6.4, 5.4, '#dff6ff', 1);
+      ctx.fillStyle = '#dff6ff';
+      ctx.fillRect(3, 8, 12, 6);
+      ctx.fillRect(3, 13, 2, 2);
+      ctx.fillRect(6, 14, 3, 2);
+      ctx.fillRect(10, 14, 2, 2);
+      ctx.fillRect(13, 13, 2, 2);
+      ctx.fillStyle = '#9fd8ff';
+      ctx.fillRect(3, 8, 1, 5);
+      ctx.fillRect(14, 8, 1, 5);
+      // 眼睛
+      ctx.fillStyle = '#2a3a4a';
+      ctx.fillRect(6, 9, 2, 2);
+      ctx.fillRect(11, 9, 2, 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(6, 9, 1, 1);
+      ctx.fillRect(11, 9, 1, 1);
+      // 腮红/高光
+      ctx.fillStyle = '#b8e8ff';
+      ctx.fillRect(4, 11, 2, 1);
+      ctx.fillRect(12, 11, 2, 1);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(6, 5, 2, 1);
+    }, 2);
+
     this._canvas(scene, 'fragment', 10, 14, (ctx) => {
       ctx.fillStyle = '#1a1f26';
       ctx.fillRect(3, 0, 4, 2);
@@ -856,6 +914,21 @@ const Art = {
         const y = 32 + Math.sin(a) * 25;
         ctx.fillStyle = '#d94f3d';
         ctx.fillRect(Math.round(x - 2), Math.round(y - 2), 4, 4);
+      }
+    });
+
+    this._canvas(scene, 'slash', 96, 96, (ctx) => {
+      for (let a = -0.95; a <= 0.95; a += 0.028) {
+        const x = 48 + Math.cos(a) * 39;
+        const y = 48 + Math.sin(a) * 39;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(Math.round(x - 2), Math.round(y - 2), 4, 4);
+      }
+      for (let a = -0.8; a <= 0.8; a += 0.05) {
+        const x = 48 + Math.cos(a) * 31;
+        const y = 48 + Math.sin(a) * 31;
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillRect(Math.round(x - 1), Math.round(y - 1), 2, 2);
       }
     });
 
