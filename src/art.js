@@ -6,6 +6,7 @@ const Art = {
     this.makeCharacters(scene);
     this.makeGround(scene);
     this.makeGroundMountain(scene);
+    this.makeGroundGraveyard(scene);
     this.makeDecor(scene);
     this.makeCreatures(scene);
     this.makeFX(scene);
@@ -146,6 +147,299 @@ const Art = {
       ctx.fillStyle = '#d8ffb0';
       ctx.fillRect(8, 6, 2, 1);
       ctx.fillRect(14, 6, 2, 1);
+    }, 2);
+
+    // 技能图标
+    this._canvas(scene, 'guitar_icon', 24, 24, (ctx) => {
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(2, 3, 2, 2);
+      ctx.fillRect(5, 1, 2, 2);
+      ctx.fillRect(19, 4, 2, 2);
+      this._ellipse(ctx, 9, 15, 6.5, 5.4, '#2a1a12', 1);
+      this._ellipse(ctx, 9, 15, 5.4, 4.4, '#c98a4a', 1);
+      this._ellipse(ctx, 9, 15, 2.0, 1.6, '#2a1a12', 1);
+      ctx.fillStyle = '#e8d0a0';
+      ctx.fillRect(13, 6, 7, 2);
+      ctx.fillStyle = '#ff5a7a';
+      ctx.fillRect(18, 4, 3, 3);
+      ctx.fillStyle = '#f4f0d8';
+      ctx.fillRect(4, 11, 1, 8);
+      ctx.fillRect(7, 10, 1, 9);
+      ctx.fillRect(10, 10, 1, 9);
+    }, 2);
+    this._canvas(scene, 'demon_icon', 24, 24, (ctx) => {
+      this._ellipse(ctx, 12, 13, 7.0, 6.5, '#2a1010', 1);
+      this._ellipse(ctx, 12, 13, 6.0, 5.6, '#b23a2c', 1);
+      ctx.fillStyle = '#2a1010';
+      ctx.fillRect(5, 3, 3, 5);
+      ctx.fillRect(16, 3, 3, 5);
+      ctx.fillRect(3, 1, 2, 4);
+      ctx.fillRect(19, 1, 2, 4);
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(8, 11, 3, 2);
+      ctx.fillRect(14, 11, 3, 2);
+      ctx.fillStyle = '#1a0808';
+      ctx.fillRect(9, 11, 1, 1);
+      ctx.fillRect(15, 11, 1, 1);
+      ctx.fillStyle = '#f4f0d8';
+      ctx.fillRect(9, 17, 2, 2);
+      ctx.fillRect(14, 17, 2, 2);
+    }, 2);
+    this._canvas(scene, 'mage_icon', 24, 24, (ctx) => {
+      this._ellipse(ctx, 12, 12, 6.5, 6.5, '#2a1a4a', 1);
+      this._ellipse(ctx, 12, 12, 5.5, 5.5, '#7a4fb0', 1);
+      ctx.fillStyle = '#e8d0ff';
+      ctx.fillRect(11, 5, 2, 14);
+      ctx.fillRect(5, 11, 14, 2);
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(11, 9, 2, 2);
+      ctx.fillRect(7, 4, 2, 2);
+      ctx.fillRect(17, 17, 2, 2);
+    }, 2);
+
+    this._mageSprites(scene);
+    this._guitaristSprites(scene);
+    this._demonSprites(scene);
+    this._mercenarySprites(scene);
+  },
+
+  _mageSprites(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `mage_${frame}`, 18, 20, (ctx) => {
+        const s = frame ? 1 : 0;
+        // 靴子与长袍
+        ctx.fillStyle = '#2a2040';
+        ctx.fillRect(5, 18 - s, 3, 2);
+        ctx.fillRect(10, 18 + s, 3, 2);
+        ctx.fillStyle = '#4a2f7a';
+        ctx.fillRect(4, 11, 10, 7);
+        ctx.fillStyle = '#6b4fa0';
+        ctx.fillRect(5, 11, 8, 2);
+        ctx.fillStyle = '#d9b45a';
+        ctx.fillRect(5, 15, 8, 1);
+        // 手臂与手
+        ctx.fillStyle = '#5a3f8a';
+        ctx.fillRect(2, 12 + s, 2, 5);
+        ctx.fillRect(14, 12 - s, 2, 5);
+        ctx.fillStyle = '#f4c99b';
+        ctx.fillRect(2, 17 + s, 2, 1);
+        ctx.fillRect(14, 17 - s, 2, 1);
+        // 头部、眼睛、白胡子
+        ctx.fillStyle = '#f4c99b';
+        ctx.fillRect(5, 6, 8, 5);
+        ctx.fillStyle = '#2b1a12';
+        ctx.fillRect(7, 7, 1, 2);
+        ctx.fillRect(11, 7, 1, 2);
+        ctx.fillStyle = '#e8e4d4';
+        ctx.fillRect(5, 10, 8, 3);
+        ctx.fillRect(6, 13, 6, 1);
+        // 尖顶法师帽
+        ctx.fillStyle = '#2a1a4a';
+        ctx.fillRect(4, 0, 10, 3);
+        ctx.fillRect(7, 0, 4, 1);
+        ctx.fillStyle = '#4a2f7a';
+        ctx.fillRect(2, 3, 14, 2);
+        ctx.fillStyle = '#ffd76a';
+        ctx.fillRect(8, 1, 2, 1);
+        ctx.fillStyle = '#b07bff';
+        ctx.fillRect(4, 4, 2, 1);
+      }, 2);
+    }
+  },
+
+  _guitaristSprites(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `guitarist_${frame}`, 18, 20, (ctx) => {
+        const s = frame ? 1 : 0;
+        // 腿和靴子
+        ctx.fillStyle = '#2a2430';
+        ctx.fillRect(5, 16, 3, 4);
+        ctx.fillRect(10, 16, 3, 4);
+        ctx.fillStyle = '#141218';
+        ctx.fillRect(4, 18 - s, 4, 2);
+        ctx.fillRect(10, 18 + s, 4, 2);
+        // 皮夹克与红内衬
+        ctx.fillStyle = '#1e1a24';
+        ctx.fillRect(4, 9, 10, 8);
+        ctx.fillStyle = '#6b1f2a';
+        ctx.fillRect(7, 10, 4, 5);
+        ctx.fillStyle = '#8a8a96';
+        ctx.fillRect(4, 10, 1, 4);
+        ctx.fillRect(13, 10, 1, 4);
+        // 吉他：棕色琴身和浅色琴颈
+        this._ellipse(ctx, 5, 13, 4.2, 3.2, '#3a2418', 1);
+        this._ellipse(ctx, 5, 13, 3.2, 2.4, '#c98a4a', 1);
+        this._ellipse(ctx, 5, 13, 1.2, 1.0, '#2a1a12', 1);
+        ctx.fillStyle = '#e8d0a0';
+        ctx.fillRect(9, 8, 7, 1);
+        ctx.fillStyle = '#ffd76a';
+        ctx.fillRect(15, 7, 2, 2);
+        // 头、墨镜、刺猬头
+        ctx.fillStyle = '#f4c99b';
+        ctx.fillRect(5, 4, 8, 5);
+        ctx.fillStyle = '#18151c';
+        ctx.fillRect(4, 1, 10, 3);
+        ctx.fillRect(3, 3, 2, 2);
+        ctx.fillRect(13, 2, 2, 3);
+        ctx.fillRect(6, 0, 2, 2);
+        ctx.fillRect(10, 0, 2, 2);
+        ctx.fillRect(6, 5, 6, 2);
+        ctx.fillStyle = '#9fe8ff';
+        ctx.fillRect(6, 5, 2, 1);
+        ctx.fillRect(10, 5, 2, 1);
+        ctx.fillStyle = '#2b1a12';
+        ctx.fillRect(8, 8, 2, 1);
+      }, 2);
+    }
+  },
+
+  _demonSprites(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      this._canvas(scene, `demon_${frame}`, 18, 20, (ctx) => {
+        const s = frame ? 1 : 0;
+        // 暗色翅膀
+        this._ellipse(ctx, 2, 10, 3.4, 5.4, '#2a1230', 1);
+        this._ellipse(ctx, 16, 10, 3.4, 5.4, '#2a1230', 1);
+        ctx.fillStyle = '#4a1f5a';
+        ctx.fillRect(1, 8, 1, 5);
+        ctx.fillRect(16, 8, 1, 5);
+        // 腿和靴子
+        ctx.fillStyle = '#2a1a1a';
+        ctx.fillRect(5, 16, 3, 4);
+        ctx.fillRect(10, 16, 3, 4);
+        ctx.fillStyle = '#141010';
+        ctx.fillRect(4, 18 - s, 4, 2);
+        ctx.fillRect(10, 18 + s, 4, 2);
+        // 暗红身体
+        ctx.fillStyle = '#5a1f24';
+        ctx.fillRect(4, 10, 10, 7);
+        ctx.fillStyle = '#8a2a30';
+        ctx.fillRect(5, 11, 8, 2);
+        ctx.fillStyle = '#2a1a1a';
+        ctx.fillRect(5, 15, 8, 1);
+        // 红色手臂
+        ctx.fillStyle = '#b23a2c';
+        ctx.fillRect(2, 11 + s, 2, 5);
+        ctx.fillRect(14, 11 - s, 2, 5);
+        // 头、红眼、尖牙和角
+        ctx.fillStyle = '#c94a3a';
+        ctx.fillRect(5, 4, 8, 6);
+        ctx.fillStyle = '#1a1010';
+        ctx.fillRect(6, 6, 2, 2);
+        ctx.fillRect(10, 6, 2, 2);
+        ctx.fillStyle = '#ffd76a';
+        ctx.fillRect(6, 6, 1, 1);
+        ctx.fillRect(11, 6, 1, 1);
+        ctx.fillStyle = '#f4f0d8';
+        ctx.fillRect(7, 9, 1, 2);
+        ctx.fillRect(10, 9, 1, 2);
+        ctx.fillStyle = '#2a1a1a';
+        ctx.fillRect(3, 1, 2, 4);
+        ctx.fillRect(13, 1, 2, 4);
+        ctx.fillStyle = '#6b3f8a';
+        ctx.fillRect(3, 1, 1, 2);
+        ctx.fillRect(14, 1, 1, 2);
+        // 尾巴
+        ctx.fillStyle = '#8a2a30';
+        ctx.fillRect(15, 17, 2, 1);
+        ctx.fillRect(16, 18, 1, 1);
+      }, 2);
+    }
+  },
+
+  _mercenarySprites(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      const s = frame ? 1 : 0;
+      // 暄暄：瘦高、不戴眼镜、黑色长风衣、巨大黑刀
+      this._canvas(scene, `merc_xuan_${frame}`, 18, 20, (ctx) => {
+        ctx.fillStyle = '#1a1a1e';
+        ctx.fillRect(5, 16, 3, 4);
+        ctx.fillRect(10, 16, 3, 4);
+        ctx.fillStyle = '#111014';
+        ctx.fillRect(4, 18 - s, 4, 2);
+        ctx.fillRect(10, 18 + s, 4, 2);
+        // 黑色长风衣
+        ctx.fillStyle = '#25242a';
+        ctx.fillRect(4, 9, 10, 8);
+        ctx.fillStyle = '#3a3942';
+        ctx.fillRect(5, 10, 2, 6);
+        ctx.fillStyle = '#8a2a30';
+        ctx.fillRect(12, 10, 1, 5);
+        // 手臂
+        ctx.fillStyle = '#c99a76';
+        ctx.fillRect(2, 11 + s, 2, 4);
+        ctx.fillRect(14, 11 - s, 2, 4);
+        // 巨大的黑色长刀
+        ctx.fillStyle = '#0e0d12';
+        ctx.fillRect(14, 2, 3, 14);
+        ctx.fillStyle = '#5a5a66';
+        ctx.fillRect(15, 2, 1, 12);
+        ctx.fillStyle = '#c8c8d4';
+        ctx.fillRect(16, 3, 1, 9);
+        ctx.fillStyle = '#8a5a2a';
+        ctx.fillRect(13, 15, 5, 2);
+        // 头与脸：不戴眼镜
+        ctx.fillStyle = '#c99a76';
+        ctx.fillRect(5, 4, 8, 6);
+        ctx.fillStyle = '#1a1a1e';
+        ctx.fillRect(5, 2, 8, 3);
+        ctx.fillRect(4, 4, 2, 3);
+        ctx.fillStyle = '#1a1a1e';
+        ctx.fillRect(7, 6, 1, 2);
+        ctx.fillRect(11, 6, 1, 2);
+        ctx.fillStyle = '#8a2a30';
+        ctx.fillRect(8, 9, 3, 1);
+      }, 2);
+
+      // 亮宝：高壮、戴眼镜、绿色外套、手雷
+      this._canvas(scene, `merc_liang_${frame}`, 18, 20, (ctx) => {
+        ctx.fillStyle = '#2a2a22';
+        ctx.fillRect(4, 16, 4, 4);
+        ctx.fillRect(10, 16, 4, 4);
+        ctx.fillStyle = '#14140f';
+        ctx.fillRect(3, 18 - s, 5, 2);
+        ctx.fillRect(10, 18 + s, 5, 2);
+        // 壮实身体
+        ctx.fillStyle = '#3f5f36';
+        ctx.fillRect(3, 8, 12, 9);
+        ctx.fillStyle = '#5a7f4a';
+        ctx.fillRect(4, 9, 10, 3);
+        ctx.fillStyle = '#2a3f24';
+        ctx.fillRect(3, 14, 12, 2);
+        // 手臂
+        ctx.fillStyle = '#d8b08a';
+        ctx.fillRect(1, 11 + s, 2, 5);
+        ctx.fillRect(15, 11 - s, 2, 5);
+        // 手雷
+        this._ellipse(ctx, 16, 16 - s, 2.0, 2.0, '#2a3a24', 1);
+        this._ellipse(ctx, 16, 16 - s, 1.4, 1.4, '#6a8a4a', 1);
+        ctx.fillStyle = '#c8c8a8';
+        ctx.fillRect(15, 13 - s, 2, 1);
+        // 头
+        ctx.fillStyle = '#d8b08a';
+        ctx.fillRect(5, 4, 8, 6);
+        ctx.fillStyle = '#1a1a12';
+        ctx.fillRect(4, 2, 10, 3);
+        ctx.fillRect(3, 4, 2, 3);
+        // 眼镜
+        ctx.fillStyle = '#9fe8ff';
+        ctx.fillRect(6, 6, 3, 2);
+        ctx.fillRect(10, 6, 3, 2);
+        ctx.fillStyle = '#1a1a1e';
+        ctx.fillRect(9, 6, 1, 1);
+        ctx.fillRect(13, 6, 1, 1);
+        ctx.fillStyle = '#2a1a12';
+        ctx.fillRect(8, 9, 2, 1);
+      }, 2);
+    }
+
+    this._canvas(scene, 'grenade', 10, 10, (ctx) => {
+      this._ellipse(ctx, 5, 6, 3.4, 3.4, '#232a1c', 1);
+      this._ellipse(ctx, 5, 6, 2.6, 2.6, '#5f7f44', 1);
+      ctx.fillStyle = '#c8c8a8';
+      ctx.fillRect(4, 1, 2, 3);
+      ctx.fillStyle = '#d9b45a';
+      ctx.fillRect(6, 1, 2, 1);
     }, 2);
   },
 
@@ -493,6 +787,169 @@ const Art = {
   },
 
   // ---------------------------------------------------------------- 装饰物（可摆动）
+  makeGroundGraveyard(scene) {
+    const rnd = mulberry32(20261115);
+    this._canvas(scene, 'ground_graveyard', GAME_W, GAME_H, (ctx) => {
+      ctx.fillStyle = '#394335';
+      ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+      for (let i = 0; i < 75; i++) {
+        const x = rnd() * GAME_W;
+        const y = rnd() * GAME_H;
+        const rx = 28 + rnd() * 88;
+        const ry = rx * (0.4 + rnd() * 0.5);
+        ctx.globalAlpha = 0.08 + rnd() * 0.08;
+        this._ellipse(ctx, x, y, rx, ry, rnd() < 0.5 ? '#4b5745' : '#2d372b', 3, rnd, 8);
+      }
+      ctx.globalAlpha = 1;
+
+      const noise = ['#333d31', '#414c3b', '#394335', '#4a5643', '#2c352a'];
+      for (let i = 0; i < 14000; i++) {
+        const x = Math.floor(rnd() * GAME_W);
+        const y = Math.floor(rnd() * GAME_H);
+        ctx.fillStyle = noise[(rnd() * noise.length) | 0];
+        ctx.fillRect(x, y, 2, 2);
+      }
+      for (let i = 0; i < 650; i++) {
+        const x = Math.floor(rnd() * GAME_W);
+        const y = Math.floor(rnd() * GAME_H);
+        ctx.fillStyle = rnd() < 0.5 ? '#29322a' : '#59634e';
+        ctx.fillRect(x, y, 1, 2 + Math.floor(rnd() * 3));
+      }
+
+      // 中央湿冷泥地
+      const cx = 480, cy = 318;
+      this._ellipse(ctx, cx, cy, 230, 106, '#625b4f', 2, rnd, 5);
+      this._ellipse(ctx, 366, 322, 112, 72, '#625b4f', 2, rnd, 5);
+      this._ellipse(ctx, 600, 320, 114, 74, '#625b4f', 2, rnd, 5);
+      this._ellipse(ctx, 480, 448, 60, 30, '#625b4f', 2, rnd, 4);
+      for (let i = 0; i < 340; i++) {
+        const x = cx + (rnd() * 2 - 1) * 230;
+        const y = cy + (rnd() * 2 - 1) * 106;
+        if (((x - cx) / 230) ** 2 + ((y - cy) / 106) ** 2 > 1) continue;
+        const c = rnd() < 0.45 ? '#514b41' : (rnd() < 0.5 ? '#726a5b' : '#464239');
+        ctx.fillStyle = c;
+        ctx.fillRect(Math.floor(x), Math.floor(y), 2 + Math.floor(rnd() * 3), 2);
+      }
+
+      // 地面上的墓碑、十字架、骨头与蜡烛
+      for (let i = 0; i < 12; i++) {
+        const x = ARENA.left + 35 + rnd() * (ARENA.right - ARENA.left - 70);
+        const y = ARENA.top + 40 + rnd() * (ARENA.bottom - ARENA.top - 60);
+        if (((x - cx) / 220) ** 2 + ((y - cy) / 96) ** 2 < 0.7) continue;
+        if (rnd() < 0.4) this._tombCross(ctx, x, y, 0.7 + rnd() * 0.4);
+        else this._tombStone(ctx, x, y, 0.7 + rnd() * 0.4);
+      }
+      for (let i = 0; i < 10; i++) {
+        const x = ARENA.left + 30 + rnd() * (ARENA.right - ARENA.left - 60);
+        const y = ARENA.top + 40 + rnd() * (ARENA.bottom - ARENA.top - 60);
+        this._graveyardBones(ctx, x, y, rnd);
+      }
+      for (let i = 0; i < 8; i++) {
+        const x = ARENA.left + 28 + rnd() * (ARENA.right - ARENA.left - 56);
+        const y = ARENA.top + 34 + rnd() * (ARENA.bottom - ARENA.top - 48);
+        this._candle(ctx, x, y);
+      }
+
+      // 边界枯树林
+      ctx.fillStyle = '#151c17';
+      ctx.fillRect(0, 0, GAME_W, ARENA.top);
+      ctx.fillRect(0, ARENA.bottom, GAME_W, GAME_H - ARENA.bottom);
+      ctx.fillRect(0, 0, ARENA.left, GAME_H);
+      ctx.fillRect(ARENA.right, 0, GAME_W - ARENA.right, GAME_H);
+      for (let x = -10; x < GAME_W + 10; x += 30) {
+        this._deadTree(ctx, x + rnd() * 8, ARENA.top - 10 - rnd() * 8, 18 + rnd() * 14, rnd);
+        this._deadTree(ctx, x + rnd() * 8, ARENA.bottom + 13 + rnd() * 8, 18 + rnd() * 14, rnd);
+      }
+      for (let y = -10; y < GAME_H + 10; y += 32) {
+        this._deadTree(ctx, ARENA.left - 8 - rnd() * 8, y + rnd() * 8, 18 + rnd() * 14, rnd);
+        this._deadTree(ctx, ARENA.right + 10 + rnd() * 8, y + rnd() * 8, 18 + rnd() * 14, rnd);
+      }
+
+      // 淡蓝色雾团
+      for (let i = 0; i < 18; i++) {
+        const x = rnd() * GAME_W;
+        const y = 70 + rnd() * (GAME_H - 100);
+        ctx.globalAlpha = 0.035 + rnd() * 0.035;
+        this._ellipse(ctx, x, y, 50 + rnd() * 110, 16 + rnd() * 30, '#a8d8e8', 4, rnd, 18);
+      }
+      ctx.globalAlpha = 1;
+
+      const innerW = ARENA.right - ARENA.left;
+      const innerH = ARENA.bottom - ARENA.top;
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = `rgba(4,10,7,${0.28 - i * 0.04})`;
+        ctx.fillRect(ARENA.left + i * 3, ARENA.top + i * 3, innerW - i * 6, 2);
+        ctx.fillRect(ARENA.left + i * 3, ARENA.top + i * 3, 2, innerH - i * 6);
+        ctx.fillRect(ARENA.right - i * 3 - 2, ARENA.top + i * 3, 2, innerH - i * 6);
+        ctx.fillRect(ARENA.left + i * 3, ARENA.bottom - i * 3 - 2, innerW - i * 6, 2);
+      }
+      ctx.strokeStyle = 'rgba(140,190,170,0.18)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ARENA.left + 1, ARENA.top + 1, innerW - 2, innerH - 2);
+    });
+  },
+
+  _tombStone(ctx, x, y, s) {
+    ctx.fillStyle = '#1a1d1a';
+    ctx.fillRect(x - 7 * s, y - 10 * s, 14 * s, 10 * s);
+    ctx.fillRect(x - 5 * s, y - 13 * s, 10 * s, 4 * s);
+    ctx.fillStyle = '#777d72';
+    ctx.fillRect(x - 6 * s, y - 9 * s, 12 * s, 8 * s);
+    ctx.fillRect(x - 4 * s, y - 12 * s, 8 * s, 3 * s);
+    ctx.fillStyle = '#9aa293';
+    ctx.fillRect(x - 4 * s, y - 9 * s, 7 * s, 1 * s);
+    ctx.fillStyle = '#3a403a';
+    ctx.fillRect(x - 1 * s, y - 7 * s, 2 * s, 5 * s);
+    ctx.fillRect(x - 3 * s, y - 5 * s, 6 * s, 1 * s);
+  },
+
+  _tombCross(ctx, x, y, s) {
+    ctx.fillStyle = '#1a1d1a';
+    ctx.fillRect(x - 2 * s, y - 15 * s, 5 * s, 15 * s);
+    ctx.fillRect(x - 7 * s, y - 11 * s, 15 * s, 5 * s);
+    ctx.fillStyle = '#7c8276';
+    ctx.fillRect(x - 1 * s, y - 14 * s, 3 * s, 13 * s);
+    ctx.fillRect(x - 6 * s, y - 10 * s, 13 * s, 3 * s);
+    ctx.fillStyle = '#a7b09e';
+    ctx.fillRect(x - 1 * s, y - 14 * s, 1 * s, 11 * s);
+  },
+
+  _graveyardBones(ctx, x, y, rnd) {
+    ctx.fillStyle = '#b8b09a';
+    for (let i = 0; i < 3; i++) {
+      const bx = x + (rnd() * 2 - 1) * 8;
+      const by = y + (rnd() * 2 - 1) * 4;
+      ctx.fillRect(bx, by, 1 + rnd() * 4, 1);
+    }
+    ctx.fillStyle = '#d8d0b8';
+    ctx.fillRect(x + 2, y - 2, 3, 2);
+  },
+
+  _candle(ctx, x, y) {
+    ctx.fillStyle = '#32261c';
+    ctx.fillRect(x, y - 8, 4, 8);
+    ctx.fillStyle = '#f4e0b0';
+    ctx.fillRect(x + 1, y - 11, 2, 5);
+    ctx.fillStyle = '#ff9a3a';
+    ctx.fillRect(x + 1, y - 14, 2, 3);
+    ctx.fillStyle = '#ffe08a';
+    ctx.fillRect(x + 1, y - 14, 1, 2);
+  },
+
+  _deadTree(ctx, x, y, size, rnd) {
+    ctx.fillStyle = '#1a211b';
+    ctx.fillRect(x - 2, y - size, 4, size);
+    for (let i = 0; i < 4; i++) {
+      const by = y - size * (0.45 + i * 0.13);
+      const len = size * (0.42 - i * 0.07);
+      ctx.fillRect(x - len, by, len, 2);
+      ctx.fillRect(x + 2, by - 3, len * 0.8, 2);
+    }
+    ctx.fillStyle = '#242e25';
+    ctx.fillRect(x - 1, y - size, 1, size);
+  },
+
   makeDecor(scene) {
     const flower = (key, petal, center) => {
       this._canvas(scene, key, 8, 11, (ctx) => {
@@ -542,6 +999,27 @@ const Art = {
       this._ellipse(ctx, 6, 6, 5, 3.5, '#3f7d31', 1);
       this._ellipse(ctx, 12, 6, 5, 3.2, '#356e2c', 1);
       this._ellipse(ctx, 5, 5, 2.5, 1.5, '#5b9c3f', 1);
+    }, 2);
+
+    this._canvas(scene, 'tombstone_deco', 16, 22, (ctx) => {
+      this._tombStone(ctx, 8, 20, 1.0);
+    }, 2);
+    this._canvas(scene, 'tombcross_deco', 14, 22, (ctx) => {
+      this._tombCross(ctx, 7, 20, 1.0);
+    }, 2);
+    this._canvas(scene, 'dead_tree_deco', 30, 44, (ctx) => {
+      this._deadTree(ctx, 15, 42, 30, mulberry32(7));
+    }, 2);
+    this._canvas(scene, 'candle_deco', 8, 16, (ctx) => {
+      this._candle(ctx, 2, 14);
+    }, 2);
+    this._canvas(scene, 'fog_deco', 72, 28, (ctx) => {
+      ctx.globalAlpha = 0.16;
+      this._ellipse(ctx, 36, 14, 34, 11, '#a8d8e8', 3);
+      ctx.globalAlpha = 0.1;
+      this._ellipse(ctx, 24, 17, 22, 7, '#d8f0f8', 3);
+      this._ellipse(ctx, 48, 11, 20, 6, '#d8f0f8', 3);
+      ctx.globalAlpha = 1;
     }, 2);
   },
 
@@ -1708,6 +2186,21 @@ const Art = {
     }
     if (!A.exists('frankenstein_giant_walk')) {
       A.create({ key: 'frankenstein_giant_walk', frames: [{ key: 'frankenstein_giant_0' }, { key: 'frankenstein_giant_1' }], frameRate: 7, repeat: -1 });
+    }
+    if (!A.exists('mage_walk')) {
+      A.create({ key: 'mage_walk', frames: [{ key: 'mage_0' }, { key: 'mage_1' }], frameRate: 8, repeat: -1 });
+    }
+    if (!A.exists('guitarist_walk')) {
+      A.create({ key: 'guitarist_walk', frames: [{ key: 'guitarist_0' }, { key: 'guitarist_1' }], frameRate: 9, repeat: -1 });
+    }
+    if (!A.exists('demon_walk')) {
+      A.create({ key: 'demon_walk', frames: [{ key: 'demon_0' }, { key: 'demon_1' }], frameRate: 8, repeat: -1 });
+    }
+    if (!A.exists('merc_xuan_walk')) {
+      A.create({ key: 'merc_xuan_walk', frames: [{ key: 'merc_xuan_0' }, { key: 'merc_xuan_1' }], frameRate: 7, repeat: -1 });
+    }
+    if (!A.exists('merc_liang_walk')) {
+      A.create({ key: 'merc_liang_walk', frames: [{ key: 'merc_liang_0' }, { key: 'merc_liang_1' }], frameRate: 7, repeat: -1 });
     }
     if (!A.exists('goblin_walk')) {
       A.create({ key: 'goblin_walk', frames: [{ key: 'goblin_idle' }, { key: 'goblin_walk' }], frameRate: 7, repeat: -1 });

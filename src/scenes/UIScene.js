@@ -28,7 +28,10 @@ class UIScene extends Phaser.Scene {
     const gameScene = this.scene.get('Game');
     this.characterId = gameScene ? gameScene.characterId : 'gunner';
     const portraitKey = this.characterId === 'swordsman' ? 'swordsman_idle'
-      : (this.characterId === 'frankenstein' ? 'frankenstein_idle' : 'player_idle');
+      : (this.characterId === 'frankenstein' ? 'frankenstein_idle'
+        : (this.characterId === 'mage' ? 'mage_0'
+          : (this.characterId === 'guitarist' ? 'guitarist_0'
+            : (this.characterId === 'demon' ? 'demon_0' : 'player_idle'))));
     this.add.image(46, 42, portraitKey).setDepth(102).setScale(0.95);
     this.add.text(82, 20, '生命', UI.textStyle(11, {
       color: '#cfd9b6', strokeThickness: 2, bold: true, shadow: false,
@@ -92,29 +95,72 @@ class UIScene extends Phaser.Scene {
     this.skillCharacter = this.characterId;
     const isSword = this.characterId === 'swordsman';
     const isFrankenstein = this.characterId === 'frankenstein';
+    const isMage = this.characterId === 'mage';
+    const isGuitarist = this.characterId === 'guitarist';
+    const isDemon = this.characterId === 'demon';
     this.skillG = this.add.graphics().setDepth(3000);
-    this.skillIcon = this.add.image(884, 418, isSword ? 'sword' : (isFrankenstein ? 'fist_icon' : 'flame_icon'))
+    this.skillIcon = this.add.image(806, 410,
+      isSword ? 'sword'
+        : (isFrankenstein ? 'fist_icon'
+          : (isMage ? 'mage_icon'
+            : (isGuitarist ? 'guitar_icon'
+              : (isDemon ? 'demon_icon' : 'flame_icon')))))
       .setDepth(3001);
     if (isSword) {
       this.skillIcon.setScale(0.6).setRotation(-0.7);
-    } else if (isFrankenstein) {
-      this.skillIcon.setScale(1.0);
+    } else if (isFrankenstein || isMage || isGuitarist || isDemon) {
+      this.skillIcon.setScale(0.95);
     } else {
       this.skillIcon.setScale(0.82);
     }
-    this.skillState = this.add.text(884, 380, 'E · 技能', UI.textStyle(11, {
+    this.skillState = this.add.text(806, 372, 'E · 技能', UI.textStyle(11, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
-    this.skillCostText = this.add.text(884, 449, `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
+    this.skillCostText = this.add.text(806, 441, isDemon ? '献祭半血' : `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
       color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
-    this.skillHit = this.add.rectangle(884, 418, 78, 78, 0x000000, 0)
+    this.skillHit = this.add.rectangle(806, 410, 78, 78, 0x000000, 0)
       .setDepth(3002)
       .setInteractive({ useHandCursor: true });
     this.skillHit.on('pointerup', () => {
       const game = this.scene.get('Game');
       if (game) game.activateSkill();
     });
+
+    // 手机手动射击按钮：技能按钮右侧，电脑端默认隐藏
+    this.fireG = this.add.graphics().setDepth(3000).setVisible(false);
+    this.fireG.fillStyle(0x1a0e0a, 0.72);
+    this.fireG.fillCircle(884, 410, 30);
+    this.fireG.lineStyle(3, 0xff7a3a, 0.95);
+    this.fireG.strokeCircle(884, 410, 30);
+    this.fireG.lineStyle(1, 0xffd76a, 0.8);
+    this.fireG.strokeCircle(884, 410, 35);
+    this.fireIcon = this.add.image(884, 410, 'gun')
+      .setScale(1.0).setRotation(-0.18).setDepth(3001).setVisible(false);
+    this.fireLabel = this.add.text(884, 372, '射击', UI.textStyle(11, {
+      color: '#ffd0a0', strokeThickness: 3, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(3001).setVisible(false);
+    this.fireHit = this.add.rectangle(884, 410, 78, 78, 0x000000, 0)
+      .setDepth(3002)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    const fireGame = this.scene.get('Game');
+    const releaseFire = () => {
+      if (fireGame) fireGame.setTouchFire(false);
+    };
+    this.fireHit.on('pointerdown', () => {
+      if (fireGame) fireGame.setTouchFire(true);
+    });
+    this.fireHit.on('pointerup', releaseFire);
+    this.fireHit.on('pointerout', releaseFire);
+    this.input.on('pointerup', releaseFire);
+    this.input.on('pointerupoutside', releaseFire);
+
+    // 切枪按钮
+    this.switchBtn = UI.button(this, 728, 410, 58, 34, '切枪', () => {
+      const game = this.scene.get('Game');
+      if (game) game.switchWeapon();
+    }, { variant: 'ghost', fontSize: 12 }).setDepth(3001);
 
     this.createPauseButton();
     this.bestiaryBtn = this.createHudButton(922, 140, 54, 32, '图鉴', () => {
@@ -358,13 +404,21 @@ class UIScene extends Phaser.Scene {
     }
 
     this.drawSkillButton(game);
+    const showFire = !!game.touchMode;
+    if (this.fireG) this.fireG.setVisible(showFire);
+    if (this.fireIcon) this.fireIcon.setVisible(showFire);
+    if (this.fireLabel) this.fireLabel.setVisible(showFire);
+    if (this.fireHit) {
+      this.fireHit.setVisible(showFire);
+      if (this.fireHit.input) this.fireHit.input.enabled = showFire;
+    }
   }
 
   drawSkillButton(game) {
     const s = game.skill;
     if (!s) return;
     const now = game.time.now;
-    const x = 884, y = 418, r = 30;
+    const x = 806, y = 410, r = 30;
     let state = 'ready';
     let pct = 1;
     if (s.active) {
@@ -397,15 +451,20 @@ class UIScene extends Phaser.Scene {
     }
 
     const baseScale = this.skillCharacter === 'swordsman' ? 0.6
-      : (this.skillCharacter === 'frankenstein' ? 1.0 : 0.82);
+      : ((this.skillCharacter === 'frankenstein' || this.skillCharacter === 'mage'
+        || this.skillCharacter === 'guitarist' || this.skillCharacter === 'demon') ? 0.95 : 0.82);
     this.skillIcon.setAlpha(state === 'cool' ? 0.42 : 1);
     this.skillIcon.setTint(state === 'ready' ? 0xffffff : (state === 'active' ? 0xffe08a : 0x8f9a84));
     this.skillIcon.setScale(state === 'active'
       ? baseScale * (1.1 + Math.sin(now * 0.02) * 0.1)
       : baseScale);
+    const activeLabel = this.skillCharacter === 'swordsman' ? '剑阵中'
+      : (this.skillCharacter === 'frankenstein' ? '巨人中'
+        : (this.skillCharacter === 'mage' ? '激光中'
+          : (this.skillCharacter === 'guitarist' ? '音浪中'
+            : (this.skillCharacter === 'demon' ? '恶魔中' : '射击中'))));
     this.skillState.setText(state === 'active'
-      ? (this.skillCharacter === 'swordsman' ? '剑阵中'
-        : (this.skillCharacter === 'frankenstein' ? '巨人中' : '射击中'))
+      ? activeLabel
       : (state === 'cool'
         ? `${Math.ceil((s.cooldownUntil - now) / 1000)}s`
         : (game.touchMode ? '技能' : 'E · 技能')));

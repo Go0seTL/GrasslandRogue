@@ -24,17 +24,23 @@ class PauseScene extends Phaser.Scene {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
-    UI.button(this, 480, 244, 228, 50, '继续游戏', () => this.resumeGame(), {
+    UI.button(this, 480, 238, 228, 46, '继续游戏', () => this.resumeGame(), {
       fontSize: 20,
     }).setDepth(2);
-    UI.button(this, 480, 306, 228, 46, '重新开始', () => this.restart(), {
-      variant: 'ghost', fontSize: 18,
+    UI.button(this, 480, 292, 228, 40, '重新开始', () => this.restart(), {
+      variant: 'ghost', fontSize: 17,
     }).setDepth(2);
-    UI.button(this, 480, 364, 228, 46, '返回主菜单', () => this.toMenu(), {
-      variant: 'ghost', fontSize: 18,
+    this.autoBtn = UI.button(this, 480, 342, 252, 38,
+      `手机自动射击：${Store.data.autoFire ? '开' : '关'}`, () => {
+        const on = Store.toggleAutoFire();
+        this.autoBtn.list[1].setText(`手机自动射击：${on ? '开' : '关'}`);
+        Sfx.uiClick();
+      }, { variant: 'ghost', fontSize: 14 }).setDepth(2);
+    UI.button(this, 480, 396, 228, 40, '返回主菜单', () => this.toMenu(), {
+      variant: 'ghost', fontSize: 17,
     }).setDepth(2);
 
-    this.add.text(480, 438, '按 Esc 继续', UI.textStyle(12, {
+    this.add.text(480, 442, '按 Esc 继续 · 手机默认手动射击', UI.textStyle(11, {
       color: '#7f9a6d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 

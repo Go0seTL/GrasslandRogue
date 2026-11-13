@@ -14,7 +14,7 @@ class CharacterSelectScene extends Phaser.Scene {
     this.add.text(480, 40, '选择角色', UI.textStyle(36, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(10);
-    this.add.text(480, 72, '枪手免费 · 剑客 800 · 科学怪人 3000 金币 · 其余角色制作中', UI.textStyle(12, {
+    this.add.text(480, 72, '枪手免费 · 剑客 800 · 科学怪人 3000 · 法师 1800 · 吉他手 2200 · 恶魔 3200', UI.textStyle(11, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(10);
 
@@ -25,11 +25,11 @@ class CharacterSelectScene extends Phaser.Scene {
       color: '#ffe9a8', strokeThickness: 3,
     })).setOrigin(0, 0.5).setDepth(11);
 
-    const xs = [118, 358, 598, 838];
+    const xs = [96, 288, 480, 672, 864];
     const ys = [186, 350];
     CHAR_DEFS.forEach((def, i) => {
-      const x = xs[i % 4];
-      const y = ys[Math.floor(i / 4)];
+      const x = xs[i % 5];
+      const y = ys[Math.floor(i / 5)];
       this.createCard(def, x, y);
     });
 
@@ -55,7 +55,7 @@ class CharacterSelectScene extends Phaser.Scene {
   }
 
   createCard(def, x, y) {
-    const w = 204, h = 148;
+    const w = 176, h = 148;
     const c = this.add.container(x, y).setDepth(10);
     const g = this.add.graphics();
     c.add(g);
@@ -72,20 +72,20 @@ class CharacterSelectScene extends Phaser.Scene {
     c.add(portrait);
 
     const unlocked = Store.isUnlocked(def.id);
-    const name = this.add.text(-w / 2 + 94, -h / 2 + 30, def.name, UI.textStyle(18, {
+    const name = this.add.text(-w / 2 + 82, -h / 2 + 30, def.name, UI.textStyle(18, {
       color: def.playable ? '#fff1c4' : '#b9c3a8', strokeThickness: 3,
       shadow: false,
     })).setOrigin(0, 0.5);
     c.add(name);
 
-    const desc = this.add.text(-w / 2 + 94, -h / 2 + 52, def.desc, UI.textStyle(10, {
+    const desc = this.add.text(-w / 2 + 82, -h / 2 + 52, def.desc, UI.textStyle(10, {
       color: '#9fb58a', strokeThickness: 2, bold: false,
     })).setOrigin(0, 0);
-    desc.setWordWrapWidth(96);
+    desc.setWordWrapWidth(90);
     desc.setLineSpacing(2);
     c.add(desc);
 
-    const status = this.add.text(-w / 2 + 94, h / 2 - 22, '', UI.textStyle(10, {
+    const status = this.add.text(-w / 2 + 82, h / 2 - 22, '', UI.textStyle(10, {
       color: '#e0b96a', strokeThickness: 2,
     })).setOrigin(0, 0.5);
     c.add(status);

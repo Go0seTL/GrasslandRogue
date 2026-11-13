@@ -218,6 +218,11 @@ const Sfx = {
     this._tone(70, 0.6, { type: 'sawtooth', vol: 0.06, slide: 45 });
     this._noise(0.5, { filter: 300, filterSlide: 900, vol: 0.06, filterType: 'lowpass', q: 0.8 });
   },
+  guitar() {
+    this._tone(196, 0.18, { type: 'sawtooth', vol: 0.04, slide: 220 });
+    this._tone(294, 0.18, { type: 'square', vol: 0.025, slide: 330, delay: 0.08 });
+    this._tone(392, 0.22, { type: 'triangle', vol: 0.03, slide: 440, delay: 0.16 });
+  },
 
   // —— 背景音乐：简单 8-bit 循环 ——
   startMusic() {

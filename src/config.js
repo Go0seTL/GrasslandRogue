@@ -62,6 +62,34 @@ const BOAR_AXE = {
   rockCount: 12,
 };
 
+// 吉他手：持续音浪 + 移速提升
+const GUITAR = {
+  duration: 6000,
+  cooldown: 18000,
+  radius: 128,
+  tick: 380,
+  damage: 16,
+  speed: 1.45,
+};
+
+// 恶魔：血祭换攻速/伤害/无限能量
+const DEMON = {
+  duration: 5000,
+  cooldown: 20000,
+  damageMul: 1.4,
+  fireRateMul: 0.5,
+};
+
+// 法师：持续 8 秒的跟随朝向激光
+const MAGE_LASER = {
+  duration: 8000,
+  cooldown: 20000,
+  length: 780,
+  width: 22,
+  tick: 180,
+  damage: 12,
+};
+
 // 品质：白 -> 绿 -> 蓝 -> 紫 -> 红 -> 金 -> 彩色
 const QUALITY_ORDER = ['white', 'green', 'blue', 'purple', 'red', 'gold', 'rainbow'];
 const QUALITIES = {
@@ -152,8 +180,10 @@ const CHAR_DEFS = [
   { id: 'gunner',    name: '枪手',     price: 0,    desc: '当前武器 · 自动索敌',     color: 0x2f7f78, playable: true,  portrait: 'player_idle' },
   { id: 'swordsman', name: '剑客',     price: 800,  desc: '手枪 · 万剑归宗',        color: 0x557fb0, playable: true,  portrait: 'swordsman_idle' },
   { id: 'frankenstein', name: '科学怪人', price: 3000, desc: '巨型化 · 铁拳',        color: 0x6fbf4f, playable: true,  portrait: 'frankenstein_idle' },
+  { id: 'mage',      name: '法师',     price: 1800, desc: '激光 · 持续输出',        color: 0x7a4fa5, playable: true,  portrait: 'mage_0' },
+  { id: 'guitarist', name: '吉他手',   price: 2200, desc: '音浪 · 移速爆发',        color: 0xd96a9a, playable: true,  portrait: 'guitarist_0' },
+  { id: 'demon',     name: '恶魔',     price: 3200, desc: '血祭 · 攻速翻倍',        color: 0xb23a2c, playable: true,  portrait: 'demon_0' },
   { id: 'knight',    name: '骑士',     price: 1200, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
-  { id: 'mage',      name: '法师',     price: 1800, desc: '法术 · 范围爆发',        color: 0x7a4fa5, playable: false, portrait: 'player_idle' },
   { id: 'ranger',    name: '游侠',     price: 2500, desc: '弓箭 · 高机动',          color: 0x3f8f4a, playable: false, portrait: 'player_idle' },
   { id: 'rogue',     name: '刺客',     price: 3500, desc: '匕首 · 暴击 · 闪避',     color: 0x8a3f4a, playable: false, portrait: 'player_idle' },
   { id: 'alchemist', name: '炼金术士', price: 5000, desc: '药水 · 控制 · 召唤',     color: 0xa58a3f, playable: false, portrait: 'player_idle' },

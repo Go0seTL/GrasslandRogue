@@ -9,6 +9,7 @@ const Store = {
     charLevels: {},
     swordsmanPurchased: false,
     muted: false,
+    autoFire: false,
     activationUsed: false,
     superActivationUsed: false,
     best: null,
@@ -125,5 +126,11 @@ const Store = {
     this.data.muted = !this.data.muted;
     this.save();
     return this.data.muted;
+  },
+
+  toggleAutoFire() {
+    this.data.autoFire = !this.data.autoFire;
+    this.save();
+    return this.data.autoFire;
   },
 };

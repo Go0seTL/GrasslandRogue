@@ -4,8 +4,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, character) {
     const isSword = character === 'swordsman';
     const isFrankenstein = character === 'frankenstein';
+    const isMage = character === 'mage';
+    const isGuitarist = character === 'guitarist';
+    const isDemon = character === 'demon';
     const idle = isSword ? 'swordsman_idle'
-      : (isFrankenstein ? 'frankenstein_idle' : 'player_idle');
+      : (isFrankenstein ? 'frankenstein_idle'
+        : (isMage ? 'mage_0'
+          : (isGuitarist ? 'guitarist_0'
+            : (isDemon ? 'demon_0' : 'player_idle'))));
     super(scene, x, y, idle);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -16,8 +22,15 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.characterId = character || 'gunner';
     this.idleTexture = idle;
     this.walkTexture = isSword ? 'swordsman_walk'
-      : (isFrankenstein ? 'frankenstein_walk' : 'player_walk');
-    this.walkAnim = this.walkTexture;
+      : (isFrankenstein ? 'frankenstein_walk'
+        : (isMage ? 'mage_1'
+          : (isGuitarist ? 'guitarist_1'
+            : (isDemon ? 'demon_1' : 'player_walk'))));
+    this.walkAnim = isSword ? 'swordsman_walk'
+      : (isFrankenstein ? 'frankenstein_walk'
+        : (isMage ? 'mage_walk'
+          : (isGuitarist ? 'guitarist_walk'
+            : (isDemon ? 'demon_walk' : 'player_walk'))));
     this.giant = false;
     this.axeChanneling = false;
     this.axeChanneled = false;
@@ -66,6 +79,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.shadow.setScale(this.giant ? base * 1.7 : base);
     }
     if (this.backSword) this.backSword.setScale(base);
+  }
+
+  isDemonActive() {
+    return !!(this.scene.skill && this.scene.skill.active && this.scene.skill.type === 'demon');
+  }
+
+  demonDamageMul() {
+    return this.isDemonActive() ? 1.4 : 1;
   }
 
   setGiantForm(active) {
@@ -199,7 +220,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (time < this.dashUntil) {
       // 冲刺期间保持冲刺速度
     } else {
-      const sp = BALANCE.playerSpeed * ((scene.buffs && scene.buffs.speed) || 1);
+      const guitarSpeed = scene.skill && scene.skill.active && scene.skill.type === 'guitar'
+        ? 1.45 : 1;
+      const sp = BALANCE.playerSpeed * ((scene.buffs && scene.buffs.speed) || 1) * guitarSpeed;
       const axeSlow = this.axeChanneling && scene.weapon && scene.weapon.id === 'boar_axe'
         ? BOAR_AXE.slow : 1;
       this.body.setVelocity(mx * sp * axeSlow, my * sp * axeSlow);
@@ -283,9 +306,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   fireSecondary(time, aim, w) {
     if (time < this.secondaryNextShotAt) return;
+    const demon = this.isDemonActive();
+    const dmgMul = demon ? 1.4 : 1;
     const cost = w.energyCost || 0;
-    if (cost > 0 && this.energy < cost) return;
-    if (cost > 0) this.energy -= cost;
+    if (cost > 0 && !demon && this.energy < cost) return;
+    if (cost > 0 && !demon) this.energy -= cost;
     const buffs = this.scene.buffs || {};
     const q = QUALITIES[w.quality] || QUALITIES.white;
     const power = Math.max(0, QUALITY_ORDER.indexOf(w.quality));
@@ -296,16 +321,17 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const fxY = gy + Math.sin(aim) * tip;
 
     if (w.melee) {
-      this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
-      this.scene.meleeAttack(this, aim, w);
+      this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1) * (demon ? 0.5 : 1);
+      const mw = demon ? Object.assign({}, w, { damage: w.damage * dmgMul }) : w;
+      this.scene.meleeAttack(this, aim, mw);
       Sfx.slash();
       return;
     }
     if (w.ringCount) {
-      this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+      this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1) * (demon ? 0.5 : 1);
       for (let i = 0; i < w.ringCount; i++) {
         const a = (i / w.ringCount) * Math.PI * 2 + rand(-0.03, 0.03);
-        this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
+        this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1) * dmgMul), {
           speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
           tint: w.tint, pierce: w.pierce, color: q.color, power,
         });
@@ -316,9 +342,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     if (w.charge) {
-      this.secondaryNextShotAt = time + Math.max(w.fireRate * 1000, w.chargeTime * 1000 * 0.8);
+      this.secondaryNextShotAt = time + Math.max(w.fireRate * 1000, w.chargeTime * 1000 * 0.8)
+        * (demon ? 0.5 : 1);
       const ratio = 0.7;
-      const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1));
+      const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1) * dmgMul);
       this.scene.spawnPlayerBullet(this.x, this.y - 2, aim, dmg, {
         speed: w.bulletSpeed, tint: null, pierce: 2, color: q.color, power,
         texture: 'charged_arrow', scale: 1.35,
@@ -333,13 +360,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
     for (let i = 0; i < w.pellets + extra; i++) {
       const a = aim + rand(-spread, spread);
-      this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
+      this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1) * dmgMul), {
         speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
         tint: w.tint, pierce: w.pierce, color: q.color, power,
         burn: w.id === 'flamer' ? FLAMER_BURN : null,
       });
     }
-    this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+    this.secondaryNextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1) * (demon ? 0.5 : 1);
     this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
     this.scene.cameras.main.shake(35, 0.0007);
     if (this.scene.maybeSlimeStaffRing) {
@@ -349,12 +376,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   updateChargeWeapon(time, aim, firing, w) {
+    const demon = this.isDemonActive();
     const holding = this.scene.touchMode ? (this.scene.touch.aim.active && firing) : firing;
     if (holding) {
       this.chargeAim = aim;
       if (!this.charging) {
         if (time < this.nextShotAt) return;
-        if (this.energy < w.energyCost) {
+        if (!demon && this.energy < w.energyCost) {
           this.scene.onEnergyDenied();
           return;
         }
@@ -378,9 +406,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         this.scene.onEnergyDenied();
         return;
       }
-      this.nextShotAt = time + w.fireRate * 1000;
+      this.nextShotAt = time + w.fireRate * 1000 * (demon ? 0.5 : 1);
       const buffs = this.scene.buffs || {};
-      const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1));
+      const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1) * (demon ? 1.4 : 1));
       const pierce = ratio >= 0.65 ? 2 : w.pierce;
       const q = QUALITIES[w.quality] || QUALITIES.white;
       const power = 3 + Math.round(ratio * 3);
@@ -453,6 +481,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   spendEnergy(cost) {
     if (cost <= 0) return true;
+    if (this.isDemonActive()) return true;
     if (this.energy < cost) return false;
     this.energy -= cost;
     return true;
@@ -465,17 +494,20 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   fire(time, aim) {
     const w = this.scene.weapon || WEAPONS.pistol;
     const buffs = this.scene.buffs || {};
+    const demon = this.isDemonActive();
+    const dmgMul = demon ? 1.4 : 1;
     const cost = w.energyCost || 0;
-    if (cost > 0 && this.energy < cost) {
+    if (cost > 0 && !demon && this.energy < cost) {
       this.scene.onEnergyDenied();
       return;
     }
-    if (cost > 0) this.energy -= cost;
-    this.nextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1);
+    if (cost > 0 && !demon) this.energy -= cost;
+    this.nextShotAt = time + w.fireRate * 1000 * (buffs.fireRate || 1) * (demon ? 0.5 : 1);
     const q = QUALITIES[w.quality] || QUALITIES.white;
     const power = Math.max(0, QUALITY_ORDER.indexOf(w.quality));
     if (w.melee) {
-      this.scene.meleeAttack(this, aim, w);
+      const mw = demon ? Object.assign({}, w, { damage: w.damage * dmgMul }) : w;
+      this.scene.meleeAttack(this, aim, mw);
       this.body.velocity.x -= Math.cos(aim) * 45;
       this.body.velocity.y -= Math.sin(aim) * 45;
       Sfx.slash();
@@ -484,7 +516,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (w.ringCount) {
       for (let i = 0; i < w.ringCount; i++) {
         const a = (i / w.ringCount) * Math.PI * 2 + rand(-0.03, 0.03);
-        this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1)), {
+        this.scene.spawnPlayerBullet(this.x, this.y - 2, a, Math.round(w.damage * (buffs.damage || 1) * dmgMul), {
           speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
           tint: w.tint,
           pierce: w.pierce,
@@ -507,7 +539,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
     for (let i = 0; i < w.pellets + extra; i++) {
       const a = aim + rand(-spread, spread);
-      this.scene.spawnPlayerBullet(px, py, a, Math.round(w.damage * (buffs.damage || 1)), {
+      this.scene.spawnPlayerBullet(px, py, a, Math.round(w.damage * (buffs.damage || 1) * dmgMul), {
         speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
         tint: w.tint,
         pierce: w.pierce,
