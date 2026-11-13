@@ -9,6 +9,16 @@ class PauseScene extends Phaser.Scene {
     if (this.gameScene && !this.gameScene.scene.isPaused()) {
       this.gameScene.scene.pause();
     }
+    // 暂停时屏蔽 HUD 按钮，避免点穿到图鉴/背包/升级/开火，造成返回菜单后输入失效
+    this.uiScene = this.scene.get('UI');
+    if (this.uiScene && this.uiScene.input) this.uiScene.input.enabled = false;
+    this.scene.bringToTop();
+    this.events.once('shutdown', () => {
+      if (this.uiScene && this.uiScene.scene && this.uiScene.scene.isActive()
+        && this.uiScene.input) {
+        this.uiScene.input.enabled = true;
+      }
+    });
 
     const dim = this.add.rectangle(0, 0, GAME_W, GAME_H, 0x040a04, 0.72)
       .setOrigin(0).setDepth(0);
@@ -51,6 +61,7 @@ class PauseScene extends Phaser.Scene {
     if (this.closing) return;
     this.closing = true;
     Sfx.uiClick();
+    if (this.uiScene && this.uiScene.input) this.uiScene.input.enabled = true;
     if (this.gameScene) {
       this.gameScene.resetTouch();
       this.gameScene.scene.resume();
@@ -58,11 +69,19 @@ class PauseScene extends Phaser.Scene {
     this.scene.stop();
   }
 
+  stopOverlays() {
+    ['Forge', 'Inventory', 'CharUpgrade', 'Bestiary', 'Upgrade', 'Merchant'].forEach((key) => {
+      const s = this.scene.get(key);
+      if (s && s.scene && s.scene.isActive()) s.scene.stop();
+    });
+  }
+
   restart() {
     if (this.closing) return;
     this.closing = true;
     Sfx.uiClick();
     const character = this.gameScene ? this.gameScene.characterId : 'gunner';
+    this.stopOverlays();
     this.scene.stop('UI');
     this.scene.stop('Game');
     this.scene.start('Game', { character });
@@ -72,6 +91,7 @@ class PauseScene extends Phaser.Scene {
     if (this.closing) return;
     this.closing = true;
     Sfx.uiClick();
+    this.stopOverlays();
     this.scene.stop('UI');
     this.scene.stop('Game');
     this.scene.start('Menu');

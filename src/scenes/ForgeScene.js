@@ -7,6 +7,7 @@ class ForgeScene extends Phaser.Scene {
     this.gameScene = this.scene.get('Game');
     this.fromGame = !!(this.gameScene && this.gameScene.scene.isActive());
     this.rows = [];
+    this.page = 0;
     this.toast = null;
     this.modalState = UI.beginModalScene(this);
 
@@ -20,28 +21,29 @@ class ForgeScene extends Phaser.Scene {
     this.add.text(480, 74, '武器锻造', UI.textStyle(30, {
       color: '#ffe9a8', strokeThickness: 7,
     })).setOrigin(0.5).setDepth(2);
-    this.add.text(480, 100, '小怪掉落碎片 · 彩色碎片只由对应 Boss 掉落 · 品质越高越稀有', UI.textStyle(10, {
+    this.add.text(480, 100, '小怪掉碎片 · Boss 掉彩色碎片 · 恶魔武器碎片找奇旅商人', UI.textStyle(10, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
     this.toast = UI.toastContainer(this);
 
-    const ids = ['pistol', 'knife', 'shotgun', 'smg', 'rifle', 'katana', 'bow', 'flamer', 'railgun', 'slime_staff', 'boar_axe', 'mushroom_orb'];
-    ids.forEach((id, i) => {
-      const col = i < 6 ? 0 : 1;
-      const row = i < 6 ? i : i - 6;
-      const x = col === 0 ? 310 : 650;
-      const y = 134 + row * 54;
-      this.createRow(WEAPONS[id], x, y);
-    });
+    this.ids = [
+      'pistol', 'knife', 'shotgun', 'smg', 'rifle', 'katana', 'bow', 'flamer', 'railgun',
+      'slime_staff', 'boar_axe', 'mushroom_orb', 'sniper', 'boomerang', 'slingshot',
+      'crossbow', 'demon_trident', 'demon_sulfur',
+    ];
 
-    this.add.text(480, 444, '碎片与已解锁武器永久保存 · 本局初始武器固定为手枪', UI.textStyle(10, {
+    this.add.text(480, 414, '碎片与已解锁武器永久保存 · 本局初始武器固定为手枪', UI.textStyle(10, {
       color: '#93a97d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
+    this.pageBtn = UI.button(this, 480, 448, 180, 24, '下一页', () => this.togglePage(), {
+      variant: 'ghost', fontSize: 11,
+    }).setDepth(3);
     UI.button(this, 480, 482, 180, 28, '关 闭', () => this.close(), {
       variant: 'ghost', fontSize: 13,
     }).setDepth(3);
+    this.renderPage();
 
     // 右上角始终可用的关闭按钮（放在场景顶层，避免被提示条/行按钮遮挡）
     const xg = this.add.rectangle(820, 66, 64, 30, 0x1b2817, 0.94)
@@ -58,7 +60,30 @@ class ForgeScene extends Phaser.Scene {
 
     this.input.keyboard.on('keydown-ESC', () => this.close());
     this.cameras.main.fadeIn(150, 6, 10, 6);
+  }
+
+  renderPage() {
+    this.rows.forEach((row) => { if (row.c && row.c.active) row.c.destroy(); });
+    this.rows = [];
+    const per = 9;
+    const entries = this.ids.slice(this.page * per, this.page * per + per);
+    entries.forEach((id, i) => {
+      const col = i < 5 ? 0 : 1;
+      const row = i < 5 ? i : i - 5;
+      const x = col === 0 ? 310 : 650;
+      const y = 134 + row * 54;
+      this.createRow(WEAPONS[id], x, y);
+    });
     this.refreshRows();
+    if (this.pageBtn && this.pageBtn.list[1]) {
+      this.pageBtn.list[1].setText(this.page === 0 ? '下一页' : '上一页');
+    }
+  }
+
+  togglePage() {
+    this.page = this.page === 0 ? 1 : 0;
+    Sfx.uiClick();
+    this.renderPage();
   }
 
   handlePointer(pointer) {

@@ -15,6 +15,7 @@ const Store = {
     best: null,
     runs: 0,
     totalKills: 0,
+    demonHearts: 0,
     runCheckpoint: null,
   },
   _dirty: false,
@@ -48,6 +49,7 @@ const Store = {
       if (typeof this.data.charLevels[def.id] !== 'number') this.data.charLevels[def.id] = 0;
     });
     this.data.coins = Math.max(0, Number(this.data.coins) || 0);
+    this.data.demonHearts = Math.max(0, Number(this.data.demonHearts) || 0);
     return this.data;
   },
 

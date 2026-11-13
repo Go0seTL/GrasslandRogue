@@ -31,7 +31,8 @@ class UIScene extends Phaser.Scene {
       : (this.characterId === 'frankenstein' ? 'frankenstein_idle'
         : (this.characterId === 'mage' ? 'mage_0'
           : (this.characterId === 'guitarist' ? 'guitarist_0'
-            : (this.characterId === 'demon' ? 'demon_0' : 'player_idle'))));
+            : (this.characterId === 'demon' ? 'demon_0'
+              : (this.characterId === 'vampire' ? 'vampire_0' : 'player_idle')))));
     this.add.image(46, 42, portraitKey).setDepth(102).setScale(0.95);
     this.add.text(82, 20, '生命', UI.textStyle(11, {
       color: '#cfd9b6', strokeThickness: 2, bold: true, shadow: false,
@@ -98,17 +99,19 @@ class UIScene extends Phaser.Scene {
     const isMage = this.characterId === 'mage';
     const isGuitarist = this.characterId === 'guitarist';
     const isDemon = this.characterId === 'demon';
+    const isVampire = this.characterId === 'vampire';
     this.skillG = this.add.graphics().setDepth(3000);
     this.skillIcon = this.add.image(806, 410,
       isSword ? 'sword'
         : (isFrankenstein ? 'fist_icon'
           : (isMage ? 'mage_icon'
             : (isGuitarist ? 'guitar_icon'
-              : (isDemon ? 'demon_icon' : 'flame_icon')))))
+              : (isDemon ? 'demon_icon'
+                : (isVampire ? 'vampire_icon' : 'flame_icon'))))))
       .setDepth(3001);
     if (isSword) {
       this.skillIcon.setScale(0.6).setRotation(-0.7);
-    } else if (isFrankenstein || isMage || isGuitarist || isDemon) {
+    } else if (isFrankenstein || isMage || isGuitarist || isDemon || isVampire) {
       this.skillIcon.setScale(0.95);
     } else {
       this.skillIcon.setScale(0.82);
@@ -116,7 +119,7 @@ class UIScene extends Phaser.Scene {
     this.skillState = this.add.text(806, 372, 'E · 技能', UI.textStyle(11, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
-    this.skillCostText = this.add.text(806, 441, isDemon ? '献祭半血' : `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
+    this.skillCostText = this.add.text(806, 441, isDemon ? '随机失血' : `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
       color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
     this.skillHit = this.add.rectangle(806, 410, 78, 78, 0x000000, 0)
@@ -310,13 +313,21 @@ class UIScene extends Phaser.Scene {
       this.tweens.add({ targets: this.coinText, scale: 1, duration: 160, ease: 'Back.Out' });
     }
 
-    if (game.round !== this.lastRound || game.stage !== this.lastStage) {
+    const realmState = game.demonRealm ? 1 : 0;
+    if (game.round !== this.lastRound || game.stage !== this.lastStage
+      || realmState !== this.lastRealm) {
       this.lastRound = game.round;
       this.lastStage = game.stage;
-      this.levelBig.setText(`${game.round}-${game.stage}`);
-      this.levelSub.setText(game.stage === ROUND_LEN
-        ? `第 ${game.round} 轮 · BOSS · ${game.mapName || '草原'}`
-        : `第 ${game.round} 轮 · ${game.mapName || '草原'}`);
+      this.lastRealm = realmState;
+      if (game.demonRealm) {
+        this.levelBig.setText('恶魔之地');
+        this.levelSub.setText('撒旦的领域');
+      } else {
+        this.levelBig.setText(`${game.round}-${game.stage}`);
+        this.levelSub.setText(game.stage === ROUND_LEN
+          ? `第 ${game.round} 轮 · BOSS · ${game.mapName || '草原'}`
+          : `第 ${game.round} 轮 · ${game.mapName || '草原'}`);
+      }
     }
 
     const bosses = game.enemies
@@ -452,7 +463,8 @@ class UIScene extends Phaser.Scene {
 
     const baseScale = this.skillCharacter === 'swordsman' ? 0.6
       : ((this.skillCharacter === 'frankenstein' || this.skillCharacter === 'mage'
-        || this.skillCharacter === 'guitarist' || this.skillCharacter === 'demon') ? 0.95 : 0.82);
+        || this.skillCharacter === 'guitarist' || this.skillCharacter === 'demon'
+        || this.skillCharacter === 'vampire') ? 0.95 : 0.82);
     this.skillIcon.setAlpha(state === 'cool' ? 0.42 : 1);
     this.skillIcon.setTint(state === 'ready' ? 0xffffff : (state === 'active' ? 0xffe08a : 0x8f9a84));
     this.skillIcon.setScale(state === 'active'
@@ -462,7 +474,8 @@ class UIScene extends Phaser.Scene {
       : (this.skillCharacter === 'frankenstein' ? '巨人中'
         : (this.skillCharacter === 'mage' ? '激光中'
           : (this.skillCharacter === 'guitarist' ? '音浪中'
-            : (this.skillCharacter === 'demon' ? '恶魔中' : '射击中'))));
+            : (this.skillCharacter === 'demon' ? '恶魔中'
+              : (this.skillCharacter === 'vampire' ? '汲取中' : '射击中')))));
     this.skillState.setText(state === 'active'
       ? activeLabel
       : (state === 'cool'

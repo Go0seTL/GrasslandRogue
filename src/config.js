@@ -90,6 +90,17 @@ const MAGE_LASER = {
   damage: 12,
 };
 
+// 吸血鬼：5 秒吸取周围最多 5 个敌人
+const VAMPIRE = {
+  duration: 5000,
+  cooldown: 18000,
+  radius: 300,
+  maxTargets: 5,
+  tick: 380,
+  damage: 10,
+  healRatio: 0.55,
+};
+
 // 品质：白 -> 绿 -> 蓝 -> 紫 -> 红 -> 金 -> 彩色
 const QUALITY_ORDER = ['white', 'green', 'blue', 'purple', 'red', 'gold', 'rainbow'];
 const QUALITIES = {
@@ -172,7 +183,43 @@ const WEAPONS = {
     id: 'bow', name: '蓄力弓', quality: 'purple', fragReq: 100, energyCost: 6, charge: true,
     baseDamage: 25, maxBonus: 65, chargeTime: 1.2, fireRate: 0.35, bulletSpeed: 1200,
     pierce: 1, tint: 0xb07bff, texture: 'bow',
+    projectileTexture: 'charged_arrow',
     desc: '长按蓄力，松开朝面向方向射出。蓄力越久伤害越高，满蓄力可穿透 2 个敌人。', iconScale: 1.0,
+  },
+  sniper: {
+    id: 'sniper', name: '狙击枪', quality: 'purple', fragReq: 120, energyCost: 9, charge: true,
+    baseDamage: 55, maxBonus: 135, chargeTime: 1.35, fireRate: 0.55, bulletSpeed: 1900,
+    pierce: 4, tint: 0xa8d8ff, texture: 'gun_sniper', projectileTexture: 'sniper_bullet',
+    desc: '长按蓄力狙击，满蓄力伤害极高并穿透多个敌人。', iconScale: 1.25,
+  },
+  boomerang: {
+    id: 'boomerang', name: '回旋镖', quality: 'blue', fragReq: 60, energyCost: 6, charge: true,
+    boomerang: true, baseDamage: 24, maxBonus: 42, chargeTime: 0.8, fireRate: 0.7,
+    bulletSpeed: 660, pierce: 99, tint: 0xd9b45a, texture: 'weapon_boomerang',
+    projectileTexture: 'weapon_boomerang',
+    desc: '长按蓄力掷出回旋镖，飞出后自动返回，去程和回程都能伤害敌人。', iconScale: 1.25,
+  },
+  slingshot: {
+    id: 'slingshot', name: '弹弓', quality: 'green', fragReq: 30, energyCost: 4, charge: true,
+    baseDamage: 12, maxBonus: 30, chargeTime: 0.75, fireRate: 0.45, bulletSpeed: 980,
+    pierce: 1, tint: 0xc89a5a, texture: 'weapon_slingshot', projectileTexture: 'stone_projectile',
+    desc: '长按拉弓蓄力，松开射出高速石弹，蓄力越久伤害越高。', iconScale: 1.3,
+  },
+  crossbow: {
+    id: 'crossbow', name: '弩箭', quality: 'blue', fragReq: 50, energyCost: 5, charge: true,
+    baseDamage: 26, maxBonus: 52, chargeTime: 0.9, fireRate: 0.6, bulletSpeed: 1350,
+    pierce: 2, tint: 0x9fe8ff, texture: 'weapon_crossbow', projectileTexture: 'bolt_projectile',
+    desc: '长按上弦蓄力，松开射出可穿透的弩箭。', iconScale: 1.3,
+  },
+  demon_trident: {
+    id: 'demon_trident', name: '恶魔三叉戟', quality: 'rainbow', fragReq: 5, energyCost: 12,
+    melee: true, chargeThrow: true, damage: 120, fireRate: 0.6, range: 130, arc: 1.3,
+    texture: 'weapon_trident', desc: '撒旦的三叉戟。轻点近战横扫，伤害极高；长按可当作远程武器掷出。', iconScale: 0.95,
+  },
+  demon_sulfur: {
+    id: 'demon_sulfur', name: '恶魔硫磺火', quality: 'rainbow', fragReq: 5, energyCost: 8,
+    sulfur: true, damage: 7, fireRate: 0.12, tint: 0xff3a1a, texture: 'weapon_sulfur',
+    desc: '撒旦的硫磺火。长按喷射粗大的红色激光，持续烧穿前方敌人。', iconScale: 1.15,
   },
 };
 
@@ -183,6 +230,7 @@ const CHAR_DEFS = [
   { id: 'mage',      name: '法师',     price: 1800, desc: '激光 · 持续输出',        color: 0x7a4fa5, playable: true,  portrait: 'mage_0' },
   { id: 'guitarist', name: '吉他手',   price: 2200, desc: '音浪 · 移速爆发',        color: 0xd96a9a, playable: true,  portrait: 'guitarist_0' },
   { id: 'demon',     name: '恶魔',     price: 3200, desc: '血祭 · 攻速翻倍',        color: 0xb23a2c, playable: true,  portrait: 'demon_0' },
+  { id: 'vampire',   name: '吸血鬼',   price: 2600, desc: '汲取 · 五人吸血',        color: 0x8a2a4a, playable: true,  portrait: 'vampire_0' },
   { id: 'knight',    name: '骑士',     price: 1200, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
   { id: 'ranger',    name: '游侠',     price: 2500, desc: '弓箭 · 高机动',          color: 0x3f8f4a, playable: false, portrait: 'player_idle' },
   { id: 'rogue',     name: '刺客',     price: 3500, desc: '匕首 · 暴击 · 闪避',     color: 0x8a3f4a, playable: false, portrait: 'player_idle' },
@@ -228,6 +276,10 @@ const ENEMY_LORE = {
   goat: '第三轮开始出现的山羊精。会先在原地停顿蓄力，再朝锁定方向发射一道贯穿激光；看到红线就赶快横向躲开。',
   ghost: '第六轮开始出现的亡灵。平时隐身且移动缓慢，靠近玩家才会现形；受到伤害后会强制现形 3 秒，期间再次受伤会重置时间。',
   goat_king: '第六轮 Boss 之一。会停顿蓄力后扇形发射多道贯穿激光；半血后激光数量增加。',
+  demon_guard: '撒旦召唤的恶魔卫兵，手持三叉戟近战突刺；血量不高但数量很多。',
+  satan: '恶魔之地的统治者。第一阶段投掷三叉戟、召唤卫兵、巨掌拍击和突刺；第二阶段只剩三分之一生命，但会持续喷射硫磺火。击败后必定掉落撒旦之心。',
+  dragonling: '龙巢里的小飞龙，绕圈飞行并从空中吐出火球。',
+  dragon_baby: '龙巢的 Boss。会喷吐扇形火球和长条龙息，也会俯冲撞击；半血后攻击频率提高。',
   boss: '草原的统治者。会跳跃砸地放出环形弹幕、蓄力冲锋，半血后暴怒并召唤史莱姆。',
   boar_boss: '第二轮 Boss。会进入狂暴状态到处乱撞，撞击伤害很高；还会召唤持续一段时间的石头雨。',
   mushroom_boss: '第四轮 Boss。会短时间反射子弹，并连续发射三轮会逐渐减速的环形弹幕；精英版会发射六轮。',
@@ -271,6 +323,22 @@ const ENEMY_DEFS = {
   ghost: {
     name: '亡灵', texture: 'ghost_0', hp: 62, damage: 10, coins: [2, 4],
     body: [24, 18], offset: [8, 18], shadowY: 16, shadowScale: 0.9, depthY: 16,
+  },
+  demon_guard: {
+    name: '恶魔卫兵', texture: 'demon_guard_0', hp: 110, damage: 14, coins: [3, 6],
+    body: [28, 18], offset: [6, 18], shadowY: 16, shadowScale: 1.0, depthY: 16,
+  },
+  satan: {
+    name: '撒旦', texture: 'satan_0', hp: 3920, damage: 24, coins: [80, 120],
+    body: [44, 24], offset: [18, 36], shadowY: 24, shadowScale: 1.8, depthY: 22,
+  },
+  dragonling: {
+    name: '小飞龙', texture: 'dragonling_0', hp: 85, damage: 11, coins: [3, 6],
+    body: [26, 16], offset: [8, 16], shadowY: 12, shadowScale: 0.8, depthY: 12,
+  },
+  dragon_baby: {
+    name: '飞龙宝宝', texture: 'dragon_baby_0', hp: 720, damage: 18, coins: [30, 45],
+    body: [42, 22], offset: [8, 26], shadowY: 20, shadowScale: 1.4, depthY: 20,
   },
   goat_king: {
     name: '山羊王', texture: 'goat_king_0', hp: 760, damage: 18, coins: [30, 42],

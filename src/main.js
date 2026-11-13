@@ -41,6 +41,7 @@ const gameConfig = {
     UpgradeScene,
     CharUpgradeScene,
     InventoryScene,
+    MerchantScene,
   ],
 };
 

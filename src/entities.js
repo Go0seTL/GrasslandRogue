@@ -7,11 +7,12 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const isMage = character === 'mage';
     const isGuitarist = character === 'guitarist';
     const isDemon = character === 'demon';
+    const isVampire = character === 'vampire';
     const idle = isSword ? 'swordsman_idle'
       : (isFrankenstein ? 'frankenstein_idle'
         : (isMage ? 'mage_0'
           : (isGuitarist ? 'guitarist_0'
-            : (isDemon ? 'demon_0' : 'player_idle'))));
+            : (isDemon ? 'demon_0' : (isVampire ? 'vampire_0' : 'player_idle')))));
     super(scene, x, y, idle);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -25,16 +26,19 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       : (isFrankenstein ? 'frankenstein_walk'
         : (isMage ? 'mage_1'
           : (isGuitarist ? 'guitarist_1'
-            : (isDemon ? 'demon_1' : 'player_walk'))));
+            : (isDemon ? 'demon_1' : (isVampire ? 'vampire_1' : 'player_walk')))));
     this.walkAnim = isSword ? 'swordsman_walk'
       : (isFrankenstein ? 'frankenstein_walk'
         : (isMage ? 'mage_walk'
           : (isGuitarist ? 'guitarist_walk'
-            : (isDemon ? 'demon_walk' : 'player_walk'))));
+            : (isDemon ? 'demon_walk' : (isVampire ? 'vampire_walk' : 'player_walk')))));
     this.giant = false;
     this.axeChanneling = false;
     this.axeChanneled = false;
     this.axeChannelStart = 0;
+    this.tridentChanneling = false;
+    this.tridentThrown = false;
+    this.tridentChannelStart = 0;
 
     const charLevel = scene.charLevel || 0;
     this.maxHp = BALANCE.playerHP + charLevel * 10;
@@ -91,7 +95,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   setGiantForm(active) {
     if (this.giant === active) return;
-    if (active) this.cancelAxeChannel();
+    if (active) { this.cancelAxeChannel(); this.cancelTridentChannel(); }
     this.giant = active;
     if (active) {
       this.idleTexture = 'frankenstein_giant_0';
@@ -146,6 +150,50 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.axeChanneling = false;
     this.axeChanneled = false;
     this.clearTint();
+  }
+
+  cancelTridentChannel() {
+    if (!this.tridentChanneling) return;
+    this.tridentChanneling = false;
+    this.tridentThrown = false;
+    this.clearTint();
+  }
+
+  updateDemonTrident(time, aim, firing, w) {
+    const scene = this.scene;
+    if (firing) {
+      if (!this.tridentChanneling) {
+        this.tridentChanneling = true;
+        this.tridentChannelStart = time;
+        this.tridentThrown = false;
+        this.setTint(0xff8ae8);
+      }
+      if (!this.tridentThrown && time - this.tridentChannelStart >= 550) {
+        if (this.spendEnergy(w.energyCost)) {
+          this.tridentThrown = true;
+          this.nextShotAt = time + 1200;
+          scene.throwDemonTrident(this, aim, w);
+        } else {
+          this.tridentThrown = true;
+          this.nextShotAt = time + 500;
+          scene.onEnergyDenied();
+        }
+      }
+    } else if (this.tridentChanneling) {
+      const held = time - this.tridentChannelStart;
+      if (!this.tridentThrown && held < 550) {
+        if (this.spendEnergy(w.energyCost)) {
+          scene.meleeAttack(this, aim, w);
+          Sfx.slash();
+          this.nextShotAt = time + w.fireRate * 1000;
+        } else {
+          scene.onEnergyDenied();
+        }
+      }
+      this.tridentChanneling = false;
+      this.tridentThrown = false;
+      this.clearTint();
+    }
   }
 
   updateBoarAxe(time, aim, firing, w) {
@@ -288,6 +336,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       if (firing && time >= this.nextShotAt) this.giantPunch(aim, time);
     } else if (scene.isAimLockSkillActive()) {
       // 枪手技能自动接管攻击
+    } else if (weapon.id === 'demon_trident') {
+      this.updateDemonTrident(time, aim, firing, weapon);
+    } else if (weapon.id === 'demon_sulfur') {
+      scene.updateSulfurBeam(time, aim, firing, weapon);
     } else if (weapon.id === 'boar_axe') {
       this.updateBoarAxe(time, aim, firing, weapon);
     } else {
@@ -409,19 +461,28 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.nextShotAt = time + w.fireRate * 1000 * (demon ? 0.5 : 1);
       const buffs = this.scene.buffs || {};
       const dmg = Math.round((w.baseDamage + w.maxBonus * ratio) * (buffs.damage || 1) * (demon ? 1.4 : 1));
-      const pierce = ratio >= 0.65 ? 2 : w.pierce;
+      const pierce = w.id === 'bow' ? (ratio >= 0.65 ? 2 : w.pierce) : w.pierce;
       const q = QUALITIES[w.quality] || QUALITIES.white;
       const power = 3 + Math.round(ratio * 3);
       const px = this.x + Math.cos(aimAngle) * 24;
       const py = this.y - 5 + Math.sin(aimAngle) * 24;
+      if (w.boomerang) {
+        this.scene.throwBoomerang(w, aimAngle, ratio, dmg, q, power);
+        this.scene.fx.muzzle(px, py, aimAngle, q.color, power);
+        this.scene.cameras.main.shake(70, 0.002);
+        Sfx.slash();
+        return;
+      }
+      const projectileScale = w.id === 'bow' ? 1 + ratio * 0.45
+        : (w.id === 'sniper' ? 1.1 : (w.id === 'boomerang' ? 1 : 1.0));
       this.scene.spawnPlayerBullet(px, py, aimAngle, dmg, {
         speed: w.bulletSpeed * (buffs.bulletSpeed || 1),
         tint: null,
         pierce,
         color: q.color,
         power,
-        texture: 'charged_arrow',
-        scale: 1 + ratio * 0.45,
+        texture: w.projectileTexture || 'charged_arrow',
+        scale: projectileScale,
       });
       this.scene.fx.muzzle(px, py, aimAngle, q.color, power);
       this.scene.fx.shotBurst(px, py, q.color, power);
@@ -693,6 +754,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.goatBeam = null;
     this.ghostRevealUntil = 0;
     this.ghostVisible = false;
+    this.guardAttackAt = 0;
+    this.dragonCd = rand(900, 1600);
 
     this.burnUntil = 0;
     this.burnTickAt = 0;
@@ -733,6 +796,10 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.play('bat_fly');
     } else if (type === 'ghost') {
       this.play('ghost_float');
+    } else if (type === 'demon_guard') {
+      this.play('demon_guard_walk');
+    } else if (type === 'dragonling') {
+      this.play('dragonling_fly');
       this.setAlpha(0.06);
       this.shadow.setAlpha(0);
     }
@@ -903,6 +970,45 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.updateGoat(delta, dist, angTo, p);
     } else if (this.enemyType === 'ghost') {
       this.updateGhostEnemy(time, delta, dist, angTo, p);
+    } else if (this.enemyType === 'demon_guard') {
+      this.updateDemonGuard(time, delta, dist, angTo, p);
+    } else if (this.enemyType === 'dragonling') {
+      this.updateDragonling(time, delta, dist, angTo, p);
+    }
+  }
+
+  updateDragonling(time, delta, dist, angTo, p) {
+    this.orbit += delta * 0.0028;
+    const tx = p.x + Math.cos(this.orbit) * 140;
+    const ty = p.y + Math.sin(this.orbit * 1.2) * 95;
+    const a = Math.atan2(ty - this.y, tx - this.x);
+    this.setVelocity(Math.cos(a) * 125, Math.sin(a) * 125);
+    this.setFlipX(Math.cos(a) < -0.1);
+    this.dragonCd -= delta;
+    if (this.dragonCd <= 0 && dist < 520) {
+      this.dragonCd = rand(1400, 2200);
+      const fire = Math.atan2(p.y - this.y, p.x - this.x);
+      this.scene.spawnEnemyOrb(this.x, this.y, fire, Math.round(this.damage * 0.8), {
+        speed: 300, tint: 0xff8a3a,
+      });
+      this.scene.fx.muzzle(this.x, this.y, fire, 0xff8a3a, 2);
+      Sfx.spore();
+    }
+  }
+
+  updateDemonGuard(time, delta, dist, angTo, p) {
+    const sp = 86;
+    this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+    this.setFlipX(p.x < this.x);
+    if (dist < 82 && time >= this.guardAttackAt) {
+      this.guardAttackAt = time + 1200;
+      this.setVelocity(0, 0);
+      p.takeDamage(this.damage, this.x, this.y, this.scene.time.now);
+      const sl = this.scene.add.image(this.x, this.y - 6, 'slash')
+        .setTint(0xff5a3a).setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(720).setScale(0.8).setRotation(angTo);
+      this.scene.tweens.add({ targets: sl, alpha: 0, duration: 140, onComplete: () => sl.destroy() });
+      this.scene.cameras.main.shake(45, 0.002);
     }
   }
 

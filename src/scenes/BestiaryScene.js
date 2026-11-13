@@ -55,6 +55,16 @@ class BestiaryScene extends Phaser.Scene {
         { id: 'goat_king', portrait: 'goat_king_0', scale: 0.9, color: 0xd9b45a, name: '山羊王' },
         { id: 'ghost', portrait: 'ghost_0', scale: 1.0, color: 0xbfe8e0, name: '亡灵' },
       ],
+      [
+        { id: 'demon_guard', portrait: 'demon_guard_0', scale: 0.85, color: 0xff5a3a, name: '恶魔卫兵' },
+        {
+          id: 'satan', portrait: 'satan_0', scale: 0.62, color: 0xff3a2a, name: '撒旦',
+          lore: '恶魔之地 Boss，7 倍血量；二阶段只剩 1/3 生命并喷硫磺火。',
+          stats: ['必定掉落撒旦之心'],
+        },
+        { id: 'dragonling', portrait: 'dragonling_0', scale: 1.1, color: 0x7fd06a, name: '小飞龙' },
+        { id: 'dragon_baby', portrait: 'dragon_baby_0', scale: 0.75, color: 0xd9b45a, name: '飞龙宝宝' },
+      ],
     ];
 
     UI.button(this, 400, 482, 150, 30, '关 闭', () => this.close(), {
@@ -70,7 +80,7 @@ class BestiaryScene extends Phaser.Scene {
   }
 
   togglePage() {
-    this.page = 1 - this.page;
+    this.page = (this.page + 1) % this.pageEntries.length;
     this.renderPage();
     Sfx.uiClick();
   }
@@ -88,7 +98,9 @@ class BestiaryScene extends Phaser.Scene {
     });
     this.pageText.setText(`第 ${this.page + 1} / ${this.pageEntries.length} 页`);
     if (this.pageBtn && this.pageBtn.list[1]) {
-      this.pageBtn.list[1].setText(this.page === 0 ? '下一页' : '上一页');
+      this.pageBtn.list[1].setText(
+        this.page === this.pageEntries.length - 1 ? '下一页（回到首页）' : '下一页'
+      );
     }
   }
 

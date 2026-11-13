@@ -13,6 +13,7 @@ const Sfx = {
   _stepDur: 0.185,
   _bass: [98.00, 98.00, 116.54, 130.81, 98.00, 87.31, 116.54, 130.81],
   _arp: [392.00, 493.88, 587.33, 493.88, 440.00, 523.25, 659.25, 523.25],
+  _lead: [523.25, 587.33, 659.25, 783.99, 659.25, 587.33, 523.25, 392.00],
 
   init() {
     if (this.ctx) {
@@ -259,6 +260,10 @@ const Sfx = {
       const n = this._arp[(s / 2) % 8];
       const soft = s % 8 === 0 ? 0.026 : 0.017;
       this._tone(n, 0.11, { type: 'square', vol: soft, delay, dest: this.musicGain });
+    }
+    if (s % 8 === 2 || s % 8 === 6) {
+      const lead = this._lead[(s / 2) % 8];
+      this._tone(lead, 0.16, { type: 'triangle', vol: 0.012, delay, dest: this.musicGain });
     }
     if (s % 8 === 4) {
       this._noise(0.03, { filter: 5200, vol: 0.012, delay, dest: this.musicGain, q: 0.7 });

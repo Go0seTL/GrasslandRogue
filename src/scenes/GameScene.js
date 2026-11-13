@@ -77,12 +77,20 @@ class GameScene extends Phaser.Scene {
     this.ghost = null;
     this.mercenary = null;
     this.mercPrompt = null;
+    this.merchant = null;
+    this.merchantPrompt = null;
     this.giantAura = null;
     this.guitarAura = null;
     this.guitarNextTick = 0;
     this.demonAura = null;
     this.mageBeam = null;
     this.mageNextTick = 0;
+    this.vampireAura = null;
+    this.vampireBeams = [];
+    this.vampireNextTick = 0;
+    this.sulfurBeam = null;
+    this.sulfurNextTick = 0;
+    this.sulfurLastAt = 0;
     this.visionUntil = 0;
     this.visionRadius = 120;
     this.visionOverlay = null;
@@ -98,6 +106,12 @@ class GameScene extends Phaser.Scene {
     this.slimeStaffShots = 0;
 
     this.portal = null;
+    this.demonPortal = null;
+    this.demonReturnPortal = null;
+    this.demonPortalShown = false;
+    this.demonRealm = false;
+    this.demonReturn = null;
+    this.satanDefeated = false;
     this.boss = null;
     this.spawnQueue = [];
 
@@ -176,6 +190,9 @@ class GameScene extends Phaser.Scene {
     this.mercPrompt = UI.button(this, 480, 300, 190, 36, '收买', () => this.mercAction(), {
       fontSize: 13,
     }).setDepth(1200).setVisible(false);
+    this.merchantPrompt = UI.button(this, 480, 300, 150, 34, '交易', () => this.openMerchant(), {
+      fontSize: 13,
+    }).setDepth(1200).setVisible(false);
     this.time.addEvent({ delay: 2000, loop: true, callback: () => Store.flush() });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.autoCollectCoins() });
 
@@ -235,6 +252,48 @@ class GameScene extends Phaser.Scene {
           .setDepth(2).setAlpha(0.9).setScale(1.1).setTint(0x6f7f5a);
         this.decorObjects.push(img);
       });
+      return;
+    }
+
+    if (mapKey === 'demon_realm') {
+      const keys = ['demon_pillar_deco', 'lava_rock_deco', 'demon_skull_deco', 'lava_rock_deco'];
+      for (let i = 0; i < 16; i++) {
+        const x = rand(ARENA.left + 30, ARENA.right - 30);
+        const y = rand(ARENA.top + 30, ARENA.bottom - 20);
+        const key = choice(keys);
+        const img = this.add.image(x, y, key).setOrigin(0.5, 1)
+          .setDepth(2).setAlpha(0.92);
+        if (key === 'demon_pillar_deco') img.setScale(0.9 + Math.random() * 0.3);
+        this.decorObjects.push(img);
+      }
+      for (let i = 0; i < 6; i++) {
+        const fog = this.add.image(rand(80, 880), rand(100, 440), 'fog_deco')
+          .setDepth(3).setAlpha(0.14 + Math.random() * 0.1)
+          .setTint(0xff5a4a).setScale(0.9 + Math.random() * 0.5);
+        this.tweens.add({
+          targets: fog, x: fog.x + rand(20, 50), alpha: 0.06,
+          duration: rand(4000, 8000), yoyo: true, repeat: -1, ease: 'Sine.InOut',
+        });
+        this.decorObjects.push(fog);
+      }
+      return;
+    }
+
+    if (mapKey === 'dragon_nest') {
+      const keys = ['nest_deco', 'dragon_egg_deco', 'dragon_bone_deco', 'crystal_deco', 'dragon_egg_deco'];
+      for (let i = 0; i < 18; i++) {
+        const x = rand(ARENA.left + 28, ARENA.right - 28);
+        const y = rand(ARENA.top + 36, ARENA.bottom - 20);
+        const img = this.add.image(x, y, choice(keys)).setOrigin(0.5, 1)
+          .setDepth(2).setAlpha(0.9);
+        if (img.texture.key === 'crystal_deco') {
+          this.tweens.add({
+            targets: img, alpha: 0.55, duration: rand(700, 1300),
+            yoyo: true, repeat: -1, ease: 'Sine.InOut',
+          });
+        }
+        this.decorObjects.push(img);
+      }
       return;
     }
 
@@ -592,6 +651,11 @@ class GameScene extends Phaser.Scene {
 
   startRoom(round, stage) {
     this.clearVision();
+    this.demonRealm = false;
+    this.demonReturn = null;
+    this.satanDefeated = false;
+    this.destroyDemonPortal();
+    this.destroySatanReturnPortal();
     this.round = round;
     this.stage = stage;
     this.enemyLevel = levelIndex(round, stage);
@@ -602,20 +666,25 @@ class GameScene extends Phaser.Scene {
     this.pendingSpawns = 0;
     this.spawnQueue = [];
 
-    const mapKey = round >= 6 ? 'graveyard' : (round >= 3 ? 'mountain' : 'grass');
-    this.mapName = mapKey === 'graveyard' ? '墓地' : (mapKey === 'mountain' ? '山地' : '草原');
+    const mapKey = round >= 7 ? 'dragon_nest'
+      : (round >= 6 ? 'graveyard' : (round >= 3 ? 'mountain' : 'grass'));
+    this.mapName = mapKey === 'dragon_nest' ? '龙巢'
+      : (mapKey === 'graveyard' ? '墓地' : (mapKey === 'mountain' ? '山地' : '草原'));
     if (this.currentMap !== mapKey) {
       this.currentMap = mapKey;
       if (this.groundImage) {
         this.groundImage.setTexture(
-          mapKey === 'graveyard' ? 'ground_graveyard'
-            : (mapKey === 'mountain' ? 'ground_mountain' : 'ground')
+          mapKey === 'dragon_nest' ? 'ground_dragon_nest'
+            : (mapKey === 'graveyard' ? 'ground_graveyard'
+              : (mapKey === 'mountain' ? 'ground_mountain' : 'ground'))
         );
       }
       this.setupDecor(mapKey);
     }
 
     this.cancelSkill();
+    this.stopSulfurBeam();
+    if (this.player && this.player.cancelTridentChannel) this.player.cancelTridentChannel();
     this.destroyPortal();
     this.clearRoomObjects();
 
@@ -630,6 +699,8 @@ class GameScene extends Phaser.Scene {
     this.player.nextShotAt = this.time.now + 350;
 
     if (this.mercPrompt) this.mercPrompt.setVisible(false);
+    if (this.merchantPrompt) this.merchantPrompt.setVisible(false);
+    this.clearMerchant();
     if (this.mercenary) {
       if (!this.mercenary.active) {
         this.mercenary = null;
@@ -771,13 +842,14 @@ class GameScene extends Phaser.Scene {
     for (let i = 0; i < total; i++) {
       const r = Math.random();
       let type = 'slime';
-      // 第二轮加入蘑菇射手/冲锋野猪，第三轮加入山羊精，第六轮加入亡灵
-      if (round >= 6 && r < 0.10) type = 'ghost';
-      else if (round >= 3 && r < 0.24) type = 'goat';
-      else if (round >= 2 && r < 0.38) type = 'mushroom';
-      else if (round >= 2 && r < 0.52) type = 'boar';
-      else if (n >= 4 && r < 0.66) type = 'bat';
-      else if (n >= 2 && r < 0.84) type = 'goblin';
+      // 第二轮蘑菇/野猪，第三轮山羊精，第六轮亡灵，第七轮小飞龙
+      if (round >= 7 && r < 0.12) type = 'dragonling';
+      else if (round >= 6 && r < 0.22) type = 'ghost';
+      else if (round >= 3 && r < 0.34) type = 'goat';
+      else if (round >= 2 && r < 0.46) type = 'mushroom';
+      else if (round >= 2 && r < 0.58) type = 'boar';
+      else if (n >= 4 && r < 0.71) type = 'bat';
+      else if (n >= 2 && r < 0.86) type = 'goblin';
       else type = 'slime';
       types.push(type);
     }
@@ -790,6 +862,7 @@ class GameScene extends Phaser.Scene {
     this.pendingSpawns = types.length;
     this.spawnNextBatch();
     this.maybeSpawnMercenary();
+    this.maybeSpawnMerchant();
   }
 
   maybeSpawnMercenary() {
@@ -867,6 +940,7 @@ class GameScene extends Phaser.Scene {
   bossSpecForRound(round) {
     if (round === 5) return { kind: 'bat_combo', elite: true };
     if (round === 6) return { kind: 'goat_combo', elite: true };
+    if (round === 7) return { kind: 'dragon', elite: false };
     const r = ((round - 1) % 4) + 1;
     if (r === 1) return { kind: 'slime', elite: false };
     if (r === 2) return { kind: 'boar', elite: false };
@@ -918,6 +992,8 @@ class GameScene extends Phaser.Scene {
       boss = new BoarKingBoss(this, 480, 230, this.enemyLevel, spec.elite);
     } else if (spec.kind === 'mushroom') {
       boss = new MushroomFiendBoss(this, 480, 220, this.enemyLevel);
+    } else if (spec.kind === 'dragon') {
+      boss = new DragonBabyBoss(this, 480, 220, this.enemyLevel);
     } else {
       boss = new Boss(this, 480, 205, this.enemyLevel, spec.elite);
     }
@@ -967,6 +1043,10 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(340, () => {
       if (!this.scene.isActive() || this.player.isDead) return;
       this.spawnPortal();
+      if (isBoss && !this.demonPortalShown && !this.demonRealm && Math.random() < 0.3) {
+        this.demonPortalShown = true;
+        this.spawnDemonPortal();
+      }
       this.hud.bannerQueue.push({
         title: isBoss ? 'BOSS 击破' : '房间清理',
         sub: isBoss ? `第 ${this.round} 轮完成 · 踏入传送门` : '踏入传送门，继续深入',
@@ -1031,6 +1111,241 @@ class GameScene extends Phaser.Scene {
     this.portal = null;
   }
 
+  spawnDemonPortal() {
+    this.destroyDemonPortal();
+    const x = 680, y = 252;
+    const c = this.add.container(x, y).setDepth(4);
+    const groundGlow = this.add.image(0, 22, 'glow').setScale(1.7, 0.65)
+      .setTint(0xff3a2a).setAlpha(0.3).setBlendMode(Phaser.BlendModes.ADD);
+    const ring1 = this.add.image(0, 0, 'ring').setTint(0xff3a2a).setAlpha(0.9).setScale(0.85);
+    const ring2 = this.add.image(0, 0, 'ring').setTint(0xb02a6a).setAlpha(0.7).setScale(0.58);
+    const glow = this.add.image(0, 0, 'glow').setScale(1.35).setTint(0xff5a3a)
+      .setAlpha(0.4).setBlendMode(Phaser.BlendModes.ADD);
+    const core = this.add.image(0, 0, 'glow').setScale(0.5).setTint(0xffd0a0)
+      .setAlpha(0.95).setBlendMode(Phaser.BlendModes.ADD);
+    c.add([groundGlow, ring1, ring2, glow, core]);
+    this.tweens.add({ targets: ring1, rotation: Math.PI * 2, duration: 1800, repeat: -1 });
+    this.tweens.add({ targets: ring2, rotation: -Math.PI * 2, duration: 1100, repeat: -1 });
+    this.tweens.add({ targets: glow, alpha: 0.2, scale: 1.6, duration: 550, yoyo: true, repeat: -1 });
+    const particles = this.add.particles(x, y, 'spark', {
+      speed: { min: 15, max: 80 }, lifespan: 800,
+      scale: { start: 0.7, end: 0 }, alpha: { start: 0.9, end: 0 },
+      frequency: 75, blendMode: 'ADD', tint: [0xff3a2a, 0xff9a3a, 0xffffff],
+    }).setDepth(5);
+    const label = this.add.text(x, 188, '恶魔传送门', UI.textStyle(15, {
+      color: '#ffb09a', strokeThickness: 4,
+    })).setOrigin(0.5).setDepth(890).setAlpha(0.95);
+    this.tweens.add({ targets: label, y: 181, duration: 700, yoyo: true, repeat: -1 });
+    this.demonPortal = { container: c, label, particles, armed: false, x, y };
+    this.time.delayedCall(700, () => { if (this.demonPortal) this.demonPortal.armed = true; });
+    this.hud.toastQueue.push('出现了恶魔传送门！进入后挑战撒旦');
+    Sfx.portal();
+  }
+
+  destroyDemonPortal() {
+    if (!this.demonPortal) return;
+    const p = this.demonPortal;
+    if (p.container) p.container.destroy();
+    if (p.label) p.label.destroy();
+    if (p.particles) p.particles.destroy();
+    this.demonPortal = null;
+  }
+
+  spawnSatanReturnPortal() {
+    this.destroySatanReturnPortal();
+    const x = 480, y = 252;
+    const c = this.add.container(x, y).setDepth(4);
+    const ring1 = this.add.image(0, 0, 'ring').setTint(0xffd76a).setAlpha(0.9).setScale(0.9);
+    const ring2 = this.add.image(0, 0, 'ring').setTint(0xff5a3a).setAlpha(0.65).setScale(0.6);
+    const glow = this.add.image(0, 0, 'glow').setScale(1.4).setTint(0xffe0a0)
+      .setAlpha(0.45).setBlendMode(Phaser.BlendModes.ADD);
+    c.add([ring1, ring2, glow]);
+    this.tweens.add({ targets: ring1, rotation: Math.PI * 2, duration: 2200, repeat: -1 });
+    this.tweens.add({ targets: ring2, rotation: -Math.PI * 2, duration: 1500, repeat: -1 });
+    const label = this.add.text(x, 190, '返回原路', UI.textStyle(15, {
+      color: '#ffe9a8', strokeThickness: 4,
+    })).setOrigin(0.5).setDepth(890);
+    const ret = this.demonReturn || { round: this.round, stage: this.stage };
+    const sub = this.add.text(x, 212, `回到 ${ret.round}-${ret.stage}`, UI.textStyle(9, {
+      color: '#c8b48a', strokeThickness: 2, bold: false,
+    })).setOrigin(0.5).setDepth(890);
+    this.demonReturnPortal = { container: c, label, sub, armed: false, x, y };
+    this.time.delayedCall(600, () => { if (this.demonReturnPortal) this.demonReturnPortal.armed = true; });
+    Sfx.portal();
+  }
+
+  destroySatanReturnPortal() {
+    if (!this.demonReturnPortal) return;
+    const p = this.demonReturnPortal;
+    if (p.container) p.container.destroy();
+    if (p.label) p.label.destroy();
+    if (p.sub) p.sub.destroy();
+    this.demonReturnPortal = null;
+  }
+
+  enterDemonRealm() {
+    if (this.demonRealm) return;
+    this.demonReturn = { round: this.round, stage: this.stage };
+    this.demonRealm = true;
+    this.demonPortalShown = true;
+    this.satanDefeated = false;
+    this.transitioning = true;
+    this.locked = true;
+    this.roomState = 'intro';
+    this.destroyPortal();
+    this.destroyDemonPortal();
+    this.destroySatanReturnPortal();
+    this.cancelSkill();
+    this.stopSulfurBeam();
+    this.clearRoomObjects();
+    this.clearMerchant();
+    if (this.mercPrompt) this.mercPrompt.setVisible(false);
+    if (this.merchantPrompt) this.merchantPrompt.setVisible(false);
+    if (this.mercenary && !this.mercenary.recruited) {
+      this.mercenary.destroy();
+      this.mercenary = null;
+    }
+    this.currentMap = 'demon_realm';
+    this.mapName = '恶魔之地';
+    if (this.groundImage) this.groundImage.setTexture('ground_demon_realm');
+    this.setupDecor('demon_realm');
+    this.player.setPosition(480, 405);
+    this.player.body.enable = true;
+    this.player.body.setVelocity(0, 0);
+    this.player.invulnUntil = this.time.now + 900;
+    this.player.gun.setVisible(true);
+    if (this.mercenary && this.mercenary.active) {
+      this.mercenary.setPosition(420, 425);
+      this.mercenary.setVelocity(0, 0);
+    }
+    this.hud.hpDirty = true;
+    this.hud.levelDirty = true;
+    this.hud.bannerQueue.push({
+      title: '恶魔之地', sub: '撒旦的领域 · 击败他才能回去', color: '#ff7a5a',
+    });
+    this.cameras.main.fadeIn(420, 25, 4, 8);
+    this.time.delayedCall(1000, () => {
+      if (!this.scene.isActive() || !this.demonRealm) return;
+      this.locked = false;
+      this.roomState = 'fighting';
+      this.spawnSatan();
+    });
+  }
+
+  spawnSatan() {
+    const satan = new SatanBoss(this, 480, 220, this.enemyLevel);
+    this.enemies.add(satan);
+    satan.setAlpha(1);
+    this.boss = satan;
+    this.cameras.main.shake(380, 0.009);
+    Sfx.bossRoar();
+    this.hud.toastQueue.push('撒旦 出现了！');
+    this.fx.ring(satan.x, satan.y, 0xff3a2a, 0.3, 2.5, 800, 0.9, 745);
+  }
+
+  spawnDemonGuards(count) {
+    const cx = this.boss ? this.boss.x : 480;
+    const cy = this.boss ? this.boss.y : 220;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      const x = clamp(cx + Math.cos(a) * rand(80, 180), ARENA.left + 40, ARENA.right - 40);
+      const y = clamp(cy + Math.sin(a) * rand(50, 130), ARENA.top + 40, ARENA.bottom - 40);
+      this.spawnEnemyAt('demon_guard', x, y, true);
+    }
+    this.cameras.main.shake(220, 0.005);
+    this.fx.ring(cx, cy, 0xff3a2a, 0.25, 2.2, 600, 0.8, 745);
+  }
+
+  spawnSatanHand(x, y) {
+    const disc = this.add.circle(x, y, 86, 0xff1a1a, 0.18)
+      .setDepth(704).setStrokeStyle(3, 0xff5a3a, 0.95);
+    const warn = this.add.image(x, y, 'spawnring')
+      .setTint(0xff3a2a).setScale(1.8).setAlpha(0.95).setDepth(705);
+    this.tweens.add({ targets: warn, scale: 0.5, duration: 560, ease: 'Quad.In' });
+    this.tweens.add({ targets: [warn, disc], alpha: 0, delay: 460, duration: 100 });
+    this.time.delayedCall(560, () => {
+      if (!this.scene.isActive() || this.player.isDead) return;
+      warn.destroy();
+      disc.destroy();
+      const hand = this.add.image(x, y - 190, 'demon_hand')
+        .setScale(1.5).setDepth(750);
+      this.tweens.add({
+        targets: hand, y, duration: 120, ease: 'Quad.In',
+        onComplete: () => {
+          hand.destroy();
+          this.fx.dust.explode(15, x, y);
+          this.fx.smoke.explode(6, x, y);
+          this.fx.ring(x, y, 0xff5a3a, 0.25, 2.0, 420, 0.9, 745);
+          this.cameras.main.shake(140, 0.007);
+          if (dist2(x, y, this.player.x, this.player.y) < 92 * 92) {
+            this.player.takeDamage(28 + this.round * 2, x, y, this.time.now);
+          }
+        },
+      });
+    });
+  }
+
+  onSatanDefeated(satan) {
+    this.satanDefeated = true;
+    this.roomState = 'cleared';
+    this.locked = false;
+    this.enemies.getChildren().slice().forEach((e) => {
+      if (e !== satan && e.active) e.destroy();
+    });
+    Store.data.demonHearts = (Store.data.demonHearts || 0) + 1;
+    Store.save();
+    this.hud.toastQueue.push('撒旦被击败！获得 1 颗撒旦之心');
+    this.fx.ring(480, 260, 0xffd76a, 0.3, 2.6, 800, 0.9, 746);
+    this.spawnSatanReturnPortal();
+    this.openUpgrade(false);
+  }
+
+  exitDemonRealm() {
+    const ret = this.demonReturn || { round: this.round, stage: this.stage };
+    this.demonRealm = false;
+    this.demonReturn = null;
+    this.destroySatanReturnPortal();
+    this.destroyDemonPortal();
+    this.destroyPortal();
+    this.clearRoomObjects();
+    this.round = ret.round;
+    this.stage = ret.stage;
+    this.enemyLevel = levelIndex(this.round, this.stage);
+    const mapKey = this.round >= 7 ? 'dragon_nest'
+      : (this.round >= 6 ? 'graveyard' : (this.round >= 3 ? 'mountain' : 'grass'));
+    this.currentMap = mapKey;
+    this.mapName = mapKey === 'dragon_nest' ? '龙巢'
+      : (mapKey === 'graveyard' ? '墓地' : (mapKey === 'mountain' ? '山地' : '草原'));
+    if (this.groundImage) {
+      this.groundImage.setTexture(
+        mapKey === 'dragon_nest' ? 'ground_dragon_nest'
+          : (mapKey === 'graveyard' ? 'ground_graveyard'
+            : (mapKey === 'mountain' ? 'ground_mountain' : 'ground'))
+      );
+    }
+    this.setupDecor(mapKey);
+    this.player.setPosition(480, 405);
+    this.player.body.enable = true;
+    this.player.body.setVelocity(0, 0);
+    this.player.invulnUntil = this.time.now + 900;
+    this.player.gun.setVisible(true);
+    if (this.mercenary && this.mercenary.active) {
+      this.mercenary.setPosition(420, 425);
+      this.mercenary.setVelocity(0, 0);
+    }
+    this.roomState = 'cleared';
+    this.locked = false;
+    this.hud.hpDirty = true;
+    this.hud.levelDirty = true;
+    this.hud.bannerQueue.push({
+      title: `回到 ${ret.round}-${ret.stage}`,
+      sub: '恶魔之地已关闭 · 踏入传送门继续',
+      color: '#ffe9a8',
+    });
+    this.spawnPortal();
+    this.cameras.main.fadeIn(380, 6, 12, 6);
+  }
+
   nextLevel() {
     if (this.transitioning || this.player.isDead) return;
     this.transitioning = true;
@@ -1063,6 +1378,119 @@ class GameScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------ 战斗
+
+  throwBoomerang(w, angle, ratio, dmg, q, power) {
+    const px = this.player.x + Math.cos(angle) * 22;
+    const py = this.player.y - 5 + Math.sin(angle) * 22;
+    const b = this.spawnPlayerBullet(px, py, angle, dmg, {
+      speed: w.bulletSpeed || 660,
+      tint: w.tint,
+      pierce: 99,
+      color: q.color,
+      power,
+      texture: 'weapon_boomerang',
+      scale: 1.05,
+    });
+    b.boomerang = true;
+    b.boomerangPhase = 'out';
+    b.returnAt = this.time.now + 650 + ratio * 450;
+    b.spin = true;
+    b.bornAt = this.time.now;
+    b.hitEnemies = new Set();
+    this.fx.ring(px, py, q.color, 0.1, 0.5, 180, 0.6, 720);
+    return b;
+  }
+
+  throwDemonTrident(player, aim, w) {
+    if (!player || !player.active) return;
+    const q = QUALITIES[w.quality] || QUALITIES.white;
+    const dmg = Math.round(w.damage * (this.buffs.damage || 1) * 1.1);
+    const px = player.x + Math.cos(aim) * 26;
+    const py = player.y - 5 + Math.sin(aim) * 26;
+    const b = this.spawnPlayerBullet(px, py, aim, dmg, {
+      speed: 1000,
+      tint: 0xff8ae8,
+      pierce: 4,
+      color: q.color,
+      power: 6,
+      texture: 'weapon_trident',
+      scale: 1.35,
+    });
+    b.spin = true;
+    b.bornAt = this.time.now;
+    this.fx.muzzle(px, py, aim, q.color, 6);
+    this.fx.shotBurst(px, py, q.color, 6);
+    this.cameras.main.shake(90, 0.003);
+    Sfx.bowRelease();
+  }
+
+  updateSulfurBeam(time, aim, firing, w) {
+    if (!this.player || this.player.isDead) {
+      this.stopSulfurBeam();
+      return;
+    }
+    if (!firing) {
+      this.stopSulfurBeam();
+      return;
+    }
+    if (this.player.energy <= 0) {
+      this.stopSulfurBeam();
+      this.onEnergyDenied();
+      return;
+    }
+    if (!this.sulfurBeam) {
+      const glow = this.add.rectangle(this.player.x, this.player.y - 5, 360, 28, 0xff3a1a, 0.28)
+        .setOrigin(0, 0.5).setDepth(736).setBlendMode(Phaser.BlendModes.ADD);
+      const core = this.add.rectangle(this.player.x, this.player.y - 5, 360, 9, 0xffc04a, 0.9)
+        .setOrigin(0, 0.5).setDepth(737).setBlendMode(Phaser.BlendModes.ADD);
+      this.sulfurBeam = { glow, core };
+    }
+    const ox = this.player.x;
+    const oy = this.player.y - 5;
+    this.sulfurBeam.glow.setPosition(ox, oy).setRotation(aim)
+      .setAlpha(0.24 + Math.sin(time * 0.03) * 0.08);
+    this.sulfurBeam.core.setPosition(ox, oy).setRotation(aim);
+    if (time >= this.sulfurNextTick) {
+      this.sulfurNextTick = time + 120;
+      if (!this.player.spendEnergy(1)) {
+        this.stopSulfurBeam();
+        this.onEnergyDenied();
+        return;
+      }
+      const dmg = Math.round(w.damage * (this.buffs.damage || 1));
+      const len = 370;
+      const cos = Math.cos(aim);
+      const sin = Math.sin(aim);
+      this.enemies.getChildren().forEach((e) => {
+        if (!e.active || e.dying) return;
+        const dx = e.x - ox;
+        const dy = e.y - oy;
+        const along = dx * cos + dy * sin;
+        const perp = Math.abs(-dx * sin + dy * cos);
+        if (along > 0 && along < len && perp < 26) {
+          e.takeDamage(dmg, aim);
+          if (e.applyBurn) e.applyBurn(2000, 6);
+          this.fx.hitSpark(e.x, e.y);
+        }
+      });
+      this.cameras.main.shake(30, 0.0008);
+      if (time - this.sulfurLastAt > 260) {
+        Sfx.shoot();
+        this.sulfurLastAt = time;
+      }
+    }
+  }
+
+  stopSulfurBeam() {
+    if (!this.sulfurBeam) return;
+    const beam = this.sulfurBeam;
+    this.sulfurBeam = null;
+    this.sulfurNextTick = 0;
+    this.tweens.killTweensOf(beam.glow);
+    this.tweens.killTweensOf(beam.core);
+    beam.glow.destroy();
+    beam.core.destroy();
+  }
 
   spawnPlayerBullet(x, y, angle, damage, opts) {
     const o = opts || {};
@@ -1100,9 +1528,10 @@ class GameScene extends Phaser.Scene {
 
   spawnEnemyOrb(x, y, angle, damage, opts) {
     const o = opts || {};
-    const b = this.physics.add.image(x, y, 'orb');
+    const b = this.physics.add.image(x, y, o.texture || 'orb');
     this.enemyBullets.add(b);
     b.setDepth(705).setBlendMode(Phaser.BlendModes.ADD);
+    if (o.scale) b.setScale(o.scale);
     b.body.setCircle(6, 2, 2);
     b.body.setAllowGravity(false);
     const speed = o.speed || 255;
@@ -1279,6 +1708,109 @@ class GameScene extends Phaser.Scene {
     merc.takeDamage(enemy.damage, enemy.x, enemy.y);
   }
 
+  maybeSpawnMerchant() {
+    if (this.merchant || Math.random() > 0.06) return;
+    this.spawnMerchant();
+  }
+
+  spawnMerchant() {
+    if (this.merchant) return this.merchant;
+    const spot = this.pickSpawnPoint();
+    const sprite = this.add.image(spot.x, spot.y, 'merchant_0')
+      .setOrigin(0.5, 1).setDepth(spot.y + 20).setScale(1.15);
+    const shadow = this.add.image(spot.x, spot.y + 2, 'shadow')
+      .setAlpha(0.24).setScale(0.9).setDepth(spot.y + 18);
+    const label = this.add.text(spot.x, spot.y - 56, '奇旅商人', UI.textStyle(10, {
+      color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(900);
+    this.tweens.add({
+      targets: sprite, y: spot.y - 3, duration: 1400, yoyo: true,
+      repeat: -1, ease: 'Sine.InOut',
+    });
+    this.merchant = {
+      sprite, shadow, label,
+      x: spot.x, y: spot.y,
+      trades: this.makeMerchantTrades(),
+    };
+    this.hud.toastQueue.push('地图上出现了奇旅商人，靠近可以交易');
+    this.fx.ring(spot.x, spot.y - 8, 0xffd76a, 0.2, 1.4, 500, 0.8, 740);
+    return this.merchant;
+  }
+
+  makeMerchantTrades() {
+    const normal = Object.values(WEAPONS).filter((w) => w.fragReq > 0 && w.quality !== 'rainbow');
+    const demon = ['demon_trident', 'demon_sulfur'];
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const trades = [];
+    const buyW = pick(normal);
+    const buyAmount = randInt(3, 10);
+    trades.push({
+      kind: 'buy', weaponId: buyW.id, amount: buyAmount,
+      coins: 30 + buyAmount * 8, sold: false,
+    });
+    const heartW = pick(demon);
+    trades.push({
+      kind: 'heart', weaponId: heartW, amount: randInt(1, 3),
+      hearts: 1, sold: false,
+    });
+    const sellables = normal.filter((w) => (Store.data.fragments[w.id] || 0) >= 10);
+    if (sellables.length > 0) {
+      const sellW = pick(sellables);
+      trades.push({
+        kind: 'sell', weaponId: sellW.id, amount: 10,
+        coins: randInt(35, 85), sold: false,
+      });
+    } else {
+      const extraW = pick(normal);
+      const amount = randInt(3, 8);
+      trades.push({
+        kind: 'buy', weaponId: extraW.id, amount,
+        coins: 30 + amount * 8, sold: false,
+      });
+    }
+    for (let i = trades.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [trades[i], trades[j]] = [trades[j], trades[i]];
+    }
+    return trades;
+  }
+
+  updateMerchant(time) {
+    if (this.merchantPrompt && this.merchantPrompt.visible) this.merchantPrompt.setVisible(false);
+    if (!this.merchant) return;
+    const m = this.merchant;
+    if (!m.sprite || !m.sprite.active) {
+      this.merchant = null;
+      return;
+    }
+    m.label.setPosition(m.sprite.x, m.sprite.y - 58).setDepth(900);
+    m.shadow.setPosition(m.sprite.x, m.sprite.y + 2).setDepth(m.sprite.y + 18);
+    if (this.player.isDead || this.locked) return;
+    if (this.roomState !== 'fighting' && this.roomState !== 'cleared') return;
+    if (dist2(this.player.x, this.player.y, m.sprite.x, m.sprite.y) > 115 * 115) return;
+    this.merchantPrompt.setPosition(
+      Phaser.Math.Clamp(m.sprite.x, 120, GAME_W - 120),
+      Phaser.Math.Clamp(m.sprite.y - 92, 110, GAME_H - 90)
+    );
+    this.merchantPrompt.setVisible(true);
+  }
+
+  openMerchant() {
+    if (!this.merchant) return;
+    this.scene.launch('Merchant', { from: 'game' });
+  }
+
+  clearMerchant() {
+    if (!this.merchant) return;
+    const m = this.merchant;
+    if (m.sprite) this.tweens.killTweensOf(m.sprite);
+    if (m.sprite && m.sprite.active) m.sprite.destroy();
+    if (m.shadow && m.shadow.active) m.shadow.destroy();
+    if (m.label && m.label.active) m.label.destroy();
+    this.merchant = null;
+    if (this.merchantPrompt) this.merchantPrompt.setVisible(false);
+  }
+
   tryGhostSave() {
     if (!this.ghost || !this.ghost.ready || this.player.isDead) return false;
     this.ghost.ready = false;
@@ -1432,6 +1964,8 @@ class GameScene extends Phaser.Scene {
     if (!w) return;
     if (this.player && this.player.cancelCharge) this.player.cancelCharge();
     if (this.player && this.player.cancelAxeChannel) this.player.cancelAxeChannel();
+    if (this.player && this.player.cancelTridentChannel) this.player.cancelTridentChannel();
+    this.stopSulfurBeam();
     if (this.weaponId !== id) this.previousWeaponId = this.weaponId;
     this.weaponId = id;
     this.weapon = w;
@@ -1623,6 +2157,7 @@ class GameScene extends Phaser.Scene {
     if (this.gameOverStarted) return;
     this.gameOverStarted = true;
     this.clearVision();
+    this.stopSulfurBeam();
     Store.data.runCheckpoint = null;
     Store.save();
     this.locked = true;
@@ -1682,11 +2217,14 @@ class GameScene extends Phaser.Scene {
     }
     if (this.player.cancelCharge) this.player.cancelCharge();
     if (this.player.cancelAxeChannel) this.player.cancelAxeChannel();
+    if (this.player.cancelTridentChannel) this.player.cancelTridentChannel();
+    this.stopSulfurBeam();
     if (this.characterId === 'swordsman') this.activateSwordSkill();
     else if (this.characterId === 'frankenstein') this.activateGiantSkill();
     else if (this.characterId === 'mage') this.activateMageSkill();
     else if (this.characterId === 'guitarist') this.activateGuitarSkill();
     else if (this.characterId === 'demon') this.activateDemonSkill();
+    else if (this.characterId === 'vampire') this.activateVampireSkill();
     else this.activateGunnerSkill();
   }
 
@@ -1775,8 +2313,8 @@ class GameScene extends Phaser.Scene {
     const s = this.skill;
     const p = this.player;
     const now = this.time.now;
-    if (p.hp <= p.maxHp * 0.5) p.hp = 1;
-    else p.hp = Math.max(1, Math.floor(p.hp * 0.5));
+    const lossPct = 0.3 + Math.random() * 0.4;
+    p.hp = Math.max(1, Math.floor(p.hp * (1 - lossPct)));
     this.hud.hpDirty = true;
     s.type = 'demon';
     s.active = true;
@@ -1799,6 +2337,29 @@ class GameScene extends Phaser.Scene {
     Sfx.skillStart();
     Sfx.explosion();
     this.hud.toastQueue.push('恶魔契约：失去生命，5 秒内伤害提升、攻速翻倍、无限能量！');
+  }
+
+  activateVampireSkill() {
+    const s = this.skill;
+    const now = this.time.now;
+    s.type = 'vampire';
+    s.active = true;
+    s.endsAt = now + VAMPIRE.duration;
+    s.cooldown = VAMPIRE.cooldown * (this.buffs.skillCd || 1);
+    s.cooldownUntil = now + s.cooldown;
+    s.duration = VAMPIRE.duration;
+    s.targets = [];
+    s.locks = [];
+    s.swords = [];
+    s.aimTarget = null;
+    this.vampireNextTick = now;
+    this.vampireAura = this.add.image(this.player.x, this.player.y, 'glow')
+      .setTint(0xd92a3a).setScale(1.5).setAlpha(0.25)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(this.player.y - 2);
+    this.fx.ring(this.player.x, this.player.y, 0xd92a3a, 0.18, 1.8, 420, 0.85, 732);
+    this.cameras.main.shake(140, 0.004);
+    Sfx.skillStart();
+    this.hud.toastQueue.push('吸血鬼：5 秒内持续吸取周围最多 5 个敌人的生命');
   }
 
   activateGunnerSkill() {
@@ -1887,6 +2448,7 @@ class GameScene extends Phaser.Scene {
     else if (s.type === 'mage') this.updateMageSkill(time);
     else if (s.type === 'guitar') this.updateGuitarSkill(time);
     else if (s.type === 'demon') this.updateDemonSkill(time);
+    else if (s.type === 'vampire') this.updateVampireSkill(time);
     else this.updateGunnerSkill(time);
   }
 
@@ -1951,6 +2513,68 @@ class GameScene extends Phaser.Scene {
       if (hits > 0) {
         this.cameras.main.shake(36, 0.0012);
         Sfx.hit();
+      }
+    }
+  }
+
+  updateVampireSkill(time) {
+    const s = this.skill;
+    if (this.player.isDead || time >= s.endsAt) {
+      this.endSkill();
+      return;
+    }
+    const targets = this.enemies.getChildren()
+      .filter((e) => e.active && !e.dying
+        && dist2(this.player.x, this.player.y, e.x, e.y) <= VAMPIRE.radius * VAMPIRE.radius)
+      .sort((a, b) => dist2(this.player.x, this.player.y, a.x, a.y)
+        - dist2(this.player.x, this.player.y, b.x, b.y))
+      .slice(0, VAMPIRE.maxTargets);
+    s.targets = targets;
+    // 移除失效/超出的血线
+    this.vampireBeams = this.vampireBeams.filter((entry) => {
+      if (entry.enemy && entry.enemy.active && !entry.enemy.dying && targets.includes(entry.enemy)) {
+        return true;
+      }
+      if (entry.beam && entry.beam.active) entry.beam.destroy();
+      if (entry.glow && entry.glow.active) entry.glow.destroy();
+      return false;
+    });
+    targets.forEach((e) => {
+      let entry = this.vampireBeams.find((b) => b.enemy === e);
+      if (!entry) {
+        const beam = this.add.rectangle(this.player.x, this.player.y - 6, 10, 5, 0xd92a3a, 0.62)
+          .setOrigin(0, 0.5).setDepth(733).setBlendMode(Phaser.BlendModes.ADD);
+        const glow = this.add.rectangle(this.player.x, this.player.y - 6, 10, 12, 0xff5a6a, 0.16)
+          .setOrigin(0, 0.5).setDepth(732).setBlendMode(Phaser.BlendModes.ADD);
+        entry = { enemy: e, beam, glow };
+        this.vampireBeams.push(entry);
+      }
+      const angle = Math.atan2(e.y - (this.player.y - 6), e.x - this.player.x);
+      const len = Math.hypot(e.x - this.player.x, e.y - (this.player.y - 6));
+      entry.glow.setPosition(this.player.x, this.player.y - 6)
+        .setRotation(angle).setSize(Math.max(8, len), 14);
+      entry.beam.setPosition(this.player.x, this.player.y - 6)
+        .setRotation(angle).setSize(Math.max(8, len), 4);
+      entry.beam.setAlpha(0.48 + Math.sin(time * 0.02) * 0.16);
+    });
+    if (this.vampireAura && this.vampireAura.active) {
+      this.vampireAura.setPosition(this.player.x, this.player.y)
+        .setDepth(this.player.y - 2)
+        .setAlpha(0.18 + Math.sin(time * 0.018) * 0.07);
+    }
+    if (time >= this.vampireNextTick) {
+      this.vampireNextTick = time + VAMPIRE.tick;
+      let total = 0;
+      targets.forEach((e) => {
+        const dmg = Math.round(VAMPIRE.damage * (this.buffs.damage || 1));
+        e.takeDamage(dmg, Math.atan2(e.y - this.player.y, e.x - this.player.x));
+        total += dmg;
+        this.fx.hitSpark(e.x, e.y);
+      });
+      if (total > 0) {
+        const heal = Math.max(1, Math.round(total * VAMPIRE.healRatio));
+        this.player.heal(heal);
+        this.fx.healBurst(this.player.x, this.player.y, heal);
       }
     }
   }
@@ -2302,6 +2926,7 @@ class GameScene extends Phaser.Scene {
     if (s.type === 'guitar') this.clearGuitarSkill();
     if (s.type === 'demon') this.clearDemonSkill();
     if (s.type === 'mage') this.clearMageSkill();
+    if (s.type === 'vampire') this.clearVampireSkill();
     Sfx.skillEnd();
   }
 
@@ -2327,6 +2952,23 @@ class GameScene extends Phaser.Scene {
       });
     }
     if (this.player) this.player.clearTint();
+  }
+
+  clearVampireSkill() {
+    if (this.vampireAura) {
+      const aura = this.vampireAura;
+      this.vampireAura = null;
+      this.tweens.killTweensOf(aura);
+      this.tweens.add({
+        targets: aura, alpha: 0, scale: 2.2, duration: 220,
+        onComplete: () => aura.destroy(),
+      });
+    }
+    this.vampireBeams.forEach((entry) => {
+      if (entry.beam && entry.beam.active) entry.beam.destroy();
+      if (entry.glow && entry.glow.active) entry.glow.destroy();
+    });
+    this.vampireBeams = [];
   }
 
   clearMageSkill() {
@@ -2371,6 +3013,7 @@ class GameScene extends Phaser.Scene {
     if (wasType === 'guitar') this.clearGuitarSkill();
     if (wasType === 'demon') this.clearDemonSkill();
     if (wasType === 'mage') this.clearMageSkill();
+    if (wasType === 'vampire') this.clearVampireSkill();
     if (this.fx && this.fx.flames) this.fx.flames.stop();
     if (this.fx && this.fx.skillGlow) {
       this.tweens.killTweensOf(this.fx.skillGlow);
@@ -2630,6 +3273,10 @@ class GameScene extends Phaser.Scene {
       const b = this.mercPrompt.getBounds();
       if (Phaser.Geom.Rectangle.Contains(b, x, y)) return;
     }
+    if (this.merchantPrompt && this.merchantPrompt.visible) {
+      const b = this.merchantPrompt.getBounds();
+      if (Phaser.Geom.Rectangle.Contains(b, x, y)) return;
+    }
     if (x < GAME_W / 2) {
       if (!this.touch.move.active) {
         this.touch.move = { active: true, id: pointer.id, baseX: x, baseY: y, dx: 0, dy: 0, force: 0 };
@@ -2693,7 +3340,7 @@ class GameScene extends Phaser.Scene {
   }
 
   computeAimAngle(player) {
-    if (this.skill && this.skill.active) {
+    if (this.skill && this.skill.active && this.skill.type === 'gunner') {
       let t = this.skill.aimTarget;
       if (!t || !t.active || t.dying) {
         t = this.skill.targets.find((e) => e.active && !e.dying);
@@ -2785,6 +3432,7 @@ class GameScene extends Phaser.Scene {
     this.updateVision();
     this.updateGhost(time);
     this.updateMercenary(time, delta);
+    this.updateMerchant(time);
     this.updateTouchUI();
 
     this.enemies.getChildren().forEach((e) => {
@@ -2797,6 +3445,27 @@ class GameScene extends Phaser.Scene {
     const out = (o) => o.x < ARENA.left - 60 || o.x > ARENA.right + 60 || o.y < ARENA.top - 60 || o.y > ARENA.bottom + 60;
     this.playerBullets.getChildren().slice().forEach((b) => {
       if (!b.active) return;
+      if (b.spin) b.rotation += 0.34;
+      if (b.boomerang) {
+        if (b.boomerangPhase === 'out' && time >= b.returnAt) {
+          b.boomerangPhase = 'back';
+          if (b.hitEnemies) b.hitEnemies.clear();
+        }
+        if (b.boomerangPhase === 'back') {
+          if (!this.player || this.player.isDead) { b.destroy(); return; }
+          const a = Math.atan2(this.player.y - b.y, this.player.x - b.x);
+          b.setVelocity(Math.cos(a) * 900, Math.sin(a) * 900);
+          if (dist2(b.x, b.y, this.player.x, this.player.y) < 32 * 32) {
+            b.destroy();
+            return;
+          }
+        } else if (time - b.bornAt > 2600 || out(b)) {
+          b.destroy();
+          return;
+        }
+        if (time - b.bornAt > 4200) b.destroy();
+        return;
+      }
       if (time - b.bornAt > BALANCE.bulletLife * 1000 || out(b)) b.destroy();
     });
     this.enemyBullets.getChildren().slice().forEach((b) => {
@@ -2872,6 +3541,14 @@ class GameScene extends Phaser.Scene {
     if (this.portal && this.portal.armed && this.roomState === 'cleared' && !this.player.isDead) {
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.portal.x, this.portal.y);
       if (d < 46) this.nextLevel();
+    }
+    if (this.demonPortal && this.demonPortal.armed && this.roomState === 'cleared' && !this.player.isDead && !this.demonRealm) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.demonPortal.x, this.demonPortal.y);
+      if (d < 50) this.enterDemonRealm();
+    }
+    if (this.demonReturnPortal && this.demonReturnPortal.armed && this.roomState === 'cleared' && !this.player.isDead) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.demonReturnPortal.x, this.demonReturnPortal.y);
+      if (d < 50) this.exitDemonRealm();
     }
 
     // 房间清理判定

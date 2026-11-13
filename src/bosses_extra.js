@@ -613,3 +613,414 @@ class GoatKingBoss extends Enemy {
     super.destroy(fromScene);
   }
 }
+
+class SatanBoss extends Enemy {
+  constructor(scene, x, y, level) {
+    super(scene, x, y, 'satan', level, false);
+    const round = scene.round || 1;
+    this.isBoss = true;
+    this.bossName = '撒旦';
+    this.bossWeapon = null;
+    const base = 560 * (1 + 0.65 * (round - 1));
+    this.maxHp = Math.round(base * 7);
+    this.hp = this.maxHp;
+    this.damage = Math.round(24 * (1 + 0.32 * (round - 1)));
+    this.setScale(2.2);
+    this.shadow.setScale(this.def.shadowScale * 2.2);
+    this.moveSpeed = 42;
+    this.phase = 1;
+    this.mode = 'idle';
+    this.modeTimer = 1600;
+    this.throwTimer = 1100;
+    this.actionCount = 0;
+    this.dashHitDone = false;
+    this.beamAngle = 0;
+    this.phase2Beam = null;
+    this.beamNextTick = 0;
+    this.satanGlow = scene.add.image(x, y, 'glow')
+      .setTint(0xff3a2a).setScale(2.2).setAlpha(0.22)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(y + this.def.depthY - 1);
+    this.play('satan_idle');
+    this.setAlpha(1);
+  }
+
+  updateAI(time, delta) {
+    if (!this.active || this.dying) return;
+    this._visualTick();
+    const p = this.scene.player;
+    if (!p || p.isDead) {
+      this.setVelocity(0, 0);
+      this.clearSatanBeam();
+      return;
+    }
+    this.setFlipX(p.x < this.x);
+    if (this.satanGlow && this.satanGlow.active) {
+      this.satanGlow.setPosition(this.x, this.y)
+        .setDepth(this.y + this.def.depthY - 1)
+        .setAlpha(0.16 + Math.sin(time * 0.006) * 0.07);
+    }
+    if (this.phase === 2) {
+      this.updatePhase2(time, delta, p);
+      return;
+    }
+    this.throwTimer -= delta;
+    if (this.throwTimer <= 0) {
+      this.throwTimer = rand(1500, 2300);
+      this.throwTrident(p);
+    }
+    this.modeTimer -= delta;
+    if (this.mode === 'idle') {
+      const ang = Math.atan2(p.y - this.y, p.x - this.x);
+      this.setVelocity(Math.cos(ang) * this.moveSpeed, Math.sin(ang) * this.moveSpeed);
+      if (this.modeTimer <= 0) this.pickSkill(p);
+    } else if (this.mode === 'summon') {
+      this.setVelocity(0, 0);
+      if (this.modeTimer <= 0) {
+        this.scene.spawnDemonGuards(randInt(6, 10));
+        this.mode = 'idle';
+        this.modeTimer = 1600;
+      }
+    } else if (this.mode === 'hand') {
+      this.setVelocity(0, 0);
+      if (this.modeTimer <= 0) {
+        this.scene.spawnSatanHand(p.x, p.y);
+        this.mode = 'idle';
+        this.modeTimer = 1500;
+      }
+    } else if (this.mode === 'dashWindup') {
+      this.setVelocity(0, 0);
+      if (this.modeTimer <= 0) {
+        this.mode = 'dash';
+        this.modeTimer = 320;
+        this.dashHitDone = false;
+        const ang = Math.atan2(p.y - this.y, p.x - this.x);
+        this.setVelocity(Math.cos(ang) * 560, Math.sin(ang) * 560);
+        this.scene.cameras.main.shake(100, 0.004);
+      }
+    } else if (this.mode === 'dash') {
+      if (!this.dashHitDone && dist2(this.x, this.y, p.x, p.y) < 95 * 95) {
+        this.dashHitDone = true;
+        p.takeDamage(Math.round(this.damage * 1.5), this.x, this.y, this.scene.time.now);
+        this.scene.cameras.main.shake(180, 0.007);
+      }
+      if (this.modeTimer <= 0) {
+        this.mode = 'idle';
+        this.modeTimer = 1300;
+      }
+    }
+  }
+
+  pickSkill(p) {
+    this.actionCount++;
+    const roll = this.actionCount % 3;
+    if (roll === 1) {
+      this.mode = 'summon';
+      this.modeTimer = 750;
+      this.setVelocity(0, 0);
+      this.scene.hud.toastQueue.push('撒旦召唤恶魔卫兵！');
+      Sfx.bossRoar();
+    } else if (roll === 2) {
+      this.mode = 'hand';
+      this.modeTimer = 650;
+      this.setVelocity(0, 0);
+      this.scene.hud.toastQueue.push('撒旦的巨掌落下了！');
+      Sfx.bossRoar();
+    } else {
+      this.mode = 'dashWindup';
+      this.modeTimer = 600;
+      this.setVelocity(0, 0);
+      this.scene.fx.ring(this.x, this.y, 0xff5a3a, 0.2, 2.0, 500, 0.8, 745);
+      this.scene.hud.toastQueue.push('撒旦准备三叉戟突刺！');
+      Sfx.bossRoar();
+    }
+  }
+
+  throwTrident(p) {
+    const ang = Math.atan2(p.y - this.y, p.x - this.x);
+    this.scene.spawnEnemyOrb(this.x, this.y, ang, Math.round(this.damage * 0.8), {
+      speed: 430, tint: 0xff5a3a, texture: 'weapon_trident', scale: 1.25,
+    });
+    this.scene.fx.muzzle(this.x, this.y, ang, 0xff5a3a, 5);
+    Sfx.bowRelease();
+  }
+
+  updatePhase2(time, delta, p) {
+    const ang = Math.atan2(p.y - this.y, p.x - this.x);
+    this.setVelocity(Math.cos(ang) * 22, Math.sin(ang) * 22);
+    const target = ang;
+    this.beamAngle = Phaser.Math.Angle.RotateTo(this.beamAngle, target, 0.018);
+    if (!this.phase2Beam) {
+      const glow = this.scene.add.rectangle(this.x, this.y - 10, 760, 34, 0xff2a1a, 0.27)
+        .setOrigin(0, 0.5).setDepth(740).setBlendMode(Phaser.BlendModes.ADD);
+      const core = this.scene.add.rectangle(this.x, this.y - 10, 760, 10, 0xffb04a, 0.95)
+        .setOrigin(0, 0.5).setDepth(741).setBlendMode(Phaser.BlendModes.ADD);
+      this.phase2Beam = { glow, core };
+    }
+    this.phase2Beam.glow.setPosition(this.x, this.y - 10).setRotation(this.beamAngle)
+      .setAlpha(0.22 + Math.sin(time * 0.03) * 0.08);
+    this.phase2Beam.core.setPosition(this.x, this.y - 10).setRotation(this.beamAngle);
+    if (time >= this.beamNextTick) {
+      this.beamNextTick = time + 140;
+      const len = 760;
+      const cos = Math.cos(this.beamAngle);
+      const sin = Math.sin(this.beamAngle);
+      const dx = p.x - this.x;
+      const dy = p.y - (this.y - 10);
+      const along = dx * cos + dy * sin;
+      const perp = Math.abs(-dx * sin + dy * cos);
+      if (along > 0 && along < len && perp < 34) {
+        p.takeDamage(Math.round(this.damage * 0.5), this.x, this.y, this.scene.time.now);
+        this.scene.fx.hitSpark(p.x, p.y);
+      }
+      this.scene.cameras.main.shake(30, 0.001);
+      if (time % 500 < 140) Sfx.shoot();
+    }
+  }
+
+  clearSatanBeam() {
+    if (!this.phase2Beam) return;
+    const beam = this.phase2Beam;
+    this.phase2Beam = null;
+    if (beam.glow.active) beam.glow.destroy();
+    if (beam.core.active) beam.core.destroy();
+  }
+
+  die() {
+    if (this.phase === 1) {
+      this.phase = 2;
+      this.maxHp = Math.ceil(this.maxHp / 3);
+      this.hp = this.maxHp;
+      this.mode = 'phase2';
+      this.modeTimer = 0;
+      this.beamNextTick = 0;
+      this.setTint(0xff3a2a);
+      this.scene.cameras.main.flash(320, 255, 60, 30);
+      this.scene.cameras.main.shake(360, 0.01);
+      Sfx.bossRoar();
+      this.scene.hud.toastQueue.push('撒旦进入第二阶段：硫磺火！');
+      return;
+    }
+    this.clearSatanBeam();
+    finishBossDeath(this);
+    if (this.scene.onSatanDefeated) this.scene.onSatanDefeated(this);
+  }
+
+  destroy(fromScene) {
+    this.clearSatanBeam();
+    if (this.satanGlow && this.satanGlow.active) this.satanGlow.destroy();
+    super.destroy(fromScene);
+  }
+}
+
+class DragonBabyBoss extends Enemy {
+  constructor(scene, x, y, level) {
+    super(scene, x, y, 'dragon_baby', level, false);
+    const round = scene.round || 1;
+    this.isBoss = true;
+    this.bossName = '飞龙宝宝';
+    this.bossWeapon = null;
+    this.maxHp = Math.round(620 * (1 + 0.65 * (round - 1)));
+    this.hp = this.maxHp;
+    this.damage = Math.round(18 * (1 + 0.32 * (round - 1)));
+    this.setScale(2.15);
+    this.shadow.setScale(this.def.shadowScale * 2.15);
+    this.moveSpeed = 58;
+    this.mode = 'idle';
+    this.modeTimer = 1500;
+    this.actionCount = 0;
+    this.fireTimer = 1200;
+    this.phase2 = false;
+    this.breathBeam = null;
+    this.breathFlag = null;
+    this.breathAngle = 0;
+    this.breathNextTick = 0;
+    this.diveHit = false;
+    this.babyGlow = scene.add.image(x, y, 'glow')
+      .setTint(0x7fd06a).setScale(2.0).setAlpha(0.18)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(y + this.def.depthY - 1);
+    this.play('dragon_baby_idle');
+    this.setAlpha(1);
+  }
+
+  updateAI(time, delta) {
+    if (!this.active || this.dying) return;
+    this._visualTick();
+    const p = this.scene.player;
+    if (!p || p.isDead) {
+      this.setVelocity(0, 0);
+      this.clearBreath();
+      return;
+    }
+    this.setFlipX(p.x < this.x);
+    if (this.babyGlow && this.babyGlow.active) {
+      this.babyGlow.setPosition(this.x, this.y)
+        .setDepth(this.y + this.def.depthY - 1)
+        .setAlpha(0.14 + Math.sin(time * 0.006) * 0.06);
+    }
+    if (!this.phase2 && this.hp < this.maxHp * 0.5) {
+      this.phase2 = true;
+      this.moveSpeed = 76;
+      Sfx.bossRoar();
+      this.scene.cameras.main.shake(220, 0.006);
+      this.scene.hud.toastQueue.push('飞龙宝宝暴怒了！');
+    }
+    this.modeTimer -= delta;
+    if (this.mode === 'idle') {
+      const orbit = time * 0.0012;
+      const tx = p.x + Math.cos(orbit) * 170;
+      const ty = p.y + Math.sin(orbit * 1.4) * 105;
+      const a = Math.atan2(ty - this.y, tx - this.x);
+      this.setVelocity(Math.cos(a) * this.moveSpeed, Math.sin(a) * this.moveSpeed);
+      this.fireTimer -= delta;
+      if (this.fireTimer <= 0) {
+        this.fireTimer = this.phase2 ? 1100 : 1600;
+        this.throwFire(p);
+      }
+      if (this.modeTimer <= 0) this.pickSkill(p);
+    } else if (this.mode === 'breathWindup') {
+      this.setVelocity(0, 0);
+      if (this.breathFlag) {
+        this.breathFlag.setPosition(this.x, this.y - 6);
+      }
+      if (this.modeTimer <= 0) this.fireBreath(p);
+    } else if (this.mode === 'breath') {
+      this.setVelocity(0, 0);
+      this.updateBreath(time, p);
+      if (this.modeTimer <= 0) {
+        this.clearBreath();
+        this.mode = 'idle';
+        this.modeTimer = 1300;
+      }
+    } else if (this.mode === 'diveWindup') {
+      this.setVelocity(0, 0);
+      if (this.modeTimer <= 0) {
+        this.mode = 'dive';
+        this.modeTimer = 420;
+        this.diveHit = false;
+        const a = Math.atan2(p.y - this.y, p.x - this.x);
+        this.setVelocity(Math.cos(a) * 620, Math.sin(a) * 620);
+        this.scene.cameras.main.shake(100, 0.004);
+      }
+    } else if (this.mode === 'dive') {
+      if (!this.diveHit && dist2(this.x, this.y, p.x, p.y) < 90 * 90) {
+        this.diveHit = true;
+        p.takeDamage(Math.round(this.damage * 1.3), this.x, this.y, this.scene.time.now);
+        this.scene.cameras.main.shake(160, 0.006);
+      }
+      if (this.modeTimer <= 0) {
+        this.mode = 'idle';
+        this.modeTimer = 1200;
+      }
+    }
+  }
+
+  pickSkill(p) {
+    this.actionCount++;
+    const roll = this.actionCount % 3;
+    if (roll === 1) {
+      this.startBreath(p);
+    } else if (roll === 2) {
+      this.mode = 'diveWindup';
+      this.modeTimer = 600;
+      this.setVelocity(0, 0);
+      this.scene.hud.toastQueue.push('飞龙宝宝准备俯冲！');
+    } else {
+      this.throwFire(p);
+      this.modeTimer = 900;
+    }
+  }
+
+  throwFire(p) {
+    const base = Math.atan2(p.y - this.y, p.x - this.x);
+    const n = this.phase2 ? 5 : 3;
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * 0.16;
+      this.scene.spawnEnemyOrb(this.x, this.y, a, Math.round(this.damage * 0.7), {
+        speed: 330, tint: 0xff8a3a,
+      });
+    }
+    this.scene.fx.muzzle(this.x, this.y, base, 0xff8a3a, 3);
+    Sfx.spore();
+  }
+
+  startBreath(p) {
+    this.mode = 'breathWindup';
+    this.modeTimer = 700;
+    this.setVelocity(0, 0);
+    this.breathAngle = Math.atan2(p.y - this.y, p.x - this.x);
+    this.clearBreath();
+    this.breathFlag = this.scene.add.rectangle(this.x, this.y - 6, 620, 6, 0xff5a2a, 0.35)
+      .setOrigin(0, 0.5).setDepth(744).setBlendMode(Phaser.BlendModes.ADD)
+      .setRotation(this.breathAngle);
+    this.scene.tweens.add({
+      targets: this.breathFlag, alpha: 0.8, duration: 120, yoyo: true, repeat: -1,
+    });
+    this.scene.hud.toastQueue.push('飞龙宝宝开始蓄力龙息！');
+  }
+
+  fireBreath(p) {
+    if (this.breathFlag) {
+      this.scene.tweens.killTweensOf(this.breathFlag);
+      this.breathFlag.destroy();
+      this.breathFlag = null;
+    }
+    this.mode = 'breath';
+    this.modeTimer = 750;
+    this.breathNextTick = 0;
+    this.setVelocity(0, 0);
+    const glow = this.scene.add.rectangle(this.x, this.y - 6, 620, 28, 0xff3a1a, 0.25)
+      .setOrigin(0, 0.5).setDepth(740).setBlendMode(Phaser.BlendModes.ADD);
+    const core = this.scene.add.rectangle(this.x, this.y - 6, 620, 10, 0xffc04a, 0.95)
+      .setOrigin(0, 0.5).setDepth(741).setBlendMode(Phaser.BlendModes.ADD);
+    this.breathBeam = { glow, core };
+    this.scene.cameras.main.shake(140, 0.004);
+    Sfx.laser();
+  }
+
+  updateBreath(time, p) {
+    if (!this.breathBeam) return;
+    this.breathBeam.glow.setPosition(this.x, this.y - 6).setRotation(this.breathAngle);
+    this.breathBeam.core.setPosition(this.x, this.y - 6).setRotation(this.breathAngle);
+    if (time >= this.breathNextTick) {
+      this.breathNextTick = time + 140;
+      const len = 620;
+      const cos = Math.cos(this.breathAngle);
+      const sin = Math.sin(this.breathAngle);
+      const dx = p.x - this.x;
+      const dy = p.y - (this.y - 6);
+      const along = dx * cos + dy * sin;
+      const perp = Math.abs(-dx * sin + dy * cos);
+      if (along > 0 && along < len && perp < 30) {
+        p.takeDamage(Math.round(this.damage * 0.6), this.x, this.y, this.scene.time.now);
+        this.scene.fx.hitSpark(p.x, p.y);
+      }
+    }
+  }
+
+  clearBreath() {
+    if (this.breathFlag) {
+      this.scene.tweens.killTweensOf(this.breathFlag);
+      if (this.breathFlag.active) this.breathFlag.destroy();
+      this.breathFlag = null;
+    }
+    if (this.breathBeam) {
+      const beam = this.breathBeam;
+      this.breathBeam = null;
+      if (beam.glow.active) beam.glow.destroy();
+      if (beam.core.active) beam.core.destroy();
+    }
+  }
+
+  die() {
+    this.clearBreath();
+    finishBossDeath(this);
+  }
+
+  destroy(fromScene) {
+    this.clearBreath();
+    if (this.babyGlow && this.babyGlow.active) this.babyGlow.destroy();
+    super.destroy(fromScene);
+  }
+}

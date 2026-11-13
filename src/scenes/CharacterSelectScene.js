@@ -14,7 +14,7 @@ class CharacterSelectScene extends Phaser.Scene {
     this.add.text(480, 40, '选择角色', UI.textStyle(36, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(10);
-    this.add.text(480, 72, '枪手免费 · 剑客 800 · 科学怪人 3000 · 法师 1800 · 吉他手 2200 · 恶魔 3200', UI.textStyle(11, {
+    this.add.text(480, 72, '枪手免费 · 剑客800 · 科学怪人3000 · 法师1800 · 吉他手2200 · 恶魔3200 · 吸血鬼2600', UI.textStyle(11, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(10);
 
@@ -25,11 +25,11 @@ class CharacterSelectScene extends Phaser.Scene {
       color: '#ffe9a8', strokeThickness: 3,
     })).setOrigin(0, 0.5).setDepth(11);
 
-    const xs = [96, 288, 480, 672, 864];
+    const xs = [78, 239, 400, 561, 722, 883];
     const ys = [186, 350];
     CHAR_DEFS.forEach((def, i) => {
-      const x = xs[i % 5];
-      const y = ys[Math.floor(i / 5)];
+      const x = xs[i % 6];
+      const y = ys[Math.floor(i / 6)];
       this.createCard(def, x, y);
     });
 
@@ -55,37 +55,38 @@ class CharacterSelectScene extends Phaser.Scene {
   }
 
   createCard(def, x, y) {
-    const w = 176, h = 148;
+    const w = 150, h = 148;
     const c = this.add.container(x, y).setDepth(10);
     const g = this.add.graphics();
     c.add(g);
 
     const portraitKey = def.portrait || 'player_idle';
-    const frameX = -w / 2 + 14;
+    const frameX = -w / 2 + 8;
     const frameY = -h / 2 + 16;
+    const frameW = 56, frameH = 88;
 
-    const portrait = this.add.image(frameX + 35, frameY + 49, portraitKey);
-    portrait.setScale(1.55);
+    const portrait = this.add.image(frameX + 28, frameY + 44, portraitKey);
+    portrait.setScale(1.3);
     if (!def.playable) {
       portrait.setTint(0x39402e).setAlpha(0.85);
     }
     c.add(portrait);
 
     const unlocked = Store.isUnlocked(def.id);
-    const name = this.add.text(-w / 2 + 82, -h / 2 + 30, def.name, UI.textStyle(18, {
+    const name = this.add.text(-w / 2 + 70, -h / 2 + 30, def.name, UI.textStyle(15, {
       color: def.playable ? '#fff1c4' : '#b9c3a8', strokeThickness: 3,
       shadow: false,
     })).setOrigin(0, 0.5);
     c.add(name);
 
-    const desc = this.add.text(-w / 2 + 82, -h / 2 + 52, def.desc, UI.textStyle(10, {
+    const desc = this.add.text(-w / 2 + 70, -h / 2 + 52, def.desc, UI.textStyle(8, {
       color: '#9fb58a', strokeThickness: 2, bold: false,
     })).setOrigin(0, 0);
-    desc.setWordWrapWidth(90);
+    desc.setWordWrapWidth(74);
     desc.setLineSpacing(2);
     c.add(desc);
 
-    const status = this.add.text(-w / 2 + 82, h / 2 - 22, '', UI.textStyle(10, {
+    const status = this.add.text(-w / 2 + 70, h / 2 - 22, '', UI.textStyle(8, {
       color: '#e0b96a', strokeThickness: 2,
     })).setOrigin(0, 0.5);
     c.add(status);
@@ -125,11 +126,11 @@ class CharacterSelectScene extends Phaser.Scene {
         g.strokeRect(-w / 2, -h / 2, w, h);
         // 头像框
         g.fillStyle(0x0f180c, 0.95);
-        g.fillRect(frameX, frameY, 70, 98);
+        g.fillRect(frameX, frameY, frameW, frameH);
         g.lineStyle(2, def.playable ? 0x7e9a5e : 0x46523a, 1);
-        g.strokeRect(frameX, frameY, 70, 98);
+        g.strokeRect(frameX, frameY, frameW, frameH);
         g.fillStyle(def.color, selected ? 0.3 : 0.16);
-        g.fillRect(frameX + 2, frameY + 2, 66, 94);
+        g.fillRect(frameX + 2, frameY + 2, frameW - 4, frameH - 4);
         if (selected) {
           g.lineStyle(1, 0xffedb0, 0.8);
           g.strokeRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
