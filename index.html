@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="草原枪手">
+<meta name="theme-color" content="#101a10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2314200f'/%3E%3Ccircle cx='8' cy='8' r='6' fill='%23f2c23e'/%3E%3Ccircle cx='8' cy='7' r='3' fill='%23ffe08a'/%3E%3C/svg%3E">
+<title>草原枪手 · Grassland Gunner</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: radial-gradient(ellipse at 50% 40%, #1c2a18 0%, #0b120a 70%, #060906 100%);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #game {
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    right: env(safe-area-inset-right, 0px);
+    bottom: env(safe-area-inset-bottom, 0px);
+    left: env(safe-area-inset-left, 0px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #game canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    box-shadow: 0 0 60px rgba(0,0,0,.8);
+  }
+  #rotateHint {
+    display: none;
+    position: fixed; inset: 0; z-index: 50;
+    background: #0b120a;
+    color: #e8d9a8;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; text-align: center; padding: 24px;
+  }
+  #rotateHint .icon {
+    font-size: 52px;
+    animation: rot 2.4s ease-in-out infinite;
+  }
+  #rotateHint .t1 { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
+  #rotateHint .t2 { font-size: 13px; color: #8fa87a; }
+  @keyframes rot {
+    0%, 25% { transform: rotate(0deg); }
+    55%, 80% { transform: rotate(90deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @media (orientation: portrait) and (pointer: coarse) {
+    #rotateHint { display: flex; }
+  }
+</style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="rotateHint">
+    <div class="icon">📱</div>
+    <div class="t1">请横屏游玩</div>
+    <div class="t2">横屏后画面会自动铺满屏幕</div>
+  </div>
+
+  <script src="lib/phaser.min.js"></script>
+  <script src="src/config.js"></script>
+  <script src="src/store.js"></script>
+  <script src="src/sfx.js"></script>
+  <script src="src/sprites.js"></script>
+  <script src="src/art.js"></script>
+  <script src="src/ui.js"></script>
+  <script src="src/entities.js"></script>
+  <script src="src/scenes/BootScene.js"></script>
+  <script src="src/scenes/MenuScene.js"></script>
+  <script src="src/scenes/CharacterSelectScene.js"></script>
+  <script src="src/scenes/GameScene.js"></script>
+  <script src="src/scenes/UIScene.js"></script>
+  <script src="src/scenes/PauseScene.js"></script>
+  <script src="src/scenes/GameOverScene.js"></script>
+  <script src="src/scenes/BestiaryScene.js"></script>
+  <script src="src/scenes/ForgeScene.js"></script>
+  <script src="src/scenes/UpgradeScene.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
