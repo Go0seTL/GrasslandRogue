@@ -127,7 +127,7 @@ const WEAPONS = {
 };
 
 const CHAR_DEFS = [
-  { id: 'gunner',    name: '枪手',     price: 0,    desc: '手枪 · 锁定扫射',        color: 0x2f7f78, playable: true,  portrait: 'player_idle' },
+  { id: 'gunner',    name: '枪手',     price: 0,    desc: '当前武器 · 自动索敌',     color: 0x2f7f78, playable: true,  portrait: 'player_idle' },
   { id: 'swordsman', name: '剑客',     price: 800,  desc: '手枪 · 万剑归宗',        color: 0x557fb0, playable: true,  portrait: 'swordsman_idle' },
   { id: 'knight',    name: '骑士',     price: 1200, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
   { id: 'mage',      name: '法师',     price: 1800, desc: '法术 · 范围爆发',        color: 0x7a4fa5, playable: false, portrait: 'player_idle' },

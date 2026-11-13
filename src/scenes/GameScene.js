@@ -4,17 +4,24 @@ class GameScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.characterId = (data && data.character) || 'gunner';
-    this.weaponId = 'pistol';
-    this.weapon = WEAPONS.pistol;
-    this.round = 1;
-    this.stage = 1;
+    // 「继续游戏」：读取上一次退出时的房间检查点
+    const cp = (data && data.resume && Store.data.runCheckpoint
+      && Number(Store.data.runCheckpoint.round) > 0)
+      ? Store.data.runCheckpoint : null;
+    this.resumeData = cp;
+    this.characterId = cp
+      ? (cp.characterId || 'gunner')
+      : ((data && data.character) || 'gunner');
+    this.weaponId = cp && WEAPONS[cp.weaponId] ? cp.weaponId : 'pistol';
+    this.weapon = WEAPONS[this.weaponId] || WEAPONS.pistol;
+    this.round = cp ? Math.max(1, Math.floor(cp.round)) : 1;
+    this.stage = cp ? Math.min(ROUND_LEN, Math.max(1, Math.floor(cp.stage))) : 1;
     this.mapKey = 'grass';
     this.mapName = '草原';
     this.currentMap = null;
     this.enemyLevel = 1;
-    this.runCoins = 0;
-    this.kills = 0;
+    this.runCoins = cp ? Math.max(0, Math.floor(cp.runCoins || 0)) : 0;
+    this.kills = cp ? Math.max(0, Math.floor(cp.kills || 0)) : 0;
     this.runStartTime = 0;
     this.roomState = 'idle';
     this.pendingSpawns = 0;
@@ -53,14 +60,22 @@ class GameScene extends Phaser.Scene {
       coinBonus: 0, hpBonus: 0, size: 1, healBonus: 0,
       bulletSpeed: 1, spreadMul: 1, lifesteal: 0, twinChance: 0, deathBlast: 0,
     };
+    if (cp && cp.buffs && typeof cp.buffs === 'object') {
+      Object.keys(this.buffs).forEach((key) => {
+        const v = cp.buffs[key];
+        if (typeof v === 'number' && isFinite(v)) this.buffs[key] = v;
+      });
+    }
     this.charLevel = Store.getCharLevel(this.characterId);
-    this.buffs.damage *= 1 + this.charLevel * 0.04;
-    this.buffs.fireRate *= Math.max(0.45, 1 - this.charLevel * 0.02);
+    if (!cp) {
+      this.buffs.damage *= 1 + this.charLevel * 0.04;
+      this.buffs.fireRate *= Math.max(0.45, 1 - this.charLevel * 0.02);
+    }
     this.lastEnergyWarn = 0;
     this.ghost = null;
-    this.dualWield = false;
-    this.secondaryWeapon = null;
-    this.secondaryId = null;
+    this.dualWield = cp ? !!cp.dualWield : false;
+    this.secondaryId = cp && cp.secondaryId && WEAPONS[cp.secondaryId] ? cp.secondaryId : null;
+    this.secondaryWeapon = this.secondaryId ? WEAPONS[this.secondaryId] : null;
     this.upgradeOpen = false;
     this.lastUpgradeRound = 0;
     this.startUpgradeShown = false;
@@ -90,6 +105,17 @@ class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(ARENA.left, ARENA.top, ARENA.right - ARENA.left, ARENA.bottom - ARENA.top);
 
     this.player = new Player(this, 480, 405, this.characterId);
+    if (this.resumeData) {
+      const cp = this.resumeData;
+      if (Number(cp.maxHp) > 0) this.player.maxHp = Math.floor(cp.maxHp);
+      if (Number(cp.maxEnergy) > 0) this.player.maxEnergy = Math.floor(cp.maxEnergy);
+      this.player.hp = this.player.maxHp;
+      this.player.energy = this.player.maxEnergy;
+      const size = this.buffs.size || 1;
+      this.player.setScale(size);
+      if (this.player.shadow) this.player.shadow.setScale(size);
+      if (this.player.backSword) this.player.backSword.setScale(size);
+    }
     this.enemies = this.physics.add.group();
     this.playerBullets = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
@@ -103,6 +129,13 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyTouchPlayer, null, this);
 
     this.setupFX();
+    if (this.resumeData && this.resumeData.ghost) {
+      this.summonGhost();
+      if (this.ghost) {
+        this.ghost.level = Math.max(1, Math.floor(this.resumeData.ghost.level || 1));
+        this.ghost.ready = this.resumeData.ghost.ready !== false;
+      }
+    }
     this.setupAmbient();
     this.setupInput();
 
@@ -118,12 +151,15 @@ class GameScene extends Phaser.Scene {
       : 'WASD 移动 · 鼠标瞄准 · 左键射击 · 空格翻滚 · E 技能';
     this.hud.hintUntil = this.time.now + 9000;
 
-    this.startRoom(1, 1);
+    this.startRoom(this.round, this.stage);
 
-    this.time.delayedCall(700, () => {
-      if (!this.scene.isActive()) return;
-      this.openUpgrade(true);
-    });
+    // 继续游戏时不重复弹出开局强化
+    if (!this.resumeData) {
+      this.time.delayedCall(700, () => {
+        if (!this.scene.isActive()) return;
+        this.openUpgrade(true);
+      });
+    }
   }
 
   // ------------------------------------------------------------ 场景搭建
@@ -522,6 +558,7 @@ class GameScene extends Phaser.Scene {
     });
 
     this.cameras.main.fadeIn(380, 6, 12, 6);
+    this.saveCheckpoint();
 
     this.time.delayedCall(960, () => {
       if (!this.scene.isActive() || this.player.isDead) return;
@@ -530,6 +567,27 @@ class GameScene extends Phaser.Scene {
       if (stage === ROUND_LEN) this.startBossRoom();
       else this.startNormalRoom();
     });
+  }
+
+  // 房间开局检查点：回到主菜单后可以继续到这一回合，但当前房间会重打
+  saveCheckpoint() {
+    if (!this.player || this.player.isDead || this.gameOverStarted) return;
+    Store.data.runCheckpoint = {
+      characterId: this.characterId,
+      round: this.round,
+      stage: this.stage,
+      weaponId: this.weaponId,
+      dualWield: !!this.dualWield,
+      secondaryId: this.secondaryId || null,
+      buffs: Object.assign({}, this.buffs),
+      maxHp: Math.round(this.player.maxHp),
+      maxEnergy: Math.round(this.player.maxEnergy),
+      runCoins: this.runCoins,
+      kills: this.kills,
+      ghost: this.ghost ? { level: this.ghost.level, ready: !!this.ghost.ready } : null,
+      savedAt: Date.now(),
+    };
+    Store.save();
   }
 
   clearRoomObjects() {
@@ -694,6 +752,7 @@ class GameScene extends Phaser.Scene {
       Sfx.heal();
     }
     Store.flush();
+    this.saveCheckpoint();
     this.time.delayedCall(340, () => {
       if (!this.scene.isActive() || this.player.isDead) return;
       this.spawnPortal();
@@ -974,12 +1033,20 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnFallingRock(x, y) {
+    // 落点红圈：先亮起、收缩，再落石
+    const disc = this.add.circle(x, y, 30, 0xff3a2a, 0.18)
+      .setDepth(704)
+      .setStrokeStyle(2, 0xff5a4a, 0.95);
     const warn = this.add.image(x, y, 'spawnring')
-      .setTint(0xffb15a).setScale(0.5).setAlpha(0.85).setDepth(3);
+      .setTint(0xff4a3a).setScale(0.95).setAlpha(0.95).setDepth(705);
     this.tweens.add({
-      targets: warn, alpha: 0, scale: 0.85, duration: 520,
+      targets: warn, scale: 0.38, duration: 520, ease: 'Quad.In',
+    });
+    this.tweens.add({
+      targets: [warn, disc], alpha: 0, delay: 400, duration: 120,
       onComplete: () => {
         warn.destroy();
+        disc.destroy();
         this.dropRock(x, y);
       },
     });
@@ -1057,6 +1124,22 @@ class GameScene extends Phaser.Scene {
     this.weapon = w;
     if (this.dualWield) this.pickSecondaryWeapon();
     this.hud.toastQueue.push(`已装备：${w.name}`);
+    this.saveCheckpoint();
+  }
+
+  applyCharLevelUp() {
+    this.charLevel = (this.charLevel || 0) + 1;
+    this.buffs.damage *= 1.04;
+    this.buffs.fireRate = Math.max(0.45, this.buffs.fireRate * 0.98);
+    if (this.player) {
+      this.player.maxHp += 10;
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10);
+      this.player.maxEnergy += 10;
+      this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 10);
+    }
+    this.hud.hpDirty = true;
+    this.hud.toastQueue.push('角色升级成功！');
+    this.saveCheckpoint();
   }
 
   enableDualWield() {
@@ -1139,6 +1222,7 @@ class GameScene extends Phaser.Scene {
     this.hud.hpDirty = true;
     this.hud.toastQueue.push(`获得强化：${u.name}`);
     Sfx.unlock();
+    this.saveCheckpoint();
   }
 
   onEnemyBulletHitPlayer(player, bullet) {
@@ -1209,6 +1293,8 @@ class GameScene extends Phaser.Scene {
   onPlayerDeath() {
     if (this.gameOverStarted) return;
     this.gameOverStarted = true;
+    Store.data.runCheckpoint = null;
+    Store.save();
     this.locked = true;
     this.cancelSkill();
     this.hud.hurtAt = this.time.now;
@@ -1291,7 +1377,7 @@ class GameScene extends Phaser.Scene {
     this.fx.ring(this.player.x, this.player.y + 6, 0xff9a3a, 0.25, 1.8, 520, 0.9, 732);
     this.cameras.main.shake(160, 0.004);
     Sfx.skillStart();
-    this.hud.toastQueue.push('技能发动：锁定最近的 3 名敌人');
+    this.hud.toastQueue.push('技能发动：用当前武器自动射击最近的 3 名敌人');
   }
 
   activateSwordSkill() {
@@ -1398,31 +1484,119 @@ class GameScene extends Phaser.Scene {
       lock.icon.setPosition(e.x, e.y - this.lockOffset(e));
     });
 
-    // 机枪扫射
+    // 用当前手持武器自动攻击最近的敌人
     if (s.targets.length > 0 && time >= s.nextShotAt) {
-      s.nextShotAt = time + SKILL.interval;
+      const weapon = this.weapon || WEAPONS[this.weaponId] || WEAPONS.pistol;
+      s.nextShotAt = time + this.gunnerSkillInterval(weapon);
       const target = s.targets[s.shotIndex % s.targets.length];
       s.shotIndex++;
       s.aimTarget = target;
-      const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x) + rand(-0.04, 0.04);
-      const px = this.player.x + Math.cos(angle) * 2;
-      const py = this.player.y - 2 + Math.sin(angle) * 2;
-      const fxX = this.player.x + Math.cos(angle) * 27;
-      const fxY = this.player.y - 5 + Math.sin(angle) * 27;
-      this.spawnPlayerBullet(px, py, angle, Math.round(SKILL.damage * (this.buffs.damage || 1)));
-      this.fx.muzzle(fxX, fxY);
-      if (s.shotIndex % 2 === 0) this.fx.shell(this.player.x, this.player.y - 5, angle);
-      this.cameras.main.shake(28, 0.0007);
-      if (time - s.lastSound > 115) {
-        Sfx.mg();
-        s.lastSound = time;
-      }
+      const angle = Math.atan2(
+        target.y - this.player.y,
+        target.x - this.player.x
+      );
+      this.gunnerSkillFire(angle, weapon, time);
     }
 
     // 身上冒火
     this.fx.flames.setPosition(this.player.x, this.player.y + 2);
     this.fx.skillGlow.setPosition(this.player.x, this.player.y - 6);
     this.fx.skillGlow.setAlpha(0.24 + Math.sin(time * 0.022) * 0.08);
+  }
+
+  gunnerSkillInterval(weapon) {
+    const buffs = this.buffs || {};
+    const base = weapon.charge
+      ? weapon.chargeTime * 1000
+      : weapon.fireRate * 1000 * (buffs.fireRate || 1);
+    return Math.max(70, base);
+  }
+
+  // 枪手技能：完全复用当前武器的弹道/近战手感，只是自动锁定最近的目标
+  gunnerSkillFire(angle, weapon, time) {
+    const s = this.skill;
+    const buffs = this.buffs || {};
+    const q = QUALITIES[weapon.quality] || QUALITIES.white;
+    const power = Math.max(0, QUALITY_ORDER.indexOf(weapon.quality));
+    const p = this.player;
+
+    if (weapon.melee) {
+      this.meleeAttack(p, angle, weapon);
+      Sfx.slash();
+      return;
+    }
+
+    if (weapon.charge) {
+      const dmg = Math.round((weapon.baseDamage + weapon.maxBonus) * (buffs.damage || 1));
+      const px = p.x + Math.cos(angle) * 24;
+      const py = p.y - 5 + Math.sin(angle) * 24;
+      this.spawnPlayerBullet(px, py, angle, dmg, {
+        speed: weapon.bulletSpeed * (buffs.bulletSpeed || 1),
+        tint: null,
+        pierce: 2,
+        color: q.color,
+        power: 6,
+        texture: 'charged_arrow',
+        scale: 1.45,
+      });
+      this.fx.muzzle(px, py, angle, q.color, 6);
+      this.fx.shotBurst(px, py, q.color, 6);
+      this.cameras.main.shake(70, 0.003);
+      Sfx.bowRelease();
+      return;
+    }
+
+    if (weapon.ringCount) {
+      for (let i = 0; i < weapon.ringCount; i++) {
+        const a = (i / weapon.ringCount) * Math.PI * 2 + rand(-0.03, 0.03);
+        this.spawnPlayerBullet(p.x, p.y - 2, a, Math.round(weapon.damage * (buffs.damage || 1)), {
+          speed: weapon.bulletSpeed * (buffs.bulletSpeed || 1),
+          tint: weapon.tint,
+          pierce: weapon.pierce,
+          color: q.color,
+          power,
+        });
+      }
+      this.fx.ring(p.x, p.y - 2, q.color, 0.2, 1.3, 320, 0.8, 720);
+      this.fx.shotBurst(p.x, p.y - 2, q.color, power);
+      this.cameras.main.shake(45, 0.0018);
+      if (time - s.lastSound > 70) {
+        Sfx.shoot();
+        s.lastSound = time;
+      }
+      return;
+    }
+
+    const px = p.x + Math.cos(angle) * 2;
+    const py = p.y - 2 + Math.sin(angle) * 2;
+    const spread = (weapon.spread || 0) * (buffs.spreadMul || 1);
+    const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
+    const pellets = (weapon.pellets || 1) + extra;
+    for (let i = 0; i < pellets; i++) {
+      const a = angle + rand(-spread, spread);
+      this.spawnPlayerBullet(px, py, a, Math.round(weapon.damage * (buffs.damage || 1)), {
+        speed: (weapon.bulletSpeed || 900) * (buffs.bulletSpeed || 1),
+        tint: weapon.tint,
+        pierce: weapon.pierce,
+        color: q.color,
+        power,
+      });
+    }
+    const tip = p.gun.displayWidth * (1 - p.gun.originX);
+    const fxX = p.x + Math.cos(angle) * (8 + tip);
+    const fxY = p.y - 5 + Math.sin(angle) * (8 + tip);
+    this.fx.muzzle(fxX, fxY, angle, q.color, power);
+    if (s.shotIndex % 2 === 0) {
+      this.fx.shell(p.x + Math.cos(angle) * 8, p.y - 5 + Math.sin(angle) * 8, angle);
+    }
+    this.cameras.main.shake(
+      weapon.pellets > 1 ? 50 : 28,
+      weapon.pellets > 1 ? 0.0022 : 0.0008
+    );
+    if (time - s.lastSound > 70) {
+      Sfx.shoot();
+      s.lastSound = time;
+    }
   }
 
   updateSwordSkill(time, delta) {

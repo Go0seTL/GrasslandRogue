@@ -81,9 +81,10 @@ class BoarKingBoss extends Enemy {
       this.berserkTimer -= delta;
       this.dirTimer -= delta;
       if (this.dirTimer <= 0) {
-        const a = rand(0, Math.PI * 2);
+        // 狂暴时也优先朝玩家冲，只加一点小幅偏移，避免笔直得毫无威胁
+        const a = Math.atan2(p.y - this.y, p.x - this.x) + rand(-0.45, 0.45);
         this.setVelocity(Math.cos(a) * 390, Math.sin(a) * 390);
-        this.dirTimer = rand(220, 380);
+        this.dirTimer = rand(240, 430);
       }
       if (this.berserkTimer <= 0) this.endBerserk();
     } else if (this.mode === 'rocks') {
@@ -102,6 +103,34 @@ class BoarKingBoss extends Enemy {
         this.modeTimer = 1200;
       }
     }
+    this.clampToArena();
+  }
+
+  // 野猪王体型很大，只靠物理世界边界仍可能把身体/贴图撞出去
+  clampToArena() {
+    if (!this.body) return;
+    const padX = Math.min(96, this.displayWidth * 0.5 + 2);
+    const padY = Math.min(96, this.displayHeight * 0.5 + 2);
+    const minX = ARENA.left + padX;
+    const maxX = ARENA.right - padX;
+    const minY = ARENA.top + padY;
+    const maxY = ARENA.bottom - padY;
+    let bounced = false;
+    if (this.x < minX) {
+      this.x = minX;
+      if (this.body.velocity.x < 0) { this.body.velocity.x *= -0.85; bounced = true; }
+    } else if (this.x > maxX) {
+      this.x = maxX;
+      if (this.body.velocity.x > 0) { this.body.velocity.x *= -0.85; bounced = true; }
+    }
+    if (this.y < minY) {
+      this.y = minY;
+      if (this.body.velocity.y < 0) { this.body.velocity.y *= -0.85; bounced = true; }
+    } else if (this.y > maxY) {
+      this.y = maxY;
+      if (this.body.velocity.y > 0) { this.body.velocity.y *= -0.85; bounced = true; }
+    }
+    if (bounced && this.mode === 'berserk') this.dirTimer = 0;
   }
 
   pickSkill() {
@@ -119,7 +148,10 @@ class BoarKingBoss extends Enemy {
     Sfx.bossRoar();
     this.scene.cameras.main.shake(250, 0.007);
     this.scene.hud.toastQueue.push(`${this.bossName} 进入狂暴！`);
-    const a = rand(0, Math.PI * 2);
+    const p = this.scene.player;
+    const a = p
+      ? Math.atan2(p.y - this.y, p.x - this.x) + rand(-0.3, 0.3)
+      : rand(0, Math.PI * 2);
     this.setVelocity(Math.cos(a) * 390, Math.sin(a) * 390);
   }
 

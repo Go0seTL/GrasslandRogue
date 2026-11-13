@@ -14,6 +14,7 @@ const Store = {
     best: null,
     runs: 0,
     totalKills: 0,
+    runCheckpoint: null,
   },
   _dirty: false,
 

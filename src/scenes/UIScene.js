@@ -116,6 +116,9 @@ class UIScene extends Phaser.Scene {
     this.weaponBtn = this.createHudButton(922, 188, 54, 32, '武器', () => {
       this.scene.launch('Forge', { from: 'game' });
     });
+    this.upgradeBtn = this.createHudButton(922, 236, 54, 32, '升级', () => {
+      this.scene.launch('CharUpgrade', { characterId: this.characterId });
+    });
 
     this.lastWeaponId = null;
 
@@ -378,7 +381,7 @@ class UIScene extends Phaser.Scene {
       ? baseScale * (1.1 + Math.sin(now * 0.02) * 0.1)
       : baseScale);
     this.skillState.setText(state === 'active'
-      ? (this.skillCharacter === 'swordsman' ? '剑阵中' : '扫射中')
+      ? (this.skillCharacter === 'swordsman' ? '剑阵中' : '射击中')
       : (state === 'cool'
         ? `${Math.ceil((s.cooldownUntil - now) / 1000)}s`
         : (game.touchMode ? '技能' : 'E · 技能')));

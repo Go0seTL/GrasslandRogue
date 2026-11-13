@@ -5,6 +5,8 @@ class MenuScene extends Phaser.Scene {
 
   create() {
     this.starting = false;
+    const checkpoint = Store.data.runCheckpoint;
+    const hasResume = !!(checkpoint && checkpoint.round && checkpoint.stage);
     this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x081108, 0.52).setOrigin(0).setDepth(1);
     this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(2);
@@ -89,13 +91,25 @@ class MenuScene extends Phaser.Scene {
       variant: 'ghost', fontSize: 14,
     }).setDepth(20);
 
-    // 按钮
-    UI.button(this, GAME_W / 2, 408, 264, 56, '开 始 冒 险', () => this.startGame(), {
-      fontSize: 24, once: true,
-    }).setDepth(20);
-    UI.button(this, GAME_W / 2, 472, 196, 42, '操作说明', () => this.showHelp(), {
-      variant: 'ghost', fontSize: 17,
-    }).setDepth(20);
+    // 按钮：有检查点时显示「继续游戏」
+    if (hasResume) {
+      UI.button(this, GAME_W / 2, 392, 300, 48, `继 续 游 戏  ·  ${checkpoint.round}-${checkpoint.stage}`, () => this.continueGame(), {
+        fontSize: 20, once: true,
+      }).setDepth(20);
+      UI.button(this, GAME_W / 2, 448, 220, 40, '开始新冒险', () => this.startGame(), {
+        variant: 'ghost', fontSize: 16, once: true,
+      }).setDepth(20);
+      UI.button(this, GAME_W / 2, 496, 178, 34, '操作说明', () => this.showHelp(), {
+        variant: 'ghost', fontSize: 13,
+      }).setDepth(20);
+    } else {
+      UI.button(this, GAME_W / 2, 408, 264, 56, '开 始 冒 险', () => this.startGame(), {
+        fontSize: 24, once: true,
+      }).setDepth(20);
+      UI.button(this, GAME_W / 2, 472, 196, 42, '操作说明', () => this.showHelp(), {
+        variant: 'ghost', fontSize: 17,
+      }).setDepth(20);
+    }
 
     // 最佳进度
     const best = Store.data.best;
@@ -110,7 +124,9 @@ class MenuScene extends Phaser.Scene {
     })).setOrigin(1, 0.5).setDepth(20);
 
     this.input.keyboard.on('keydown-ENTER', () => {
-      if (!this.activationRoot) this.startGame();
+      if (this.activationRoot) return;
+      if (Store.data.runCheckpoint) this.continueGame();
+      else this.startGame();
     });
     this.events.once('shutdown', () => {
       if (this.activationInput && this.activationInput.parentNode) this.activationInput.remove();
@@ -141,6 +157,20 @@ class MenuScene extends Phaser.Scene {
     this.cameras.main.fadeOut(280, 6, 12, 6);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('Select');
+    });
+  }
+
+  continueGame() {
+    if (this.starting || this.activationRoot) return;
+    if (!Store.data.runCheckpoint) {
+      this.startGame();
+      return;
+    }
+    this.starting = true;
+    Sfx.uiClick();
+    this.cameras.main.fadeOut(280, 6, 12, 6);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('Game', { resume: true });
     });
   }
 

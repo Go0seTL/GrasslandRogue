@@ -39,6 +39,7 @@ const gameConfig = {
     BestiaryScene,
     ForgeScene,
     UpgradeScene,
+    CharUpgradeScene,
   ],
 };
 
