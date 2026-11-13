@@ -6,7 +6,9 @@ class UpgradeScene extends Phaser.Scene {
   create() {
     this.gameScene = this.scene.get('Game');
     this.chosen = false;
-    UI.beginModalScene(this);
+    this.closing = false;
+    this.cardRects = [];
+    this.modalState = UI.beginModalScene(this);
     this.events.once('shutdown', () => {
       if (this.gameScene) this.gameScene.upgradeOpen = false;
     });
@@ -21,7 +23,7 @@ class UpgradeScene extends Phaser.Scene {
     this.add.text(480, 82, '选择强化', UI.textStyle(34, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(2);
-    this.add.text(480, 112, '海克斯三选一 · 本局有效 · 可叠加', UI.textStyle(12, {
+    this.add.text(480, 112, '海克斯三选一 · 本局有效 · 右上角可跳过', UI.textStyle(12, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
@@ -34,7 +36,37 @@ class UpgradeScene extends Phaser.Scene {
       variant: 'ghost', fontSize: 12,
     }).setDepth(3);
 
+    // 右上角跳过：场景顶层矩形，避免卡片命中异常时无法退出
+    const xg = this.add.rectangle(830, 64, 64, 28, 0x1b2817, 0.94)
+      .setStrokeStyle(2, 0xd9b45a, 0.9).setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(830, 64, '跳过', UI.textStyle(11, {
+      color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(31);
+    xg.on('pointerup', () => this.close(false));
+
+    this.skipRect = { x: 480, y: 478, w: 180, h: 36 };
+    this.cornerRect = { x: 830, y: 64, w: 72, h: 34 };
+    this.input.on('pointerup', (pointer) => this.handlePointer(pointer));
+    this.input.keyboard.on('keydown-ESC', () => this.close(false));
+
     this.cameras.main.fadeIn(160, 6, 10, 6);
+  }
+
+  handlePointer(pointer) {
+    if (this.closing || this.chosen) return;
+    const inside = (r) => pointer.x >= r.x - r.w / 2 && pointer.x <= r.x + r.w / 2
+      && pointer.y >= r.y - r.h / 2 && pointer.y <= r.y + r.h / 2;
+    if (inside(this.cornerRect) || inside(this.skipRect)) {
+      this.close(false);
+      return;
+    }
+    for (const r of this.cardRects) {
+      if (inside(r)) {
+        this.choose(r.u);
+        return;
+      }
+    }
   }
 
   createCard(u, x, y) {
@@ -98,21 +130,33 @@ class UpgradeScene extends Phaser.Scene {
       this.tweens.add({ targets: c, scale: 1, duration: 90 });
     });
     hit.on('pointerup', () => this.choose(u));
+    this.cardRects.push({ x, y, w, h, u });
   }
 
   choose(u) {
-    if (this.chosen) return;
+    if (this.chosen || this.closing) return;
     this.chosen = true;
     Sfx.unlock();
-    if (this.gameScene) this.gameScene.applyUpgrade(u.id);
+    try {
+      if (this.gameScene) this.gameScene.applyUpgrade(u.id);
+    } catch (e) {
+      console.warn('applyUpgrade failed', e);
+    }
     this.cameras.main.flash(180, 220, 200, 140);
     this.time.delayedCall(150, () => this.close(true));
   }
 
   close(applied) {
-    if (this.closing) return;
+    if (this.closing) {
+      UI.endModalScene(this.modalState);
+      if (this.gameScene) this.gameScene.upgradeOpen = false;
+      this.scene.stop();
+      return;
+    }
     this.closing = true;
     if (!applied) Sfx.uiClick();
+    if (this.gameScene) this.gameScene.upgradeOpen = false;
+    UI.endModalScene(this.modalState);
     this.scene.stop();
   }
 }

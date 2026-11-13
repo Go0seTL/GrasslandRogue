@@ -8,7 +8,7 @@ class ForgeScene extends Phaser.Scene {
     this.fromGame = !!(this.gameScene && this.gameScene.scene.isActive());
     this.rows = [];
     this.toast = null;
-    UI.beginModalScene(this);
+    this.modalState = UI.beginModalScene(this);
 
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x040a04, 0.82)
       .setOrigin(0).setDepth(0)
@@ -39,13 +39,33 @@ class ForgeScene extends Phaser.Scene {
       color: '#93a97d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
-    UI.button(this, 480, 466, 160, 30, '关 闭', () => this.close(), {
+    UI.button(this, 480, 482, 180, 28, '关 闭', () => this.close(), {
       variant: 'ghost', fontSize: 13,
     }).setDepth(3);
+
+    // 右上角始终可用的关闭按钮（放在场景顶层，避免被提示条/行按钮遮挡）
+    const xg = this.add.rectangle(820, 66, 64, 30, 0x1b2817, 0.94)
+      .setStrokeStyle(2, 0xd9b45a, 0.9).setDepth(30)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(820, 66, '关 闭', UI.textStyle(11, {
+      color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(31);
+    xg.on('pointerup', () => this.close());
+
+    this.closeRect = { x: 480, y: 482, w: 190, h: 36 };
+    this.cornerRect = { x: 820, y: 66, w: 70, h: 36 };
+    this.input.on('pointerup', (pointer) => this.handlePointer(pointer));
 
     this.input.keyboard.on('keydown-ESC', () => this.close());
     this.cameras.main.fadeIn(150, 6, 10, 6);
     this.refreshRows();
+  }
+
+  handlePointer(pointer) {
+    if (this.closing) return;
+    const inside = (r) => pointer.x >= r.x - r.w / 2 && pointer.x <= r.x + r.w / 2
+      && pointer.y >= r.y - r.h / 2 && pointer.y <= r.y + r.h / 2;
+    if (inside(this.closeRect) || inside(this.cornerRect)) this.close();
   }
 
   createRow(w, x, y) {
@@ -164,9 +184,11 @@ class ForgeScene extends Phaser.Scene {
   }
 
   close() {
-    if (this.closing) return;
-    this.closing = true;
-    Sfx.uiClick();
+    if (!this.closing) {
+      this.closing = true;
+      Sfx.uiClick();
+    }
+    UI.endModalScene(this.modalState);
     this.scene.stop();
   }
 }

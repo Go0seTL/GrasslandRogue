@@ -166,6 +166,14 @@ const Sfx = {
     this._tone(880, 0.08, { type: 'triangle', vol: 0.04 });
     this._tone(1320, 0.12, { type: 'sine', vol: 0.032, delay: 0.05 });
   },
+  spore() {
+    this._tone(320, 0.1, { type: 'sine', vol: 0.04, slide: 180 });
+    this._noise(0.08, { filter: 900, vol: 0.03 });
+  },
+  boar() {
+    this._tone(120, 0.25, { type: 'sawtooth', vol: 0.05, slide: 70 });
+    this._noise(0.18, { filter: 400, vol: 0.05, filterType: 'lowpass' });
+  },
 
   // —— 背景音乐：简单 8-bit 循环 ——
   startMusic() {

@@ -330,7 +330,81 @@ const Art = {
     this._boss(scene, 'boss_0', false);
     this._boss(scene, 'boss_1', true);
     this._bow(scene);
+    this._mushroom(scene);
+    this._boar(scene);
     this._coins(scene);
+  },
+
+  _mushroom(scene) {
+    this._canvas(scene, 'mushroom_0', 18, 20, (ctx) => {
+      // 菌柄
+      ctx.fillStyle = '#b08a5a';
+      ctx.fillRect(5, 10, 8, 8);
+      ctx.fillStyle = '#f4e0c0';
+      ctx.fillRect(6, 10, 6, 8);
+      ctx.fillStyle = '#d4b890';
+      ctx.fillRect(7, 15, 4, 3);
+      // 小脚
+      ctx.fillStyle = '#8a6a45';
+      ctx.fillRect(5, 17, 3, 2);
+      ctx.fillRect(10, 17, 3, 2);
+      // 眼睛和嘴
+      ctx.fillStyle = '#2b1a12';
+      ctx.fillRect(7, 12, 1, 2);
+      ctx.fillRect(10, 12, 1, 2);
+      ctx.fillRect(8, 15, 2, 1);
+      // 菌盖阴影/本体/高光
+      this._ellipse(ctx, 9, 8, 8.2, 5.8, '#2a1a12', 1);
+      this._ellipse(ctx, 9, 7.5, 7.2, 5, '#b23a2c', 1);
+      this._ellipse(ctx, 9, 6.6, 6.0, 3.6, '#e0563f', 1);
+      // 白色斑点
+      this._ellipse(ctx, 5, 6, 1.5, 1.2, '#f4f0d8', 1);
+      this._ellipse(ctx, 11, 5.2, 1.8, 1.4, '#f4f0d8', 1);
+      this._ellipse(ctx, 9, 8.2, 1.1, 0.9, '#f4f0d8', 1);
+      // 菌盖下沿
+      ctx.fillStyle = '#7a2a1e';
+      ctx.fillRect(3, 10, 12, 1);
+      ctx.fillStyle = '#ff8a6a';
+      ctx.fillRect(4, 4, 2, 1);
+    }, 2);
+  },
+
+  _boar(scene) {
+    this._canvas(scene, 'boar_0', 20, 14, (ctx) => {
+      // 腿
+      ctx.fillStyle = '#4a2a1a';
+      ctx.fillRect(3, 9, 2, 5);
+      ctx.fillRect(7, 9, 2, 5);
+      ctx.fillRect(12, 9, 2, 5);
+      ctx.fillRect(16, 9, 2, 5);
+      // 身体轮廓与身体
+      this._ellipse(ctx, 9, 7, 7.6, 5.1, '#2a1a12', 1);
+      this._ellipse(ctx, 9, 7, 7, 4.5, '#8a5a3a', 1);
+      // 背部鬃毛
+      this._ellipse(ctx, 8, 4.4, 6, 2.6, '#4a2a1a', 1);
+      // 头部轮廓与头
+      this._ellipse(ctx, 16, 6.5, 3.9, 3.7, '#2a1a12', 1);
+      this._ellipse(ctx, 16, 6.5, 3.3, 3.1, '#8a5a3a', 1);
+      // 猪鼻
+      ctx.fillStyle = '#c98a6a';
+      ctx.fillRect(17, 6, 3, 3);
+      ctx.fillStyle = '#2a1a12';
+      ctx.fillRect(18, 7, 1, 1);
+      // 獠牙
+      ctx.fillStyle = '#f4f0d8';
+      ctx.fillRect(17, 9, 2, 1);
+      ctx.fillRect(18, 10, 1, 1);
+      // 眼睛
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillRect(16, 5, 1, 1);
+      ctx.fillStyle = '#2a1a12';
+      ctx.fillRect(17, 5, 1, 1);
+      // 耳朵和尾巴
+      ctx.fillStyle = '#6a3f28';
+      ctx.fillRect(14, 3, 2, 2);
+      ctx.fillStyle = '#4a2a1a';
+      ctx.fillRect(2, 6, 2, 1);
+    }, 2);
   },
 
   _gun(scene) {

@@ -209,17 +209,22 @@ const UI = {
     const ui = scene.scene.get('UI');
     if (ui && ui.scene.isActive()) ui.input.enabled = false;
     scene.scene.bringToTop();
-    const state = { paused, ui };
+    const state = { paused, ui, ended: false };
     scene.events.once('shutdown', () => UI.endModalScene(state));
     return state;
   },
 
   endModalScene(state) {
-    if (!state) return;
+    if (!state || state.ended) return;
+    state.ended = true;
     state.paused.forEach((s) => {
-      if (s.scene && s.scene.isPaused()) s.scene.resume();
+      try {
+        if (s.scene && s.scene.isPaused()) s.scene.resume();
+      } catch (e) { /* 避免关闭弹窗时卡住游戏 */ }
     });
-    if (state.ui && state.ui.input) state.ui.input.enabled = true;
+    try {
+      if (state.ui && state.ui.input) state.ui.input.enabled = true;
+    } catch (e) { /* ignore */ }
   },
 
   toastContainer(scene) {

@@ -315,9 +315,9 @@ class GameScene extends Phaser.Scene {
       if (amount) fx.floatingText(x, y - 30, '+' + amount, '#9ff0a8');
     };
 
-    fx.spawnWarning = (x, y, delay) => {
+    fx.spawnWarning = (x, y, delay, color) => {
       const img = scene.add.image(x, y, 'spawnring')
-        .setTint(0xff6a5a).setScale(0.15).setAlpha(0).setDepth(3);
+        .setTint(color || 0xff6a5a).setScale(0.15).setAlpha(0).setDepth(3);
       scene.tweens.add({
         targets: img, alpha: 0.85, scale: 0.62, duration: Math.max(130, delay * 0.7),
         ease: 'Sine.Out',
@@ -455,15 +455,18 @@ class GameScene extends Phaser.Scene {
 
   buildEnemyList() {
     const n = this.enemyLevel;
-    const total = Math.min(4 + Math.floor((n - 1) * 1.15), 16);
+    const round = this.round;
+    const total = Math.min(4 + Math.floor((n - 1) * 1.15) + (round - 1), 18);
     const types = [];
     for (let i = 0; i < total; i++) {
       const r = Math.random();
       let type = 'slime';
-      if (n >= 4 && r < 0.24) type = 'bat';
-      else if (n >= 2 && r < 0.52) type = 'goblin';
-      else if (r < 0.93) type = 'slime';
-      else type = 'goblin';
+      // 第二轮开始加入蘑菇射手和冲锋野猪
+      if (round >= 2 && r < 0.20) type = 'mushroom';
+      else if (round >= 2 && r < 0.38) type = 'boar';
+      else if (n >= 4 && r < 0.55) type = 'bat';
+      else if (n >= 2 && r < 0.78) type = 'goblin';
+      else type = 'slime';
       types.push(type);
     }
     return types;
@@ -479,10 +482,12 @@ class GameScene extends Phaser.Scene {
   spawnNextBatch() {
     if (this.roomState !== 'fighting' || this.spawnQueue.length === 0) return;
     const batch = Math.min(2 + (this.enemyLevel >= 5 ? 1 : 0), this.spawnQueue.length);
+    const eliteChance = Math.min(0.06 + (this.round - 1) * 0.05 + (this.enemyLevel - 1) * 0.006, 0.30);
     for (let i = 0; i < batch; i++) {
       const type = this.spawnQueue.shift();
       const pt = this.pickSpawnPoint();
-      this.scheduleSpawn(type, pt.x, pt.y, 480 + i * 170);
+      const elite = Math.random() < eliteChance;
+      this.scheduleSpawn(type, pt.x, pt.y, 480 + i * 170, elite);
     }
     if (this.spawnQueue.length > 0) {
       this.time.delayedCall(1350, () => {
@@ -491,13 +496,13 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  scheduleSpawn(type, x, y, delay) {
-    this.fx.spawnWarning(x, y, delay);
+  scheduleSpawn(type, x, y, delay, elite) {
+    this.fx.spawnWarning(x, y, delay, elite ? 0xffd76a : 0xff6a5a);
     this.time.delayedCall(delay, () => {
       if (!this.scene.isActive()) return;
       this.pendingSpawns = Math.max(0, this.pendingSpawns - 1);
       if (this.roomState !== 'fighting' || this.transitioning) return;
-      this.spawnEnemyAt(type, x, y, false);
+      this.spawnEnemyAt(type, x, y, false, elite);
     });
   }
 
@@ -521,7 +526,7 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  spawnEnemyAt(type, x, y, instant) {
+  spawnEnemyAt(type, x, y, instant, elite) {
     let enemy;
     if (type === 'boss') {
       enemy = new Boss(this, x, y, this.enemyLevel);
@@ -530,10 +535,14 @@ class GameScene extends Phaser.Scene {
       Sfx.bossRoar();
       this.hud.toastQueue.push('史莱姆王 出现了！');
     } else {
-      enemy = new Enemy(this, x, y, type, this.enemyLevel);
+      enemy = new Enemy(this, x, y, type, this.enemyLevel, elite);
     }
     this.enemies.add(enemy);
     this.fx.spawnBurst(x, y);
+    if (elite) {
+      this.fx.ring(x, y, 0xffd76a, 0.2, 1.5, 520, 0.9, 745);
+      this.fx.floatingText(x, y - 42, '精英', '#ffd76a');
+    }
     if (instant) enemy.setAlpha(1);
     return enemy;
   }
@@ -788,9 +797,10 @@ class GameScene extends Phaser.Scene {
   onEnemyKilled(enemy) {
     this.kills++;
     const def = enemy.def;
-    const count = enemy.enemyType === 'boss'
+    let count = enemy.enemyType === 'boss'
       ? randInt(24, 34)
       : randInt(def.coins[0], def.coins[1]);
+    if (enemy.isElite) count *= 2;
     this.dropCoins(enemy.x, enemy.y, count + this.buffs.coinBonus);
 
     const hpChance = enemy.enemyType === 'boss'
@@ -1285,6 +1295,12 @@ class GameScene extends Phaser.Scene {
   maybeDropFragment(enemy) {
     if (enemy.enemyType === 'boss') {
       this.dropFragment(FRAGMENT_RULES.bossWeapon, enemy.x, enemy.y, 1, true);
+      return;
+    }
+    if (enemy.isElite) {
+      const w = this.pickFragmentWeapon();
+      if (w) this.dropFragment(w.id, enemy.x, enemy.y, 2, false);
+      this.fragmentPity = 0;
       return;
     }
     this.fragmentPity++;

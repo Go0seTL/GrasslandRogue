@@ -221,7 +221,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 // ------------------------------------------------------------------ 普通敌人
 
 class Enemy extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, type, level) {
+  constructor(scene, x, y, type, level, elite) {
     const def = ENEMY_DEFS[type];
     super(scene, x, y, def.texture);
     scene.add.existing(this);
@@ -230,10 +230,13 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.enemyType = type;
     this.def = def;
     this.level = level;
-    const hpScale = 1 + 0.09 * (level - 1);
+    this.isElite = !!elite;
+    const round = scene.round || 1;
+    const hpScale = (1 + 0.09 * (level - 1)) * (1 + 0.30 * (round - 1)) * (elite ? 2.0 : 1);
+    const dmgScale = (1 + 0.045 * (level - 1)) * (1 + 0.12 * (round - 1)) * (elite ? 1.3 : 1);
     this.maxHp = Math.round(def.hp * hpScale);
     this.hp = this.maxHp;
-    this.damage = Math.round(def.damage * (1 + 0.045 * (level - 1)));
+    this.damage = Math.round(def.damage * dmgScale);
     this.dying = false;
     this.spawnedAt = scene.time.now;
 
@@ -252,6 +255,34 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.strafe = Math.random() < 0.5 ? -1 : 1;
     this.orbit = Math.random() * Math.PI * 2;
 
+    this.boarState = 'idle';
+    this.boarTimer = rand(700, 1300);
+    this.chargeAngle = 0;
+    this.mushroomCd = rand(900, 1600);
+    this.mushroomCharge = 0;
+
+    if (elite) {
+      this.setScale(1.3);
+      this.shadow.setScale(def.shadowScale * 1.3);
+      this.eliteGlow = scene.add.image(x, y, 'glow')
+        .setTint(0xffc04a).setScale(1.0).setAlpha(0.34)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(y + def.depthY - 1);
+      this.aura = scene.add.particles(0, 0, 'spark', {
+        lifespan: { min: 380, max: 700 },
+        speed: { min: 20, max: 70 },
+        scale: { start: 0.72, end: 0 },
+        alpha: { start: 0.8, end: 0 },
+        tint: [0xffd76a, 0xff9a3a, 0xffffff],
+        frequency: 85,
+        quantity: 1,
+        blendMode: 'ADD',
+      }).setDepth(y + def.depthY + 2);
+      this.eliteTag = scene.add.text(x, y - def.depthY - 22, '精英', UI.textStyle(10, {
+        color: '#ffe08a', strokeThickness: 3, bold: true, shadow: false,
+      })).setOrigin(0.5).setDepth(y + def.depthY + 3);
+    }
+
     if (type === 'goblin') {
       this.bow = scene.add.image(x, y, 'bow').setDepth(y + def.depthY + 1);
       this.play('goblin_walk');
@@ -268,6 +299,16 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   _visualTick() {
+    if (this.aura && this.aura.active) this.aura.setPosition(this.x, this.y + 4);
+    if (this.eliteGlow && this.eliteGlow.active) {
+      this.eliteGlow.setPosition(this.x, this.y);
+      this.eliteGlow.setAlpha(0.28 + Math.sin(this.scene.time.now * 0.005) * 0.08);
+      this.eliteGlow.setDepth(this.y + this.def.depthY - 1);
+    }
+    if (this.eliteTag && this.eliteTag.active) {
+      this.eliteTag.setPosition(this.x, this.y - this.def.depthY - 22);
+      this.eliteTag.setDepth(this.y + this.def.depthY + 3);
+    }
     if (!this.shadow || !this.shadow.active) return;
     this.shadow.setPosition(this.x, this.y + this.def.shadowY);
     this.shadow.setDepth(this.y + this.def.depthY - 1);
@@ -307,6 +348,84 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       const a = Math.atan2(ty - this.y, tx - this.x);
       this.setVelocity(Math.cos(a) * 158, Math.sin(a) * 158);
       this.setFlipX(Math.cos(a) < -0.1);
+    } else if (this.enemyType === 'mushroom') {
+      this.updateMushroom(delta, dist, angTo, p);
+    } else if (this.enemyType === 'boar') {
+      this.updateBoar(delta, dist, angTo, p);
+    }
+  }
+
+  updateMushroom(delta, dist, angTo, p) {
+    const sp = 34;
+    if (dist > 310) {
+      this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+    } else if (dist < 190) {
+      this.setVelocity(-Math.cos(angTo) * sp, -Math.sin(angTo) * sp);
+    } else {
+      this.setVelocity(0, 0);
+    }
+    this.setFlipX(p.x < this.x);
+
+    if (this.mushroomCharge > 0) {
+      this.mushroomCharge -= delta;
+      if (this.mushroomCharge <= 0 && this.active && !this.dying) {
+        const base = Math.atan2(p.y - this.y, p.x - this.x);
+        for (let i = -1; i <= 1; i++) {
+          this.scene.spawnEnemyOrb(this.x, this.y - 10, base + i * 0.16, Math.round(this.damage * 0.8));
+        }
+        this.scene.fx.ring(this.x, this.y - 8, 0x8fd463, 0.15, 0.7, 250, 0.6, 740);
+        this.clearTint();
+        Sfx.spore();
+        this.mushroomCd = rand(1900, 2800);
+      }
+    } else {
+      this.mushroomCd -= delta;
+      if (this.mushroomCd <= 0 && dist < 540) {
+        this.mushroomCharge = 360;
+        this.setTint(0x9ff0a8);
+        this.scene.fx.ring(this.x, this.y - 6, 0x8fd463, 0.1, 0.6, 320, 0.6, 740);
+      }
+    }
+  }
+
+  updateBoar(delta, dist, angTo, p) {
+    this.boarTimer -= delta;
+    this.setFlipX(p.x < this.x);
+
+    if (this.boarState === 'idle') {
+      const sp = 68;
+      this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+      if (dist < 380 && this.boarTimer <= 0) {
+        this.boarState = 'windup';
+        this.boarTimer = 520;
+        this.setVelocity(0, 0);
+        this.setTint(0xff9a6a);
+        this.scene.fx.ring(this.x, this.y, 0xff7a4a, 0.15, 1.0, 500, 0.7, 740);
+      }
+    } else if (this.boarState === 'windup') {
+      this.setVelocity(0, 0);
+      if (this.boarTimer <= 0) {
+        this.boarState = 'charge';
+        this.boarTimer = 480;
+        this.chargeAngle = Math.atan2(p.y - this.y, p.x - this.x);
+        this.setVelocity(Math.cos(this.chargeAngle) * 460, Math.sin(this.chargeAngle) * 460);
+        this.clearTint();
+        this.scene.cameras.main.shake(80, 0.002);
+        this.scene.fx.hopDust(this.x, this.y + this.def.shadowY);
+        Sfx.boar();
+      }
+    } else if (this.boarState === 'charge') {
+      if (this.boarTimer <= 0) {
+        this.boarState = 'rest';
+        this.boarTimer = 750;
+        this.setVelocity(0, 0);
+      }
+    } else {
+      this.setVelocity(0, 0);
+      if (this.boarTimer <= 0) {
+        this.boarState = 'idle';
+        this.boarTimer = rand(800, 1400);
+      }
     }
   }
 
@@ -379,6 +498,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dying = true;
     this.active = false;
     if (this.body) this.body.enable = false;
+    if (this.aura) this.aura.stop();
+    if (this.eliteGlow) this.scene.tweens.add({ targets: this.eliteGlow, alpha: 0, duration: 200 });
+    if (this.eliteTag) this.scene.tweens.add({ targets: this.eliteTag, alpha: 0, duration: 200 });
     this.scene.onEnemyKilled(this);
     this.scene.fx.enemyDeath(this.x, this.y, this.enemyType);
     Sfx.enemyDie();
@@ -394,6 +516,9 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene) {
     if (this.shadow && this.shadow.active) this.shadow.destroy();
     if (this.bow && this.bow.active) this.bow.destroy();
+    if (this.aura && this.aura.active) this.aura.destroy();
+    if (this.eliteGlow && this.eliteGlow.active) this.eliteGlow.destroy();
+    if (this.eliteTag && this.eliteTag.active) this.eliteTag.destroy();
     super.destroy(fromScene);
   }
 }

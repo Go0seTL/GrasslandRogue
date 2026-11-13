@@ -123,6 +123,8 @@ const ENEMY_LORE = {
   slime_mini: '大史莱姆分裂出来的小家伙。血少但数量多，别被围住。',
   goblin: '保持距离的弓手。拉弓时弓身会发亮，注意横向走位躲开箭矢。',
   bat: '绕着玩家盘旋的快速敌人。血量低，但接触伤害很烦。',
+  mushroom: '第二轮开始出现的远程怪。移动缓慢，会停顿蓄力后吐出三颗孢子，注意横向走位。',
+  boar: '第二轮开始出现的冲锋怪。会先停顿蓄力，然后沿直线高速冲撞，撞到墙或时间结束才停下。',
   boss: '草原的统治者。会跳跃砸地放出环形弹幕、蓄力冲锋，半血后暴怒并召唤史莱姆。',
 };
 
@@ -143,6 +145,14 @@ const ENEMY_DEFS = {
   bat: {
     name: '蝙蝠', texture: 'bat_0', hp: 22, damage: 7, coins: [1, 2],
     body: [20, 10], offset: [6, 4], shadowY: 10, shadowScale: 0.6, depthY: 8,
+  },
+  mushroom: {
+    name: '蘑菇射手', texture: 'mushroom_0', hp: 62, damage: 9, coins: [2, 4],
+    body: [20, 14], offset: [8, 20], shadowY: 17, shadowScale: 1.0, depthY: 16,
+  },
+  boar: {
+    name: '冲锋野猪', texture: 'boar_0', hp: 80, damage: 13, coins: [3, 5],
+    body: [32, 16], offset: [4, 10], shadowY: 13, shadowScale: 1.2, depthY: 13,
   },
   boss: {
     name: '史莱姆王', texture: 'boss_0', hp: 460, damage: 16, coins: [20, 30],
