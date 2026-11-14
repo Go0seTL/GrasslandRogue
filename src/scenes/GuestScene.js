@@ -57,6 +57,11 @@ class GuestScene extends Phaser.Scene {
     this.guestSprite = this.add.sprite(480, 405, 'player_idle').setDepth(701).setTint(0xbfe8ff);
     this.guestShieldAura = this.add.image(480, 405, 'ring').setTint(0x7dffb0)
       .setScale(1.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(702);
+    this.mercSprite = this.add.sprite(480, 405, 'merc_xuan_0').setVisible(false).setDepth(699);
+    this.mercTag = this.add.text(480, 375, '', UI.textStyle(9, {
+      color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(880).setVisible(false);
+    this.mercHpG = this.add.graphics().setDepth(832);
     this.hostTag = this.add.text(480, 375, '房主', UI.textStyle(9, {
       color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(880);
@@ -463,6 +468,7 @@ class GuestScene extends Phaser.Scene {
     this.applyPlayer(this.hostSprite, this.hostTag, d.p, false);
     this.applyPlayer(this.guestSprite, this.guestTag, d.g, true);
     this.applyEnemies(d.enemies || []);
+    this.applyMercenary(d.merc);
     this.updatePool(this.pbSprites, d.pb || [], 'bullet', 690);
     this.updatePool(this.ebSprites, d.eb || [], 'orb', 692);
     this.updatePickups(d);
@@ -549,6 +555,32 @@ class GuestScene extends Phaser.Scene {
         this.predY += dy * 0.08;
       }
     }
+  }
+
+  applyMercenary(m) {
+    if (!m) {
+      this.mercSprite.setVisible(false);
+      this.mercTag.setVisible(false);
+      this.mercHpG.clear();
+      return;
+    }
+    this.mercSprite.setVisible(true).setFlipX(!!m.flip);
+    this.mercSprite.tx = m.x;
+    this.mercSprite.ty = m.y;
+    if (m.tex && this.textures.exists(m.tex) && this.mercSprite.texture.key !== m.tex) {
+      this.mercSprite.setTexture(m.tex);
+    }
+    if (m.anim && this.anims.exists(m.anim)) {
+      if (!this.mercSprite.anims.isPlaying || !this.mercSprite.anims.currentAnim
+        || this.mercSprite.anims.currentAnim.key !== m.anim) {
+        this.mercSprite.play(m.anim, true);
+      }
+    } else if (this.mercSprite.anims.isPlaying) {
+      this.mercSprite.anims.stop();
+    }
+    this.mercTag.setVisible(true).setText(m.name || '佣兵');
+    this.mercHp = m.hp;
+    this.mercMaxHp = m.maxHp;
   }
 
   applyEnemies(list) {
@@ -742,6 +774,17 @@ class GuestScene extends Phaser.Scene {
       lerp(this.guestSprite, this.guestSprite.tx, this.guestSprite.ty, 0.35);
     }
     lerp(this.hostSprite, this.hostSprite.tx, this.hostSprite.ty, 0.35);
+    if (this.mercSprite && this.mercSprite.visible) {
+      lerp(this.mercSprite, this.mercSprite.tx, this.mercSprite.ty, 0.35);
+      this.mercSprite.setDepth(500 + Math.floor(this.mercSprite.y));
+      this.mercTag.setPosition(this.mercSprite.x, this.mercSprite.y - 46);
+      this.mercHpG.clear();
+      this.mercHpG.fillStyle(0x2a1a12, 0.9);
+      this.mercHpG.fillRect(this.mercSprite.x - 22, this.mercSprite.y - 48, 44, 4);
+      this.mercHpG.fillStyle(0x6fdd68, 1);
+      this.mercHpG.fillRect(this.mercSprite.x - 21, this.mercSprite.y - 47,
+        42 * Math.max(0, Math.min(1, (this.mercHp || 0) / Math.max(1, this.mercMaxHp || 1))), 2);
+    }
     this.hostTag.setPosition(this.hostSprite.x, this.hostSprite.y - 34);
     this.guestTag.setPosition(this.guestSprite.x, this.guestSprite.y - 34);
     if (this.guestShieldAura && this.guestShieldAura.visible) {

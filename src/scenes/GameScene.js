@@ -2440,6 +2440,17 @@ class GameScene extends Phaser.Scene {
       coins, hpacks, epacks, frags,
       portal: this.portal ? { x: round(this.portal.x), y: round(this.portal.y), armed: !!this.portal.armed } : null,
       pools: this.poisonPools.map((p) => ({ x: round(p.x), y: round(p.y), r: Math.round(p.r) })),
+      merc: this.mercenary && this.mercenary.active && this.mercenary.recruited
+        ? {
+          x: round(this.mercenary.x), y: round(this.mercenary.y),
+          tex: this.mercenary.texture.key,
+          anim: this.mercenary.anims && this.mercenary.anims.currentAnim ? this.mercenary.anims.currentAnim.key : null,
+          flip: !!this.mercenary.flipX,
+          hp: Math.max(0, Math.ceil(this.mercenary.hp)),
+          maxHp: Math.ceil(this.mercenary.maxHp),
+          name: this.mercenary.mercName,
+          weapon: this.mercenary.weaponName,
+        } : null,
     });
   }
 
