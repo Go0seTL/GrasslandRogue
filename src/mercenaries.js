@@ -308,6 +308,9 @@ class Mercenary extends Phaser.Physics.Arcade.Sprite {
   }
 
   throwGrenade(target, w) {
+    if (this.scene.relayFx) {
+      this.scene.relayFx({ k: 'grenade', x1: this.x, y1: this.y - 10, x2: target.x, y2: target.y });
+    }
     const gx = this.x + Math.cos(Math.atan2(target.y - this.y, target.x - this.x)) * 18;
     const gy = this.y - 10;
     const tx = target.x;
@@ -330,6 +333,7 @@ class Mercenary extends Phaser.Physics.Arcade.Sprite {
 
   explodeGrenade(x, y, w) {
     const scene = this.scene;
+    if (scene.relayFx) scene.relayFx({ k: 'explosion', x, y, rad: w.radius || 70 });
     const radius = w.radius || 70;
     scene.fx.ring(x, y, 0xff9a3a, 0.18, 1.8, 360, 0.9, 745);
     scene.fx.dust.explode(12, x, y);

@@ -72,6 +72,11 @@ class GuestScene extends Phaser.Scene {
     this.poisonG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
     this.stickG = this.add.graphics().setDepth(840).setScrollFactor(0);
     this.localVampireG = this.add.graphics().setDepth(828).setBlendMode(Phaser.BlendModes.ADD);
+    this.visionMaskG = this.make.graphics({ x: 0, y: 0, add: false });
+    this.visionMask = this.visionMaskG.createGeometryMask();
+    this.visionMask.invertAlpha = true;
+    this.visionOverlay = this.add.rectangle(0, 0, 960, 540, 0x000000, 0.94)
+      .setOrigin(0).setDepth(890).setVisible(false).setMask(this.visionMask);
     this.hostAura = this.add.image(0, 0, 'ring').setTint(0xb07bff)
       .setScale(1.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(703).setVisible(false);
     this.hostBeamObjs = null;
@@ -807,6 +812,17 @@ class GuestScene extends Phaser.Scene {
         this.poisonG.strokeCircle(p.x, p.y, p.r);
       });
     }
+    if (this.visionOverlay) {
+      const v = d.vision;
+      if (v && v.who === 'guest') {
+        this.visionOverlay.setVisible(true);
+        this.visionMaskG.clear();
+        this.visionMaskG.fillStyle(0xffffff, 1);
+        this.visionMaskG.fillCircle(this.guestSprite.x, this.guestSprite.y - 4, v.r || 120);
+      } else {
+        this.visionOverlay.setVisible(false);
+      }
+    }
     if (this.syncBeamsG) {
       this.syncBeamsG.clear();
       (d.beams || []).forEach((b) => {
@@ -946,6 +962,19 @@ class GuestScene extends Phaser.Scene {
           this.tweens.add({ targets: ring, scale: 2.2 + i * 0.5, alpha: 0, duration: 500, onComplete: () => ring.destroy() });
         }
         this.cameras.main.shake(big ? 300 : 120, big ? 0.007 : 0.004);
+      } else if (fx.k === 'grenade') {
+        const n = this.add.image(fx.x1, fx.y1, 'grenade').setDepth(735).setScale(1.2);
+        this.tweens.add({
+          targets: n, x: fx.x2, y: fx.y2, angle: 720, duration: 420, ease: 'Quad.In',
+          onComplete: () => n.destroy(),
+        });
+      } else if (fx.k === 'explosion') {
+        this.goo.explode(14, fx.x, fx.y);
+        this.sparks.explode(12, fx.x, fx.y);
+        const ring = this.add.image(fx.x, fx.y, 'ring').setTint(0xff9a3a)
+          .setScale(0.2).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(821);
+        this.tweens.add({ targets: ring, scale: (fx.rad || 70) / 30, alpha: 0, duration: 360, onComplete: () => ring.destroy() });
+        this.cameras.main.shake(100, 0.004);
       } else if (fx.k === 'kill') {
         this.goo.explode(fx.boss ? 24 : 12, fx.x, fx.y);
         this.sparks.explode(fx.boss ? 16 : 6, fx.x, fx.y);
@@ -1079,7 +1108,10 @@ class GuestScene extends Phaser.Scene {
           .setAlpha(d.boss ? 0.22 : 0.28)
           .setBlendMode(Phaser.BlendModes.ADD)
           .setDepth(499) : null;
-        entry = { sprite, poisonIcon, glow, id: d.id };
+        const reflect = d.reflect ? this.add.image(d.x, d.y, 'ring').setTint(0x9fd8ff)
+          .setScale(d.boss ? 1.6 : 0.55).setAlpha(0.6)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(503) : null;
+        entry = { sprite, poisonIcon, glow, reflect, id: d.id };
         this.enemyMap.set(d.id, entry);
       }
       const s = entry.sprite;
@@ -1096,6 +1128,10 @@ class GuestScene extends Phaser.Scene {
       s.setDepth(500 + Math.floor(d.y));
       if (entry.glow && entry.glow.active) {
         entry.glow.setPosition(d.x, d.y).setDepth(499);
+      }
+      if (entry.reflect && entry.reflect.active) {
+        entry.reflect.setVisible(!!d.reflect).setPosition(d.x, d.y)
+          .setRotation(entry.reflect.rotation + 0.04);
       }
       if (d.poison) {
         s.setTint(0x9ff0b0);
@@ -1121,6 +1157,7 @@ class GuestScene extends Phaser.Scene {
       entry.sprite.destroy();
       if (entry.poisonIcon) entry.poisonIcon.destroy();
       if (entry.glow) entry.glow.destroy();
+      if (entry.reflect) entry.reflect.destroy();
       this.enemyMap.delete(id);
     });
   }

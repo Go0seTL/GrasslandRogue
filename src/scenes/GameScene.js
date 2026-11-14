@@ -1082,9 +1082,10 @@ class GameScene extends Phaser.Scene {
     Store.save();
   }
 
-  startVisionShrink(duration, radius) {
+  startVisionShrink(duration, radius, target) {
     this.visionUntil = Math.max(this.visionUntil || 0, this.time.now + duration);
     this.visionRadius = radius || 120;
+    this.visionTarget = target || this.player;
     if (!this.visionOverlay) {
       this.visionMaskG = this.make.graphics({ x: 0, y: 0, add: false });
       this.visionMask = this.visionMaskG.createGeometryMask();
@@ -1104,9 +1105,10 @@ class GameScene extends Phaser.Scene {
       return;
     }
     if (this.visionMaskG && this.player) {
+      const p = this.visionTarget && !this.visionTarget.isDead ? this.visionTarget : this.player;
       this.visionMaskG.clear();
       this.visionMaskG.fillStyle(0xffffff, 1);
-      this.visionMaskG.fillCircle(this.player.x, this.player.y - 4, this.visionRadius);
+      this.visionMaskG.fillCircle(p.x, p.y - 4, this.visionRadius);
     }
   }
 
@@ -2431,6 +2433,7 @@ class GameScene extends Phaser.Scene {
         elite: !!e.isElite,
         boss: !!e.isBoss,
         poison: (e.poisonUntil || 0) > time,
+        reflect: (e.reflectUntil || 0) > time,
         name: e.bossName || (e.def && e.def.name) || '', 
       });
     });
@@ -2492,6 +2495,9 @@ class GameScene extends Phaser.Scene {
         ? { type: this.skill.type, left: Math.max(0, Math.ceil((this.skill.endsAt - time) / 1000)) }
         : null,
       hostShield: Math.ceil(this.player.shieldHp || 0),
+      vision: this.visionUntil > time
+        ? { who: this.visionTarget === this.player2 ? 'guest' : 'host', r: this.visionRadius }
+        : null,
       swords: this.skill.type === 'sword' && this.skill.swords
         ? this.skill.swords.map((sw) => ({
           x: round(sw.x), y: round(sw.y),

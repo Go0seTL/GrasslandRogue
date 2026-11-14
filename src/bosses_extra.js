@@ -394,7 +394,8 @@ class BatKingBoss extends Enemy {
     this.scene.cameras.main.flash(180, 40, 10, 60);
     this.scene.startVisionShrink(
       this.isElite ? 8000 : 4000,
-      this.isElite ? 100 : 120
+      this.isElite ? 100 : 120,
+      this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player
     );
     this.scene.hud.toastQueue.push(`${this.bossName} 遮蔽了你的视野！`);
   }
