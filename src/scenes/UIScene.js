@@ -4,6 +4,7 @@ class UIScene extends Phaser.Scene {
   }
 
   create() {
+    this.input.addPointer(3);
     this.lastHp = -1;
     this.lastEnergy = -1;
     this.lastCoins = -1;
@@ -104,6 +105,9 @@ class UIScene extends Phaser.Scene {
     this.hintText = this.add.text(480, 516, '', UI.textStyle(13, {
       color: '#dfe8c8', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(130).setAlpha(0);
+    this.reviveHint = this.add.text(480, 462, '', UI.textStyle(12, {
+      color: '#9fe8ff', strokeThickness: 3, bold: true,
+    })).setOrigin(0.5).setDepth(131).setVisible(false);
 
     this.redVignette = this.add.image(0, 0, 'vignette_red').setOrigin(0).setDepth(2000).setAlpha(0);
 
@@ -319,6 +323,19 @@ class UIScene extends Phaser.Scene {
     const game = this.hudSource;
     if (!game || !game.scene.isActive() || !game.player) return;
     const hudState = game.hudState || game.hud;
+    if (this.reviveHint && this.isGuestHud) {
+      let text = '';
+      if (game.player && game.player.isDead) {
+        text = game.reviveWho === 'g' && game.reviveProgress > 0
+          ? `救援中 ${game.reviveProgress}% · 房主正在救你`
+          : '你倒下了 · 等待房主靠近救援';
+      } else if (game.hostDowned) {
+        text = game.reviveWho === 'p' && game.reviveProgress > 0
+          ? `救援房主 ${game.reviveProgress}% · 继续站在房主身边`
+          : '房主倒地 · 靠近房主并站立 4 秒救援';
+      }
+      this.reviveHint.setText(text).setVisible(!!text);
+    }
 
     const hp = Math.max(0, Math.ceil(game.player.hp));
     if (hp !== this.lastHp) {

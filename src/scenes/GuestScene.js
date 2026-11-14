@@ -8,6 +8,7 @@ class GuestScene extends Phaser.Scene {
   }
 
   create() {
+    this.input.addPointer(3);
     this.isRemoteHud = true;
     this.characterId = this.characterId || Store.data.lastChar || 'gunner';
     this.player = { hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, isDead: false };
@@ -450,7 +451,28 @@ class GuestScene extends Phaser.Scene {
 
   isUiZone(x, y) {
     return (x > 888 && y > 58 && y < 320)
-      || (x > 688 && y > 360 && y < 532);
+      || (x > 688 && y > 360 && y < 532)
+      || (x > 620 && y > 470 && x < 700);
+  }
+
+  handleUiPress(x, y, pointerId) {
+    if (x > 895 && x < 949) {
+      if (y > 76 && y < 108) { this.showGuestMenu(); return true; }
+      if (y > 124 && y < 156) { this.openGuestModal('Bestiary'); return true; }
+      if (y > 172 && y < 204) { this.openGuestModal('Forge'); return true; }
+      if (y > 220 && y < 252) { this.showToast('联机中角色升级请回主菜单', '#ffd0a0'); return true; }
+      if (y > 268 && y < 300) { this.openGuestModal('Inventory'); return true; }
+    }
+    if (x > 699 && x < 757 && y > 393 && y < 427) { this.sendAction('switch'); return true; }
+    if (x > 767 && x < 845 && y > 371 && y < 449) { this.sendAction('skill'); return true; }
+    if (x > 845 && x < 923 && y > 371 && y < 449) {
+      this.fire = true;
+      this.uiFirePointer = pointerId;
+      return true;
+    }
+    if (x > 852 && x < 916 && y > 478 && y < 506) { this.sendAction('dash'); return true; }
+    if (x > 628 && x < 692 && y > 478 && y < 506) { this.exitToMenu(); return true; }
+    return false;
   }
 
   setupRemotePointer() {
@@ -458,7 +480,7 @@ class GuestScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer) => {
       if (this.ended || this.uiModalOpen || this.menuEl) return;
       const x = pointer.x, y = pointer.y;
-      if (this.isUiZone(x, y)) return;
+      if (this.handleUiPress(x, y, pointer.id)) return;
       if (touchInfo(pointer)) {
         if (x < 480) {
           this.moveTouch = { id: pointer.id, gx: x, gy: y, dx: 0, dy: 0 };
@@ -494,6 +516,10 @@ class GuestScene extends Phaser.Scene {
         this.aimTouch = null;
         this.fire = false;
       } else if (!touchInfo(pointer)) {
+        this.fire = false;
+      }
+      if (this.uiFirePointer === pointer.id) {
+        this.uiFirePointer = null;
         this.fire = false;
       }
       this.drawSticks();
@@ -689,6 +715,10 @@ class GuestScene extends Phaser.Scene {
     if (this.touchLayer) this.touchLayer.style.display = 'none';
     this.scene.launch('UI');
     this.scene.bringToTop('UI');
+    this.time.delayedCall(80, () => {
+      const ui = this.scene.get('UI');
+      if (ui && ui.input) ui.input.enabled = false;
+    });
   }
 
   activateSkill() { this.sendAction('skill'); }
@@ -719,6 +749,9 @@ class GuestScene extends Phaser.Scene {
       bossName: e.name, hp: e.hp, maxHp: e.maxHp, x: e.x, y: e.y,
     }));
     this.boss = this.remoteBosses[0] || null;
+    this.hostDowned = !!d.hostDowned;
+    this.reviveWho = d.reviveWho || null;
+    this.reviveProgress = d.reviveProgress || 0;
     this.round = d.round || 1;
     this.stage = d.stage || 1;
     this.endless = !!d.endless;
