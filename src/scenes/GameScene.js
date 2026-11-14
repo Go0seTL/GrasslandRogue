@@ -2126,6 +2126,39 @@ class GameScene extends Phaser.Scene {
     return map[this.guestCharacter] || 'flame_icon';
   }
 
+  keepEnemyInArena(e) {
+    if (!e.body) return;
+    const padX = Math.min(44, Math.max(18, Math.round((e.displayWidth || 32) * 0.3)));
+    const padTop = Math.min(52, Math.max(20, Math.round((e.displayHeight || 44) * 0.42)));
+    const left = ARENA.left + padX;
+    const right = ARENA.right - padX;
+    const top = ARENA.top + padTop;
+    const bottom = ARENA.bottom - 18;
+    let clamped = false;
+    if (e.x < left) { e.x = left; clamped = true; }
+    else if (e.x > right) { e.x = right; clamped = true; }
+    if (e.y < top) { e.y = top; clamped = true; }
+    else if (e.y > bottom) { e.y = bottom; clamped = true; }
+    if (!clamped) return;
+    const vx = e.body.velocity.x;
+    const vy = e.body.velocity.y;
+    if (e.x <= left + 0.5 && vx < 0) e.body.velocity.x = 0;
+    if (e.x >= right - 0.5 && vx > 0) e.body.velocity.x = 0;
+    if (e.y <= top + 0.5 && vy < 0) e.body.velocity.y = 0;
+    if (e.y >= bottom - 0.5 && vy > 0) e.body.velocity.y = 0;
+    // 贴边后如果还在往边界外走，改为沿边界朝玩家方向移动
+    const target = this.targetPlayer(e);
+    if (!target) return;
+    if ((e.x <= left + 0.5 || e.x >= right - 0.5) && Math.abs(target.x - e.x) > 8) {
+      const dir = target.y >= e.y ? 1 : -1;
+      if (Math.abs(e.body.velocity.y) < 18) e.body.velocity.y = dir * 42;
+    }
+    if ((e.y <= top + 0.5 || e.y >= bottom - 0.5) && Math.abs(target.y - e.y) > 8) {
+      const dir = target.x >= e.x ? 1 : -1;
+      if (Math.abs(e.body.velocity.x) < 18) e.body.velocity.x = dir * 42;
+    }
+  }
+
   targetPlayer(enemy) {
     const p1 = this.player;
     const p2 = this.player2;
@@ -5517,6 +5550,7 @@ class GameScene extends Phaser.Scene {
       if (e.updateBurn) e.updateBurn(time);
       if (e.updatePoison) e.updatePoison(time);
       if (e.active && !e.dying && e.updateAI) e.updateAI(time, aiDelta);
+      if (e.active && !e.dying) this.keepEnemyInArena(e);
     });
 
     // 清理越界子弹
