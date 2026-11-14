@@ -216,7 +216,10 @@ class UpgradeScene extends Phaser.Scene {
       if (!applied) Sfx.uiClick();
     }
     if (this.gameScene) this.gameScene.upgradeOpen = false;
+    const nextWave = !!(applied && this.gameScene && this.gameScene.endless
+      && this.gameScene.endlessAwaitUpgrade);
     UI.endModalScene(this.modalState);
+    if (nextWave) this.gameScene.startEndlessWave();
     this.scene.stop();
   }
 }

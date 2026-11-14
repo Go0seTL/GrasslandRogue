@@ -31,15 +31,20 @@ class ForgeScene extends Phaser.Scene {
       'pistol', 'knife', 'shotgun', 'smg', 'rifle', 'katana', 'bow', 'flamer', 'railgun',
       'slime_staff', 'boar_axe', 'mushroom_orb', 'sniper', 'boomerang', 'slingshot',
       'crossbow', 'demon_trident', 'demon_sulfur',
+      'fire_staff', 'water_staff', 'wind_staff', 'goat_eye',
     ];
 
     this.add.text(480, 414, '碎片与已解锁武器永久保存 · 本局初始武器固定为手枪', UI.textStyle(10, {
       color: '#93a97d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
+    this.pageTotal = Math.ceil(this.ids.length / 10);
     this.pageBtn = UI.button(this, 480, 448, 180, 24, '下一页', () => this.togglePage(), {
       variant: 'ghost', fontSize: 11,
     }).setDepth(3);
+    this.pageText = this.add.text(602, 448, '', UI.textStyle(10, {
+      color: '#a9bd8f', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0.5).setDepth(3);
     UI.button(this, 480, 482, 180, 28, '关 闭', () => this.close(), {
       variant: 'ghost', fontSize: 13,
     }).setDepth(3);
@@ -65,7 +70,7 @@ class ForgeScene extends Phaser.Scene {
   renderPage() {
     this.rows.forEach((row) => { if (row.c && row.c.active) row.c.destroy(); });
     this.rows = [];
-    const per = 9;
+    const per = 10;
     const entries = this.ids.slice(this.page * per, this.page * per + per);
     entries.forEach((id, i) => {
       const col = i < 5 ? 0 : 1;
@@ -76,12 +81,13 @@ class ForgeScene extends Phaser.Scene {
     });
     this.refreshRows();
     if (this.pageBtn && this.pageBtn.list[1]) {
-      this.pageBtn.list[1].setText(this.page === 0 ? '下一页' : '上一页');
+      this.pageBtn.list[1].setText(this.page + 1 >= this.pageTotal ? '回到第一页' : '下一页');
     }
+    if (this.pageText) this.pageText.setText(`第 ${this.page + 1} / ${this.pageTotal} 页`);
   }
 
   togglePage() {
-    this.page = this.page === 0 ? 1 : 0;
+    this.page = (this.page + 1) % this.pageTotal;
     Sfx.uiClick();
     this.renderPage();
   }

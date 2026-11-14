@@ -3,6 +3,10 @@ class CharacterSelectScene extends Phaser.Scene {
     super('Select');
   }
 
+  init(data) {
+    this.endless = !!(data && data.endless);
+  }
+
   create() {
     this.starting = false;
     this.selectedId = 'gunner';
@@ -11,7 +15,7 @@ class CharacterSelectScene extends Phaser.Scene {
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x071008, 0.62).setOrigin(0).setDepth(1);
     this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(2);
 
-    this.add.text(480, 40, '选择角色', UI.textStyle(36, {
+    this.add.text(480, 40, this.endless ? '选择角色 · 无尽挑战' : '选择角色', UI.textStyle(36, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(10);
     this.add.text(480, 72, '枪手免费 · 剑客800 · 科学怪人3000 · 法师1800 · 吉他手2200 · 恶魔3200 · 吸血鬼2600', UI.textStyle(11, {
@@ -297,7 +301,7 @@ class CharacterSelectScene extends Phaser.Scene {
     Sfx.uiClick();
     this.cameras.main.fadeOut(300, 6, 12, 6);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('Game', { character: this.selectedId });
+      this.scene.start('Ring', { preRun: true, character: this.selectedId, endless: this.endless });
     });
   }
 

@@ -23,20 +23,30 @@ class GameOverScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(3);
     UI.drawPanel(g, 220, 34, 520, 472, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.97 });
 
-    this.add.image(480, 92, 'skull').setScale(1.6).setDepth(4).setAlpha(0.9);
-    this.add.text(480, 148, '你倒下了', UI.textStyle(40, {
-      color: '#ff9a8a', strokeThickness: 9,
-    })).setOrigin(0.5).setDepth(4);
-    this.add.text(480, 180, '草原的史莱姆们暂时守住了地盘', UI.textStyle(13, {
-      color: '#a9bd8f', strokeThickness: 3, bold: false,
-    })).setOrigin(0.5).setDepth(4);
+    if (d.victory) {
+      this.add.image(480, 92, 'angel_0').setScale(1.1).setDepth(4);
+      this.add.text(480, 148, '通 关 ！', UI.textStyle(40, {
+        color: '#ffe9a8', strokeThickness: 9,
+      })).setOrigin(0.5).setDepth(4);
+      this.add.text(480, 180, '天使陨落 · 你走完了 10-6，天堂重归宁静', UI.textStyle(13, {
+        color: '#c8e8ff', strokeThickness: 3, bold: false,
+      })).setOrigin(0.5).setDepth(4);
+    } else {
+      this.add.image(480, 92, 'skull').setScale(1.6).setDepth(4).setAlpha(0.9);
+      this.add.text(480, 148, '你倒下了', UI.textStyle(40, {
+        color: '#ff9a8a', strokeThickness: 9,
+      })).setOrigin(0.5).setDepth(4);
+      this.add.text(480, 180, '草原的史莱姆们暂时守住了地盘', UI.textStyle(13, {
+        color: '#a9bd8f', strokeThickness: 3, bold: false,
+      })).setOrigin(0.5).setDepth(4);
+    }
 
     const lineG = this.add.graphics().setDepth(4);
     lineG.lineStyle(1, 0x5d7048, 0.9);
     lineG.lineBetween(290, 202, 670, 202);
 
     const rows = [
-      ['到达关卡', `${d.round || 1}-${d.stage || 1}`],
+      ['到达关卡', d.endless ? `无尽第 ${d.wave || 1} 波` : `${d.round || 1}-${d.stage || 1}`],
       ['击杀数量', `${d.kills || 0}`],
       ['本局金币', `+${d.runCoins || 0}`],
       ['存活时间', fmtTime(d.timeMs || 0)],
@@ -68,7 +78,7 @@ class GameOverScene extends Phaser.Scene {
       })).setOrigin(1, 0.5).setDepth(5);
     }
 
-    UI.button(this, 480, 408, 250, 50, '再 来 一 局', () => this.retry(), {
+    UI.button(this, 480, 408, 250, 50, d.victory ? '再 战 天 堂' : '再 来 一 局', () => this.retry(), {
       fontSize: 21, once: true,
     }).setDepth(5);
     UI.button(this, 352, 466, 178, 40, '选择角色', () => this.toSelect(), {
@@ -100,7 +110,11 @@ class GameOverScene extends Phaser.Scene {
     Sfx.uiClick();
     this.cameras.main.fadeOut(240, 6, 10, 6);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('Game', { character: this.data_.character || 'gunner' });
+      if (this.data_.endless) {
+        this.scene.start('Ring', { preRun: true, character: this.data_.character || 'gunner', endless: true });
+      } else {
+        this.scene.start('Game', { character: this.data_.character || 'gunner' });
+      }
     });
   }
 
@@ -109,7 +123,9 @@ class GameOverScene extends Phaser.Scene {
     this.leaving = true;
     Sfx.uiClick();
     this.cameras.main.fadeOut(220, 6, 10, 6);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Select'));
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('Select', { endless: !!this.data_.endless });
+    });
   }
 
   toMenu() {

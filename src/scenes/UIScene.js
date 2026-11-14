@@ -335,11 +335,15 @@ class UIScene extends Phaser.Scene {
 
     const realmState = game.demonRealm ? 1 : 0;
     if (game.round !== this.lastRound || game.stage !== this.lastStage
-      || realmState !== this.lastRealm) {
+      || realmState !== this.lastRealm || game.endlessWave !== this.lastEndlessWave) {
       this.lastRound = game.round;
       this.lastStage = game.stage;
       this.lastRealm = realmState;
-      if (game.demonRealm) {
+      this.lastEndlessWave = game.endlessWave;
+      if (game.endless) {
+        this.levelBig.setText(`第 ${game.endlessWave} 波`);
+        this.levelSub.setText(`无尽挑战 · ${game.mapName || '无尽草原'}`);
+      } else if (game.demonRealm) {
         this.levelBig.setText('恶魔之地');
         this.levelSub.setText('撒旦的领域');
       } else {

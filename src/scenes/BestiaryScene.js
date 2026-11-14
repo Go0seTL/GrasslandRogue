@@ -64,6 +64,10 @@ class BestiaryScene extends Phaser.Scene {
         },
         { id: 'dragonling', portrait: 'dragonling_0', scale: 1.1, color: 0x7fd06a, name: '小飞龙' },
         { id: 'dragon_baby', portrait: 'dragon_baby_0', scale: 0.75, color: 0xd9b45a, name: '飞龙宝宝' },
+        { id: 'angel_guard', portrait: 'angel_guard_0', scale: 1.1, color: 0xfff2c8, name: '天使侍从' },
+        { id: 'cloud_wisp', portrait: 'cloud_wisp_0', scale: 1.2, color: 0xe8f0ff, name: '云端精灵' },
+        { id: 'temple_knight', portrait: 'temple_knight_0', scale: 1.0, color: 0xffd76a, name: '圣殿骑士' },
+        { id: 'angel', portrait: 'angel_0', scale: 0.55, color: 0xffe9a8, name: '天使' },
       ],
     ];
 

@@ -5,6 +5,9 @@ class RingScene extends Phaser.Scene {
 
   init(data) {
     this.data_ = data || {};
+    this.preRun = !!(this.data_ && this.data_.preRun);
+    this.preChar = (this.data_ && this.data_.character) || Store.data.lastChar || 'gunner';
+    this.preEndless = !!(this.data_ && this.data_.endless);
   }
 
   create() {
@@ -21,10 +24,12 @@ class RingScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(1);
     UI.drawPanel(g, 110, 40, 740, 460, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.98 });
 
-    this.add.text(480, 72, '戒 指', UI.textStyle(29, {
+    this.add.text(480, 72, this.preRun ? '选择本局戒指' : '戒 指', UI.textStyle(29, {
       color: '#ffe9a8', strokeThickness: 7,
     })).setOrigin(0.5).setDepth(2);
-    this.add.text(480, 98, '击败怪物掉戒指碎片 · 可合成多枚，但一局只能装备 1 枚 · 阵亡后装备戒指遗失', UI.textStyle(9, {
+    this.add.text(480, 98, this.preRun
+      ? '出发前选择 1 枚已有戒指 · 也可以不戴 · 阵亡后装备戒指遗失'
+      : '击败怪物掉戒指碎片 · 可合成多枚，但一局只能装备 1 枚 · 阵亡后装备戒指遗失', UI.textStyle(9, {
       color: '#a9bd8f', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
@@ -39,23 +44,33 @@ class RingScene extends Phaser.Scene {
       this.createRow(RINGS[id], col === 0 ? 310 : 650, 168 + row * 68);
     });
 
-    this.add.text(480, 444, '戒指碎片来自小怪/精英/Boss · 装备效果只在本局生效', UI.textStyle(9, {
+    this.add.text(480, this.preRun ? 452 : 444, '戒指碎片来自小怪/精英/Boss · 装备效果只在本局生效', UI.textStyle(9, {
       color: '#93a97d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
-    UI.button(this, 480, 482, 180, 28, '关 闭', () => this.close(), {
-      variant: 'ghost', fontSize: 13,
-    }).setDepth(3);
+    if (this.preRun) {
+      UI.button(this, 300, 486, 190, 34, '返回选人', () => this.close(), {
+        variant: 'ghost', fontSize: 14,
+      }).setDepth(3);
+      UI.button(this, 660, 486, 230, 38, '开始冒险', () => this.startRun(), {
+        fontSize: 17,
+      }).setDepth(3);
+      this.closeRect = { x: 300, y: 486, w: 200, h: 42 };
+    } else {
+      UI.button(this, 480, 482, 180, 28, '关 闭', () => this.close(), {
+        variant: 'ghost', fontSize: 13,
+      }).setDepth(3);
+      this.closeRect = { x: 480, y: 482, w: 190, h: 36 };
+    }
 
     const xg = this.add.rectangle(820, 66, 64, 30, 0x1b2817, 0.94)
       .setStrokeStyle(2, 0xd9b45a, 0.9).setDepth(30)
       .setInteractive({ useHandCursor: true });
-    this.add.text(820, 66, '关 闭', UI.textStyle(11, {
+    this.add.text(820, 66, this.preRun ? '返回' : '关 闭', UI.textStyle(11, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(31);
     xg.on('pointerup', () => this.close());
 
-    this.closeRect = { x: 480, y: 482, w: 190, h: 36 };
     this.cornerRect = { x: 820, y: 66, w: 70, h: 36 };
     this.input.on('pointerup', (pointer) => this.handlePointer(pointer));
     this.input.keyboard.on('keydown-ESC', () => this.close());
@@ -163,11 +178,28 @@ class RingScene extends Phaser.Scene {
     if (inside(this.closeRect) || inside(this.cornerRect)) this.close();
   }
 
+  startRun() {
+    if (this.closing) return;
+    this.closing = true;
+    Sfx.uiClick();
+    Store.data.lastChar = this.preChar;
+    Store.save();
+    UI.endModalScene(this.modalState);
+    this.cameras.main.fadeOut(220, 6, 12, 6);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('Game', { character: this.preChar, endless: this.preEndless });
+    });
+  }
+
   close() {
     if (this.closing) return;
     this.closing = true;
     Sfx.uiClick();
     UI.endModalScene(this.modalState);
-    this.scene.stop();
+    if (this.preRun) {
+      this.scene.start('Select', { endless: this.preEndless });
+    } else {
+      this.scene.stop();
+    }
   }
 }

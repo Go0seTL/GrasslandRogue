@@ -457,7 +457,7 @@ class GoatKingBoss extends Enemy {
     const round = scene.round || 1;
     this.isBoss = true;
     this.bossName = elite ? '精英山羊王' : '山羊王';
-    this.bossWeapon = null;
+    this.bossWeapon = 'goat_eye';
     this.maxHp = Math.round(760 * (1 + 0.6 * (round - 1)) * (elite ? 1.6 : 1) * BOSS_BALANCE.hp);
     this.hp = this.maxHp;
     this.damage = Math.round(18 * (1 + 0.3 * (round - 1)) * (elite ? 1.3 : 1) * BOSS_BALANCE.damage);
@@ -1021,6 +1021,116 @@ class DragonBabyBoss extends Enemy {
   destroy(fromScene) {
     this.clearBreath();
     if (this.babyGlow && this.babyGlow.active) this.babyGlow.destroy();
+    super.destroy(fromScene);
+  }
+}
+
+class AngelBoss extends Enemy {
+  constructor(scene, x, y, level) {
+    super(scene, x, y, 'angel', level, false);
+    const round = scene.round || 10;
+    this.isBoss = true;
+    this.bossName = '天使';
+    this.bossWeapon = null;
+    this.maxHp = Math.round(900 * (1 + 0.6 * (round - 1)) * 2.0 * BOSS_BALANCE.hp);
+    this.hp = this.maxHp;
+    this.damage = Math.round(16 * (1 + 0.3 * (round - 1)) * BOSS_BALANCE.damage);
+    this.setScale(2.5);
+    this.shadow.setScale(this.def.shadowScale * 2.5);
+    this.moveSpeed = 55;
+    this.phase2 = false;
+    this.ringTimer = 1700;
+    this.orbTimer = 1100;
+    this.summonTimer = 6500;
+    this.orbit = 0;
+    this.angelGlow = scene.add.image(x, y, 'glow')
+      .setTint(0xfff2c8).setScale(2.4).setAlpha(0.18)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(y + this.def.depthY - 1);
+    this.play('angel_float');
+    this.setAlpha(1);
+  }
+
+  updateAI(time, delta) {
+    if (!this.active || this.dying) return;
+    this._visualTick();
+    const p = this.scene.player;
+    if (!p || p.isDead) {
+      this.setVelocity(0, 0);
+      return;
+    }
+    this.setFlipX(p.x < this.x);
+    if (this.angelGlow && this.angelGlow.active) {
+      this.angelGlow.setPosition(this.x, this.y)
+        .setDepth(this.y + this.def.depthY - 1)
+        .setAlpha(0.14 + Math.sin(time * 0.006) * 0.06);
+    }
+    if (!this.phase2 && this.hp < this.maxHp * 0.5) {
+      this.phase2 = true;
+      this.moveSpeed = 78;
+      this.scene.cameras.main.flash(320, 255, 245, 210);
+      this.scene.cameras.main.shake(260, 0.007);
+      this.scene.fx.bossEnrage(this.x, this.y);
+      this.scene.hud.toastQueue.push('天使展开六翼，进入圣辉形态！');
+      Sfx.bossRoar();
+    }
+
+    this.orbit += delta * 0.0014;
+    const tx = p.x + Math.cos(this.orbit) * 230;
+    const ty = p.y + Math.sin(this.orbit * 1.35) * 130;
+    const a = Math.atan2(ty - this.y, tx - this.x);
+    const dist = Math.hypot(p.x - this.x, p.y - this.y);
+    this.setVelocity(Math.cos(a) * this.moveSpeed, Math.sin(a) * this.moveSpeed);
+
+    this.ringTimer -= delta;
+    if (this.ringTimer <= 0) {
+      this.ringTimer = this.phase2 ? 1500 : 2200;
+      const n = this.phase2 ? 20 : 13;
+      const base = time * 0.00035;
+      for (let i = 0; i < n; i++) {
+        const ang = base + (i / n) * Math.PI * 2;
+        this.scene.spawnEnemyOrb(this.x, this.y - 8, ang, Math.round(this.damage * 0.65), {
+          speed: this.phase2 ? 300 : 260, tint: 0xfff2c8,
+        });
+      }
+      this.scene.fx.ring(this.x, this.y - 8, 0xfff2c8, 0.4, 2.0, 380, 0.8, 738);
+      Sfx.spore();
+    }
+
+    this.orbTimer -= delta;
+    if (this.orbTimer <= 0 && dist < 560) {
+      this.orbTimer = this.phase2 ? 900 : 1400;
+      const base = Math.atan2(p.y - this.y, p.x - this.x);
+      const n = this.phase2 ? 7 : 5;
+      for (let i = 0; i < n; i++) {
+        const ang = base + (i - (n - 1) / 2) * 0.13;
+        this.scene.spawnEnemyOrb(this.x, this.y - 8, ang, Math.round(this.damage * 0.6), {
+          speed: 345, tint: 0xffd76a,
+        });
+      }
+      this.scene.fx.muzzle(this.x, this.y - 8, base, 0xffe9a8, 3);
+      Sfx.laser();
+    }
+
+    if (this.phase2) {
+      this.summonTimer -= delta;
+      if (this.summonTimer <= 0) {
+        this.summonTimer = 9000;
+        for (let i = 0; i < 2; i++) {
+          const ang = rand(0, Math.PI * 2);
+          this.scene.spawnEnemyAt('angel_guard', this.x + Math.cos(ang) * 80, this.y + Math.sin(ang) * 60, true);
+        }
+        this.scene.hud.toastQueue.push('天使召唤了侍从！');
+      }
+    }
+  }
+
+  die() {
+    finishBossDeath(this);
+  }
+
+  destroy(fromScene) {
+    if (this.angelGlow && this.angelGlow.active) this.angelGlow.destroy();
     super.destroy(fromScene);
   }
 }

@@ -4,6 +4,13 @@ class GameScene extends Phaser.Scene {
   }
 
   init(data) {
+    this.endless = !!(data && data.endless);
+    this.endlessWave = 1;
+    this.endlessAwaitUpgrade = false;
+    this.endlessAtkMul = 1;
+    this.worldW = this.endless ? ENDLESS_W : GAME_W;
+    this.worldH = this.endless ? ENDLESS_H : GAME_H;
+    Object.assign(ARENA, this.endless ? ENDLESS_ARENA : ARENA_BASE);
     this.netHost = !!(data && data.netHost);
     this.guestInput = { moveX: 0, moveY: 0, fire: false, aimX: null, aimY: null };
     this.player2 = null;
@@ -68,6 +75,9 @@ class GameScene extends Phaser.Scene {
       speed: 1, damage: 1, fireRate: 1, dashCd: 1, skillCd: 1,
       coinBonus: 0, hpBonus: 0, size: 1, healBonus: 0,
       bulletSpeed: 1, spreadMul: 1, lifesteal: 0, twinChance: 0, deathBlast: 0,
+      armor: 0, regen: 0, energyRegen: 1, luck: 0, pickup: 1, coinMul: 0,
+      dashInvuln: 0, pierceBonus: 0, critChance: 0, thorns: 0, bulletLife: 1,
+      healMul: 1, dropRate: 0, executioner: 0,
     };
     if (cp && cp.buffs && typeof cp.buffs === 'object') {
       Object.keys(this.buffs).forEach((key) => {
@@ -115,6 +125,7 @@ class GameScene extends Phaser.Scene {
     this.fragmentPity = 0;
     this.slimeStaffShots = 0;
     this.ringUndyingUsed = false;
+    this.secondWindReady = false;
     this.ringTeleportUsed = false;
     this.ringExecuteUsed = false;
     this.ringBloodBonus = 0;
@@ -150,11 +161,18 @@ class GameScene extends Phaser.Scene {
   create() {
     this.runStartTime = this.time.now;
     this.groundImage = this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
+    if (this.endless) {
+      this.groundImage.setTexture('ground_endless').setDisplaySize(ENDLESS_W, ENDLESS_H);
+      this.currentMap = 'endless';
+      this.mapName = '无尽草原';
+    }
     this.decorObjects = [];
 
     this.physics.world.setBounds(ARENA.left, ARENA.top, ARENA.right - ARENA.left, ARENA.bottom - ARENA.top);
 
-    this.player = new Player(this, 480, 405, this.characterId);
+    const spawnX = this.endless ? (ENDLESS_ARENA.left + ENDLESS_ARENA.right) / 2 : 480;
+    const spawnY = this.endless ? (ENDLESS_ARENA.top + ENDLESS_ARENA.bottom) / 2 + 40 : 405;
+    this.player = new Player(this, spawnX, spawnY, this.characterId);
     if (this.resumeData) {
       const cp = this.resumeData;
       if (Number(cp.maxHp) > 0) this.player.maxHp = Math.floor(cp.maxHp);
@@ -167,11 +185,16 @@ class GameScene extends Phaser.Scene {
       if (this.player.backSword) this.player.backSword.setScale(size);
     }
     if (this.netHost) {
-      this.player2 = new Player(this, 430, 405, this.characterId);
+      this.player2 = new Player(this, spawnX - 50, spawnY + 20, this.characterId);
       this.player2.networkGuest = true;
-      this.guestTag = this.add.text(430, 353, '玩家2', UI.textStyle(10, {
+      this.guestTag = this.add.text(spawnX - 50, spawnY - 32, '玩家2', UI.textStyle(10, {
         color: '#9fe8ff', strokeThickness: 3, bold: true, shadow: false,
       })).setOrigin(0.5).setDepth(880);
+    }
+    if (this.endless) {
+      this.cameras.main.setBounds(0, 0, ENDLESS_W, ENDLESS_H);
+      this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
+      this.setupDecor('grass');
     }
     this.enemies = this.physics.add.group();
     this.playerBullets = this.physics.add.group();
@@ -215,15 +238,15 @@ class GameScene extends Phaser.Scene {
     this.setupAmbient();
     this.setupInput();
 
-    this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(900);
+    this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(900).setScrollFactor(0);
 
     this.scene.launch('UI');
     this.mercPrompt = UI.button(this, 480, 300, 190, 36, '收买', () => this.mercAction(), {
       fontSize: 13,
-    }).setDepth(1200).setVisible(false);
+    }).setDepth(1200).setVisible(false).setScrollFactor(0);
     this.merchantPrompt = UI.button(this, 480, 300, 150, 34, '交易', () => this.openMerchant(), {
       fontSize: 13,
-    }).setDepth(1200).setVisible(false);
+    }).setDepth(1200).setVisible(false).setScrollFactor(0);
     this.time.addEvent({ delay: 2000, loop: true, callback: () => Store.flush() });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.autoCollectCoins() });
 
@@ -247,7 +270,12 @@ class GameScene extends Phaser.Scene {
       });
     }
 
-    this.startRoom(this.round, this.stage);
+    if (this.endless) {
+      this.startEndlessWave();
+    } else {
+      this.startRoom(this.round, this.stage);
+    }
+    this.events.once('shutdown', () => Object.assign(ARENA, ARENA_BASE));
     if (this.netHost) {
       this.events.once('shutdown', () => {
         Net.onInput = null;
@@ -257,8 +285,8 @@ class GameScene extends Phaser.Scene {
       });
     }
 
-    // 继续游戏时不重复弹出开局强化
-    if (!this.resumeData) {
+    // 继续游戏时不重复弹出开局强化；无尽挑战每波结束后再选
+    if (!this.resumeData && !this.endless) {
       this.time.delayedCall(700, () => {
         if (!this.scene.isActive()) return;
         this.openUpgrade(true);
@@ -344,6 +372,41 @@ class GameScene extends Phaser.Scene {
           });
         }
         this.decorObjects.push(img);
+      }
+      return;
+    }
+
+    if (mapKey === 'heaven') {
+      const keys = ['cloud_deco', 'cloud_deco', 'holy_pillar_deco', 'star_deco', 'cloud_deco'];
+      for (let i = 0; i < 20; i++) {
+        const x = rand(ARENA.left + 24, ARENA.right - 24);
+        const y = rand(ARENA.top + 28, ARENA.bottom - 14);
+        const img = this.add.image(x, y, choice(keys)).setOrigin(0.5, 1)
+          .setDepth(2).setAlpha(0.9);
+        if (img.texture.key === 'cloud_deco') {
+          img.setScale(0.8 + Math.random() * 0.6).setAlpha(0.55 + Math.random() * 0.25);
+          this.tweens.add({
+            targets: img, x: img.x + rand(14, 40), alpha: 0.35,
+            duration: rand(5000, 9000), yoyo: true, repeat: -1, ease: 'Sine.InOut',
+          });
+        }
+        if (img.texture.key === 'star_deco') {
+          this.tweens.add({
+            targets: img, alpha: 0.3, duration: rand(600, 1200),
+            yoyo: true, repeat: -1, ease: 'Sine.InOut',
+          });
+        }
+        this.decorObjects.push(img);
+      }
+      for (let i = 0; i < 5; i++) {
+        const fog = this.add.image(rand(90, 870), rand(120, 430), 'fog_deco')
+          .setDepth(3).setAlpha(0.12 + Math.random() * 0.08)
+          .setTint(0xfff2c8).setScale(1.0 + Math.random() * 0.7);
+        this.tweens.add({
+          targets: fog, x: fog.x + rand(20, 60), alpha: 0.04,
+          duration: rand(6000, 10000), yoyo: true, repeat: -1, ease: 'Sine.InOut',
+        });
+        this.decorObjects.push(fog);
       }
       return;
     }
@@ -700,6 +763,14 @@ class GameScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ 房间流程
 
+  mapInfoForRound(round) {
+    if (round >= 10) return { key: 'heaven', name: '天堂', ground: 'ground_heaven' };
+    if (round >= 7) return { key: 'dragon_nest', name: '龙巢', ground: 'ground_dragon_nest' };
+    if (round >= 6) return { key: 'graveyard', name: '墓地', ground: 'ground_graveyard' };
+    if (round >= 3) return { key: 'mountain', name: '山地', ground: 'ground_mountain' };
+    return { key: 'grass', name: '草原', ground: 'ground' };
+  }
+
   startRoom(round, stage) {
     this.clearVision();
     this.demonRealm = false;
@@ -726,19 +797,12 @@ class GameScene extends Phaser.Scene {
     this.pendingSpawns = 0;
     this.spawnQueue = [];
 
-    const mapKey = round >= 7 ? 'dragon_nest'
-      : (round >= 6 ? 'graveyard' : (round >= 3 ? 'mountain' : 'grass'));
-    this.mapName = mapKey === 'dragon_nest' ? '龙巢'
-      : (mapKey === 'graveyard' ? '墓地' : (mapKey === 'mountain' ? '山地' : '草原'));
+    const mapInfo = this.mapInfoForRound(round);
+    const mapKey = mapInfo.key;
+    this.mapName = mapInfo.name;
     if (this.currentMap !== mapKey) {
       this.currentMap = mapKey;
-      if (this.groundImage) {
-        this.groundImage.setTexture(
-          mapKey === 'dragon_nest' ? 'ground_dragon_nest'
-            : (mapKey === 'graveyard' ? 'ground_graveyard'
-              : (mapKey === 'mountain' ? 'ground_mountain' : 'ground'))
-        );
-      }
+      if (this.groundImage) this.groundImage.setTexture(mapInfo.ground);
       this.setupDecor(mapKey);
     }
 
@@ -800,8 +864,142 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ------------------------------------------------------------ 无尽挑战
+
+  startEndlessWave() {
+    if (!this.player || this.player.isDead) return;
+    this.endlessAwaitUpgrade = false;
+    this.round = this.endlessWave;
+    this.stage = 1;
+    this.enemyLevel = this.endlessWave * 2;
+    this.endlessAtkMul = 1 + Math.min(1.0, (this.endlessWave - 1) * 0.035);
+    this.transitioning = false;
+    this.locked = true;
+    this.roomState = 'intro';
+    this.boss = null;
+    this.pendingSpawns = 0;
+    this.spawnQueue = [];
+    this.destroyPortal();
+    this.clearRoomObjects();
+    this.player.body.setVelocity(0, 0);
+    this.player.invulnUntil = Math.max(this.player.invulnUntil, this.time.now + 500);
+    if (this.guestTag && this.player2) this.guestTag.setPosition(this.player2.x, this.player2.y - 52);
+    this.hud.hpDirty = true;
+    this.hud.bannerQueue.push({
+      title: `无尽 · 第 ${this.endlessWave} 波`,
+      sub: '怪物更多、更强，精英和 Boss 出现概率提高',
+      color: '#ffd76a',
+    });
+    this.cameras.main.flash(180, 255, 230, 160);
+    this.time.delayedCall(760, () => {
+      if (!this.scene.isActive() || this.player.isDead) return;
+      this.locked = false;
+      this.roomState = 'fighting';
+      const count = Math.min(46, 8 + Math.floor(this.endlessWave * 2.4));
+      const pool = this.endlessEnemyPool(this.endlessWave);
+      for (let i = 0; i < count; i++) this.spawnQueue.push(choice(pool));
+      this.pendingSpawns = this.spawnQueue.length;
+      this.spawnNextBatch();
+      this.maybeSpawnEndlessBosses();
+    });
+  }
+
+  endlessEnemyPool(wave) {
+    const base = ['slime', 'goblin', 'bat', 'slime', 'boar'];
+    if (wave < 3) return base;
+    const pool = base.concat(['mushroom', 'boar', 'goat', 'bat', 'goblin']);
+    if (wave >= 6) pool.push('ghost', 'dragonling');
+    if (wave >= 10) pool.push('angel_guard', 'cloud_wisp', 'temple_knight', 'angel_guard');
+    if (wave >= 16) pool.push('temple_knight', 'ghost', 'dragonling');
+    return pool;
+  }
+
+  maybeSpawnEndlessBosses() {
+    const wave = this.endlessWave;
+    if (wave < 4) return;
+    const chance = Math.min(0.88, (wave - 3) * 0.055);
+    if (Math.random() > chance) return;
+    const maxCount = wave >= 25 ? 5 : (wave >= 18 ? 4 : (wave >= 12 ? 3 : (wave >= 8 ? 2 : 1)));
+    let count = 1;
+    while (count < maxCount && Math.random() < 0.46) count++;
+    const pool = ['slime', 'boar'];
+    if (wave >= 8) pool.push('mushroom', 'bat');
+    if (wave >= 12) pool.push('goat');
+    if (wave >= 15) pool.push('dragon');
+    if (wave >= 20) pool.push('satan');
+    if (wave >= 25) pool.push('angel');
+    const names = [];
+    for (let i = 0; i < count; i++) {
+      const kind = choice(pool);
+      const elite = Math.random() < Math.min(0.55, wave * 0.018);
+      const ang = (i / count) * Math.PI * 2 + rand(-0.25, 0.25);
+      const dist = 220 + rand(0, 90);
+      const x = clamp(this.player.x + Math.cos(ang) * dist, ARENA.left + 70, ARENA.right - 70);
+      const y = clamp(this.player.y + Math.sin(ang) * dist, ARENA.top + 70, ARENA.bottom - 70);
+      let boss;
+      if (kind === 'boar') boss = new BoarKingBoss(this, x, y, this.enemyLevel, elite);
+      else if (kind === 'mushroom') boss = new MushroomFiendBoss(this, x, y, this.enemyLevel, elite);
+      else if (kind === 'bat') boss = new BatKingBoss(this, x, y, this.enemyLevel, elite);
+      else if (kind === 'goat') boss = new GoatKingBoss(this, x, y, this.enemyLevel, elite);
+      else if (kind === 'dragon') boss = new DragonBabyBoss(this, x, y, this.enemyLevel);
+      else if (kind === 'satan') boss = new SatanBoss(this, x, y, this.enemyLevel);
+      else if (kind === 'angel') boss = new AngelBoss(this, x, y, this.enemyLevel);
+      else boss = new Boss(this, x, y, this.enemyLevel, elite);
+      this.enemies.add(boss);
+      boss.setAlpha(1);
+      this.boss = boss;
+      names.push(boss.bossName);
+      this.fx.ring(x, y, elite ? 0xffd76a : 0xff9a6a, 0.3, 2.2, 600, 0.9, 745);
+    }
+    this.cameras.main.shake(300, 0.008);
+    Sfx.bossRoar();
+    this.hud.toastQueue.push(`第 ${wave} 波 Boss：${names.join('、')} 出现了！`);
+  }
+
+  finishEndlessWave(clearedWave) {
+    this.roomState = 'cleared';
+    this.locked = true;
+    const wave = clearedWave || this.endlessWave;
+    const heal = BALANCE.clearHeal + this.buffs.healBonus + Math.floor(wave * 0.8);
+    if (!this.player.isDead) {
+      this.player.heal(heal);
+      this.fx.healBurst(this.player.x, this.player.y, heal);
+    }
+    const bonus = 25 + wave * 14;
+    this.runCoins += bonus;
+    Store.addCoins(bonus);
+    this.hud.coinDirty = true;
+    const w = this.pickFragmentWeapon();
+    if (w) {
+      const amount = 1 + Math.floor(wave / 5);
+      Store.addFragment(w.id, amount);
+      this.hud.toastQueue.push(`波次奖励：${w.name}碎片 ×${amount}`);
+    }
+    const ringIds = Object.keys(RINGS);
+    if (ringIds.length && Math.random() < Math.min(0.8, 0.25 + wave * 0.02)) {
+      const rid = choice(ringIds);
+      const amount = 1 + Math.floor(wave / 8);
+      Store.addRingFragment(rid, amount);
+      this.hud.toastQueue.push(`波次奖励：${RINGS[rid].name}碎片 ×${amount}`);
+    }
+    Store.flush();
+    this.endlessWave = wave + 1;
+    this.endlessAwaitUpgrade = true;
+    this.hud.bannerQueue.push({
+      title: `第 ${wave} 波完成`,
+      sub: '选择强化，准备下一波',
+      color: '#9ff0a8',
+    });
+    Sfx.levelClear();
+    this.time.delayedCall(650, () => {
+      if (!this.scene.isActive() || this.player.isDead) return;
+      this.openUpgrade(false);
+    });
+  }
+
   // 房间开局检查点：回到主菜单后可以继续到这一回合，但当前房间会重打
   saveCheckpoint() {
+    if (this.endless) return;
     if (!this.player || this.player.isDead || this.gameOverStarted) return;
     Store.data.runCheckpoint = {
       characterId: this.characterId,
@@ -906,6 +1104,11 @@ class GameScene extends Phaser.Scene {
     const round = this.round;
     const total = Math.min(4 + Math.floor((n - 1) * 1.15) + (round - 1), 18);
     const types = [];
+    if (round >= 10) {
+      const pool = ['angel_guard', 'angel_guard', 'cloud_wisp', 'temple_knight', 'cloud_wisp', 'angel_guard'];
+      for (let i = 0; i < total; i++) types.push(choice(pool));
+      return types;
+    }
     for (let i = 0; i < total; i++) {
       const r = Math.random();
       let type = 'slime';
@@ -951,16 +1154,20 @@ class GameScene extends Phaser.Scene {
 
   spawnNextBatch() {
     if (this.roomState !== 'fighting' || this.spawnQueue.length === 0) return;
-    const batch = Math.min(2 + (this.enemyLevel >= 5 ? 1 : 0), this.spawnQueue.length);
-    const eliteChance = Math.min(0.06 + (this.round - 1) * 0.05 + (this.enemyLevel - 1) * 0.006, 0.30);
+    const batch = this.endless
+      ? Math.min(3 + Math.floor(this.endlessWave / 5), this.spawnQueue.length)
+      : Math.min(2 + (this.enemyLevel >= 5 ? 1 : 0), this.spawnQueue.length);
+    const eliteChance = this.endless
+      ? Math.min(0.55, 0.08 + this.endlessWave * 0.02)
+      : Math.min(0.06 + (this.round - 1) * 0.05 + (this.enemyLevel - 1) * 0.006, 0.30);
     for (let i = 0; i < batch; i++) {
       const type = this.spawnQueue.shift();
       const pt = this.pickSpawnPoint();
       const elite = Math.random() < eliteChance;
-      this.scheduleSpawn(type, pt.x, pt.y, 480 + i * 170, elite);
+      this.scheduleSpawn(type, pt.x, pt.y, this.endless ? 340 + i * 110 : 480 + i * 170, elite);
     }
     if (this.spawnQueue.length > 0) {
-      this.time.delayedCall(1350, () => {
+      this.time.delayedCall(this.endless ? 720 : 1350, () => {
         if (this.scene.isActive()) this.spawnNextBatch();
       });
     }
@@ -977,6 +1184,19 @@ class GameScene extends Phaser.Scene {
   }
 
   pickSpawnPoint() {
+    if (this.endless) {
+      for (let i = 0; i < 40; i++) {
+        const a = rand(0, Math.PI * 2);
+        const d = rand(210, 500);
+        const x = clamp(this.player.x + Math.cos(a) * d, ARENA.left + 48, ARENA.right - 48);
+        const y = clamp(this.player.y + Math.sin(a) * d, ARENA.top + 48, ARENA.bottom - 48);
+        if (dist2(x, y, this.player.x, this.player.y) > 185 * 185) return { x, y };
+      }
+      return {
+        x: clamp(this.player.x + 260, ARENA.left + 48, ARENA.right - 48),
+        y: clamp(this.player.y, ARENA.top + 48, ARENA.bottom - 48),
+      };
+    }
     for (let i = 0; i < 40; i++) {
       const x = rand(ARENA.left + 48, ARENA.right - 48);
       const y = rand(ARENA.top + 48, ARENA.bottom - 48);
@@ -1006,6 +1226,7 @@ class GameScene extends Phaser.Scene {
   }
 
   bossSpecForRound(round) {
+    if (round >= 10) return { kind: 'angel', elite: false };
     if (round === 5) return { kind: 'bat_combo', elite: true };
     if (round === 6) return { kind: 'goat_combo', elite: true };
     if (round === 7) return { kind: 'dragon', elite: false };
@@ -1062,6 +1283,8 @@ class GameScene extends Phaser.Scene {
       boss = new MushroomFiendBoss(this, 480, 220, this.enemyLevel);
     } else if (spec.kind === 'dragon') {
       boss = new DragonBabyBoss(this, 480, 220, this.enemyLevel);
+    } else if (spec.kind === 'angel') {
+      boss = new AngelBoss(this, 480, 205, this.enemyLevel);
     } else {
       boss = new Boss(this, 480, 205, this.enemyLevel, spec.elite);
     }
@@ -1098,6 +1321,10 @@ class GameScene extends Phaser.Scene {
 
   finishRoom() {
     if (this.roomState !== 'fighting') return;
+    if (this.endless) {
+      this.finishEndlessWave(this.endlessWave);
+      return;
+    }
     this.roomState = 'cleared';
     const isBoss = this.stage === ROUND_LEN;
     const heal = (isBoss ? BALANCE.bossClearHeal : BALANCE.clearHeal) + this.buffs.healBonus;
@@ -1113,6 +1340,10 @@ class GameScene extends Phaser.Scene {
     if (isBoss && this.noScratchEnabled && this.roundNoDamage && this.noScratchRound !== this.round) {
       this.noScratchRound = this.round;
       this.grantNoScratchReward();
+    }
+    if (isBoss && this.round >= 10) {
+      this.finishVictory();
+      return;
     }
     Store.flush();
     this.saveCheckpoint();
@@ -1136,6 +1367,39 @@ class GameScene extends Phaser.Scene {
         this.openUpgrade(false);
       });
     }
+  }
+
+  finishVictory() {
+    this.roomState = 'victory';
+    this.locked = true;
+    this.gameOverStarted = true;
+    this.transitioning = true;
+    this.destroyPortal();
+    this.enemyBullets.clear(true, true);
+    this.player.body.setVelocity(0, 0);
+    Store.data.runCheckpoint = null;
+    Store.markRunFinished(10, ROUND_LEN, this.kills);
+    Store.flush();
+    this.hud.bannerQueue.push({
+      title: '通 关',
+      sub: '天使陨落，天堂重归宁静',
+      color: '#ffe9a8',
+    });
+    this.cameras.main.flash(500, 255, 245, 200);
+    this.fx.bossDeath(this.player.x, this.player.y - 30);
+    Sfx.levelClear();
+    this.time.delayedCall(1500, () => {
+      if (!this.scene.isActive()) return;
+      this.scene.start('Over', {
+        victory: true,
+        runCoins: this.runCoins,
+        kills: this.kills,
+        round: 10,
+        stage: ROUND_LEN,
+        timeMs: this.time.now - this.runStartTime,
+        character: this.characterId,
+      });
+    });
   }
 
   spawnPortal() {
@@ -1388,18 +1652,11 @@ class GameScene extends Phaser.Scene {
     this.round = ret.round;
     this.stage = ret.stage;
     this.enemyLevel = levelIndex(this.round, this.stage);
-    const mapKey = this.round >= 7 ? 'dragon_nest'
-      : (this.round >= 6 ? 'graveyard' : (this.round >= 3 ? 'mountain' : 'grass'));
+    const mapInfo = this.mapInfoForRound(this.round);
+    const mapKey = mapInfo.key;
     this.currentMap = mapKey;
-    this.mapName = mapKey === 'dragon_nest' ? '龙巢'
-      : (mapKey === 'graveyard' ? '墓地' : (mapKey === 'mountain' ? '山地' : '草原'));
-    if (this.groundImage) {
-      this.groundImage.setTexture(
-        mapKey === 'dragon_nest' ? 'ground_dragon_nest'
-          : (mapKey === 'graveyard' ? 'ground_graveyard'
-            : (mapKey === 'mountain' ? 'ground_mountain' : 'ground'))
-      );
-    }
+    this.mapName = mapInfo.name;
+    if (this.groundImage) this.groundImage.setTexture(mapInfo.ground);
     this.setupDecor(mapKey);
     this.player.setPosition(480, 405);
     this.player.body.enable = true;
@@ -1528,10 +1785,13 @@ class GameScene extends Phaser.Scene {
       this.onEnergyDenied();
       return;
     }
+    const beamWidth = w.beamWidth || 360;
+    const beamHeight = w.beamThickness || 28;
+    const coreHeight = w.beamCoreThickness || 9;
     if (!this.sulfurBeam) {
-      const glow = this.add.rectangle(this.player.x, this.player.y - 5, 360, 28, 0xff3a1a, 0.28)
+      const glow = this.add.rectangle(this.player.x, this.player.y - 5, beamWidth, beamHeight, w.beamColor || 0xff3a1a, 0.28)
         .setOrigin(0, 0.5).setDepth(736).setBlendMode(Phaser.BlendModes.ADD);
-      const core = this.add.rectangle(this.player.x, this.player.y - 5, 360, 9, 0xffc04a, 0.9)
+      const core = this.add.rectangle(this.player.x, this.player.y - 5, beamWidth, coreHeight, w.beamCore || 0xffc04a, 0.9)
         .setOrigin(0, 0.5).setDepth(737).setBlendMode(Phaser.BlendModes.ADD);
       this.sulfurBeam = { glow, core };
     }
@@ -1541,14 +1801,15 @@ class GameScene extends Phaser.Scene {
       .setAlpha(0.24 + Math.sin(time * 0.03) * 0.08);
     this.sulfurBeam.core.setPosition(ox, oy).setRotation(aim);
     if (time >= this.sulfurNextTick) {
-      this.sulfurNextTick = time + 120;
-      if (!this.player.spendEnergy(1)) {
+      this.sulfurNextTick = time + (w.beamTick || 120);
+      if (!this.player.spendEnergy(w.beamEnergy || 1)) {
         this.stopSulfurBeam();
         this.onEnergyDenied();
         return;
       }
       const dmg = Math.round(w.damage * (this.buffs.damage || 1));
-      const len = 370;
+      const len = w.beamLength || 370;
+      const radius = w.beamRadius || 26;
       const cos = Math.cos(aim);
       const sin = Math.sin(aim);
       this.enemies.getChildren().forEach((e) => {
@@ -1557,9 +1818,9 @@ class GameScene extends Phaser.Scene {
         const dy = e.y - oy;
         const along = dx * cos + dy * sin;
         const perp = Math.abs(-dx * sin + dy * cos);
-        if (along > 0 && along < len && perp < 26) {
+        if (along > 0 && along < len && perp < radius) {
           e.takeDamage(dmg, aim);
-          if (e.applyBurn) e.applyBurn(2000, 6);
+          if (w.id === 'demon_sulfur' && e.applyBurn) e.applyBurn(2000, 6);
           this.fx.hitSpark(e.x, e.y);
         }
       });
@@ -1594,12 +1855,22 @@ class GameScene extends Phaser.Scene {
     const speed = o.speed || BALANCE.bulletSpeed;
     b.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     if (o.tint != null) b.setTint(o.tint);
-    b.damage = damage || BALANCE.bulletDamage;
-    b.pierce = o.pierce || 0;
+    let dmg = damage || BALANCE.bulletDamage;
+    const crit = (this.buffs.critChance || 0) > 0 && Math.random() < this.buffs.critChance;
+    if (crit) {
+      dmg *= 2;
+      b.setTint(0xffe066);
+      this.fx.ring(x, y, 0xffe066, 0.12, 0.55, 180, 0.8, 721);
+    }
+    b.crit = crit;
+    b.damage = Math.round(dmg);
+    b.pierce = (o.pierce || 0) + (this.buffs.pierceBonus || 0);
     b.hitEnemies = new Set();
     b.qualityColor = o.color == null ? 0xffe066 : o.color;
     b.qualityPower = o.power || 0;
     b.burn = o.burn || null;
+    b.water = !!o.water;
+    b.life = BALANCE.bulletLife * 1000 * (this.buffs.bulletLife || 1);
     b.bornAt = this.time.now;
     return b;
   }
@@ -1751,8 +2022,8 @@ class GameScene extends Phaser.Scene {
     const weapon = this.weapon || WEAPONS.pistol;
     if (g.gun) {
       if (g.gun.texture.key !== weapon.texture) g.gun.setTexture(weapon.texture);
-      const gx = g.x + cos * 8;
-      const gy = g.y + 4 + Math.sin(aim) * 8;
+      const gx = g.x + cos * 10;
+      const gy = g.y + 5 + Math.sin(aim) * 8;
       g.gun.setPosition(gx, gy).setRotation(aim).setFlipY(cos < 0)
         .setDepth(g.y + 21).setVisible(true);
     }
@@ -2145,6 +2416,19 @@ class GameScene extends Phaser.Scene {
     this.hud.hpDirty = true;
   }
 
+  trySecondWind() {
+    if (!this.secondWindReady || !this.player) return false;
+    this.secondWindReady = false;
+    this.player.hp = Math.max(1, Math.round(this.player.maxHp * 0.3));
+    this.player.invulnUntil = this.time.now + 2000;
+    this.hud.hpDirty = true;
+    this.hud.bannerQueue.push({ title: '第二次呼吸', sub: '以 30% 生命复活 · 2 秒无敌', color: '#ffd76a' });
+    this.fx.ring(this.player.x, this.player.y, 0xffd76a, 0.2, 2.2, 650, 0.9, 760);
+    this.cameras.main.flash(260, 255, 220, 140);
+    Sfx.energy();
+    return true;
+  }
+
   tryGhostSave() {
     if (!this.ghost || !this.ghost.ready || this.player.isDead) return false;
     this.ghost.ready = false;
@@ -2272,7 +2556,10 @@ class GameScene extends Phaser.Scene {
     if (bullet.hitEnemies && bullet.hitEnemies.has(enemy)) return;
     if (bullet.hitEnemies) bullet.hitEnemies.add(enemy);
     const bx = bullet.x, by = bullet.y;
-    const dmg = bullet.damage || BALANCE.bulletDamage;
+    let dmg = bullet.damage || BALANCE.bulletDamage;
+    if (this.buffs.executioner > 0 && enemy.maxHp > 0 && enemy.hp < enemy.maxHp * 0.3) {
+      dmg = Math.round(dmg * (1 + this.buffs.executioner));
+    }
     const ang = bullet.rotation;
     if (bullet.pierce > 0) {
       bullet.pierce--;
@@ -2286,6 +2573,7 @@ class GameScene extends Phaser.Scene {
       return;
     }
     enemy.takeDamage(dmg, ang);
+    if (bullet.water && this.player && !this.player.isDead) this.player.restoreEnergy(1);
     if (!enemy.dying && bullet.burn && enemy.applyBurn) {
       enemy.applyBurn(bullet.burn.duration, bullet.burn.dps);
     }
@@ -2437,6 +2725,73 @@ class GameScene extends Phaser.Scene {
         this.roundNoDamage = true;
         this.noScratchTrackRound = this.round;
         break;
+      case 'armor':
+        this.buffs.armor = Math.min(0.45, (this.buffs.armor || 0) + 0.15);
+        break;
+      case 'regen':
+        this.buffs.regen = Math.min(0.10, (this.buffs.regen || 0) + 0.02);
+        break;
+      case 'energy_core':
+        this.player.maxEnergy += 30;
+        this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 30);
+        this.buffs.energyRegen *= 1.25;
+        break;
+      case 'lucky':
+        this.buffs.luck = Math.min(1.8, (this.buffs.luck || 0) + 0.6);
+        break;
+      case 'magnet':
+        this.buffs.pickup *= 1.55;
+        break;
+      case 'rich':
+        this.buffs.coinMul += 0.5;
+        break;
+      case 'glass':
+        this.buffs.damage *= 1.3;
+        this.player.maxHp = Math.max(20, Math.round(this.player.maxHp * 0.8));
+        this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+        break;
+      case 'dash_master':
+        this.buffs.dashCd *= 0.75;
+        this.buffs.dashInvuln += 80;
+        break;
+      case 'pierce':
+        this.buffs.pierceBonus += 1;
+        break;
+      case 'crit':
+        this.buffs.critChance = Math.min(0.6, (this.buffs.critChance || 0) + 0.18);
+        break;
+      case 'thorns':
+        this.buffs.thorns += 12;
+        break;
+      case 'second_wind':
+        this.secondWindReady = true;
+        break;
+      case 'bullet_life':
+        this.buffs.bulletLife *= 1.3;
+        this.buffs.bulletSpeed *= 1.08;
+        break;
+      case 'overcharge':
+        this.player.maxEnergy += 20;
+        this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 20);
+        this.buffs.energyRegen *= 1.35;
+        break;
+      case 'fortress':
+        this.player.addMaxHp(45);
+        this.buffs.size *= 1.04;
+        this.player.refreshScale();
+        break;
+      case 'executioner':
+        this.buffs.executioner = Math.min(1, (this.buffs.executioner || 0) + 0.25);
+        break;
+      case 'first_aid':
+        this.buffs.healMul *= 1.5;
+        break;
+      case 'scavenger':
+        this.buffs.dropRate = Math.min(1.2, (this.buffs.dropRate || 0) + 0.3);
+        break;
+      case 'quick_hands':
+        this.buffs.fireRate *= 0.9;
+        break;
       default:
         break;
     }
@@ -2458,6 +2813,10 @@ class GameScene extends Phaser.Scene {
   onEnemyTouchPlayer(player, enemy) {
     if (!enemy.active || enemy.dying || player.isDead) return;
     player.takeDamage(enemy.damage, enemy.x, enemy.y, this.time.now);
+    if (this.buffs.thorns > 0 && enemy.active && !enemy.dying && enemy.takeDamage) {
+      enemy.takeDamage(this.buffs.thorns, Math.atan2(enemy.y - player.y, enemy.x - player.x));
+      this.fx.hitSpark(enemy.x, enemy.y);
+    }
   }
 
   onEnemyKilled(enemy) {
@@ -2469,13 +2828,14 @@ class GameScene extends Phaser.Scene {
     if (enemy.isElite) count *= 2;
     this.dropCoins(enemy.x, enemy.y, count + this.buffs.coinBonus);
 
+    const dropBonus = 1 + (this.buffs.dropRate || 0);
     const hpChance = enemy.isBoss
       ? 1
-      : (this.player.hp < this.player.maxHp * 0.4 ? 0.16 : 0.09);
+      : Math.min(0.55, (this.player.hp < this.player.maxHp * 0.4 ? 0.16 : 0.09) * dropBonus);
     if (Math.random() < hpChance) this.dropHealthPack(enemy.x, enemy.y);
     const energyChance = enemy.isBoss
       ? 1
-      : (this.player.energy < this.player.maxEnergy * 0.4 ? 0.16 : 0.10);
+      : Math.min(0.55, (this.player.energy < this.player.maxEnergy * 0.4 ? 0.16 : 0.10) * dropBonus);
     if (Math.random() < energyChance) this.dropEnergyPack(enemy.x, enemy.y);
     if (this.buffs.lifesteal > 0 && !this.player.isDead) this.player.heal(this.buffs.lifesteal);
     this.maybeDropFragment(enemy);
@@ -2549,6 +2909,8 @@ class GameScene extends Phaser.Scene {
         stage: this.stage,
         timeMs: this.time.now - this.runStartTime,
         character: this.characterId,
+        endless: this.endless,
+        wave: this.endlessWave,
       };
       this.scene.stop('UI');
       this.scene.start('Over', data);
@@ -3114,7 +3476,10 @@ class GameScene extends Phaser.Scene {
         pierce: weapon.pierce,
         color: q.color,
         power,
-        burn: weapon.id === 'flamer' ? FLAMER_BURN : null,
+        texture: weapon.projectileTexture,
+        scale: weapon.projectileScale,
+        water: !!weapon.water,
+        burn: weapon.burn || (weapon.id === 'flamer' ? FLAMER_BURN : null),
       });
     }
     this.maybeSlimeStaffRing(weapon, q, power);
@@ -3446,7 +3811,8 @@ class GameScene extends Phaser.Scene {
       if (!c.active) return;
       if (this.time.now > c.collectReadyAt) {
         const d2 = dist2(c.x, c.y, this.player.x, this.player.y);
-        if (d2 < 36 * 36) this.collectCoin(c, true);
+        const pr = 36 * (this.buffs.pickup || 1);
+        if (d2 < pr * pr) this.collectCoin(c, true);
       }
     });
   }
@@ -3454,7 +3820,8 @@ class GameScene extends Phaser.Scene {
   collectCoin(c, silent) {
     if (!c.active) return;
     const x = c.x, y = c.y;
-    const v = c.value || 1;
+    const base = c.value || 1;
+    const v = Math.max(base, Math.round(base * (1 + (this.buffs.coinMul || 0))));
     c.destroy();
     this.runCoins += v;
     Store.addCoins(v);
@@ -3487,11 +3854,11 @@ class GameScene extends Phaser.Scene {
   collectHealthPack(h, target) {
     if (!h.active) return;
     const p = target || this.player;
-    const amount = h.healAmount || 18;
+    const amount = Math.round(((h.healAmount || 18) + this.buffs.healBonus) * (this.buffs.healMul || 1));
     h.destroy();
-    p.heal(amount + this.buffs.healBonus);
+    p.heal(amount);
     this.hud.hpDirty = true;
-    this.fx.healBurst(p.x, p.y, amount + this.buffs.healBonus);
+    this.fx.healBurst(p.x, p.y, amount);
     Sfx.heal();
   }
 
@@ -3560,7 +3927,8 @@ class GameScene extends Phaser.Scene {
       return;
     }
     this.fragmentPity++;
-    if (Math.random() >= FRAGMENT_RULES.dropChance && this.fragmentPity < FRAGMENT_RULES.pityKills) return;
+    const dropChance = Math.min(0.9, FRAGMENT_RULES.dropChance * (1 + (this.buffs.luck || 0)));
+    if (Math.random() >= dropChance && this.fragmentPity < FRAGMENT_RULES.pityKills) return;
     const w = this.pickFragmentWeapon();
     if (!w) return;
     const amount = Math.random() < FRAGMENT_RULES.bundleChance ? 2 : 1;
@@ -3569,7 +3937,8 @@ class GameScene extends Phaser.Scene {
   }
 
   maybeDropRingFragment(enemy) {
-    const chance = enemy.isBoss ? 1 : (enemy.isElite ? 0.4 : 0.18);
+    const luck = (this.buffs && this.buffs.luck) || 0;
+    const chance = enemy.isBoss ? 1 : Math.min(0.75, (enemy.isElite ? 0.4 : 0.18) * (1 + luck * 0.6));
     if (Math.random() > chance) return;
     const ids = Object.keys(RINGS);
     if (ids.length === 0) return;
@@ -3845,6 +4214,13 @@ class GameScene extends Phaser.Scene {
     if (!this.player) return;
     this.updateSkill(time, delta);
     if (!this.player.isDead) this.player.update(time, delta);
+    if (!this.player.isDead && this.buffs.regen > 0) {
+      this.regenAccum = (this.regenAccum || 0) + delta;
+      if (this.regenAccum >= 4000) {
+        this.regenAccum -= 4000;
+        this.player.heal(Math.max(1, Math.round(this.player.maxHp * this.buffs.regen)));
+      }
+    }
     this.updateGuestPlayer(time, delta);
     this.updateVision();
     this.updateGhost(time);
@@ -3852,10 +4228,11 @@ class GameScene extends Phaser.Scene {
     this.updateMerchant(time);
     this.updateTouchUI();
 
+    const aiDelta = this.endless ? delta * (this.endlessAtkMul || 1) : delta;
     this.enemies.getChildren().forEach((e) => {
       if (!e.active || e.dying) return;
       if (e.updateBurn) e.updateBurn(time);
-      if (e.active && !e.dying && e.updateAI) e.updateAI(time, delta);
+      if (e.active && !e.dying && e.updateAI) e.updateAI(time, aiDelta);
     });
 
     // 清理越界子弹
@@ -3883,7 +4260,7 @@ class GameScene extends Phaser.Scene {
         if (time - b.bornAt > 4200) b.destroy();
         return;
       }
-      if (time - b.bornAt > BALANCE.bulletLife * 1000 || out(b)) b.destroy();
+      if (time - b.bornAt > (b.life || BALANCE.bulletLife * 1000) || out(b)) b.destroy();
     });
     this.enemyBullets.getChildren().slice().forEach((b) => {
       if (!b.active) return;
@@ -3901,7 +4278,8 @@ class GameScene extends Phaser.Scene {
         if (time < c.collectReadyAt) return;
         const collector = this.getCollector(c.x, c.y);
         const d2 = dist2(c.x, c.y, collector.x, collector.y);
-        if (d2 < 185 * 185) {
+        const pr = 185 * (this.buffs.pickup || 1);
+        if (d2 < pr * pr) {
           const ang = Math.atan2(collector.y - c.y, collector.x - c.x);
           const sp = d2 < 60 * 60 ? 620 : 390;
           c.body.setGravityY(0);
@@ -3917,7 +4295,8 @@ class GameScene extends Phaser.Scene {
         if (!h.active || time < h.collectReadyAt) return;
         const collector = this.getCollector(h.x, h.y);
         const d2 = dist2(h.x, h.y, collector.x, collector.y);
-        if (d2 < 130 * 130) {
+        const pr = 130 * (this.buffs.pickup || 1);
+        if (d2 < pr * pr) {
           const ang = Math.atan2(collector.y - h.y, collector.x - h.x);
           h.body.setGravityY(0);
           h.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
@@ -3932,7 +4311,8 @@ class GameScene extends Phaser.Scene {
         if (!e.active || time < e.collectReadyAt) return;
         const collector = this.getCollector(e.x, e.y);
         const d2 = dist2(e.x, e.y, collector.x, collector.y);
-        if (d2 < 130 * 130) {
+        const pr = 130 * (this.buffs.pickup || 1);
+        if (d2 < pr * pr) {
           const ang = Math.atan2(collector.y - e.y, collector.x - e.x);
           e.body.setGravityY(0);
           e.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
@@ -3949,7 +4329,8 @@ class GameScene extends Phaser.Scene {
         if (time < f.collectReadyAt) return;
         const collector = this.getCollector(f.x, f.y);
         const d2 = dist2(f.x, f.y, collector.x, collector.y);
-        if (d2 < 160 * 160) {
+        const pr = 160 * (this.buffs.pickup || 1);
+        if (d2 < pr * pr) {
           const ang = Math.atan2(collector.y - f.y, collector.x - f.x);
           f.body.setGravityY(0);
           f.body.setVelocity(Math.cos(ang) * 360, Math.sin(ang) * 360);

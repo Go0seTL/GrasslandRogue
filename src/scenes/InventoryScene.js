@@ -17,31 +17,67 @@ class InventoryScene extends Phaser.Scene {
       .setInteractive(new Phaser.Geom.Rectangle(0, 0, GAME_W, GAME_H), Phaser.Geom.Rectangle.Contains);
 
     const g = this.add.graphics().setDepth(1);
-    UI.drawPanel(g, 110, 40, 740, 460, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.98 });
+    UI.drawPanel(g, 110, 36, 740, 464, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.98 });
 
-    this.add.text(480, 74, '背 包', UI.textStyle(30, {
+    this.add.text(480, 66, '背 包', UI.textStyle(28, {
       color: '#ffe9a8', strokeThickness: 7,
     })).setOrigin(0.5).setDepth(2);
-    this.add.text(480, 100, '物品：武器碎片 · 永久保存', UI.textStyle(10, {
-      color: '#a9bd8f', strokeThickness: 3, bold: false,
+    this.add.text(480, 90, '这里只看物品数量 · 武器解锁进度在「锻造」，戒指在「戒指」面板', UI.textStyle(9, {
+      color: '#a9bd8f', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
-    const weapons = Object.values(WEAPONS).filter((w) => (w.fragReq || 0) > 0);
-    const total = weapons.reduce((s, w) => s + (Store.data.fragments[w.id] || 0), 0);
-    const owned = Store.data.ownedWeapons.filter((id) => WEAPONS[id]).length;
-    this.add.text(480, 120, `碎片总数 ${total}    已解锁武器 ${owned} / ${Object.keys(WEAPONS).length}`, UI.textStyle(10, {
-      color: '#e0d6a8', strokeThickness: 2, bold: false, shadow: false,
+    const fragments = Store.data.fragments || {};
+    const ringFragments = Store.data.ringFragments || {};
+    const weaponItems = Object.values(WEAPONS)
+      .filter((w) => (fragments[w.id] || 0) > 0)
+      .sort((a, b) => {
+        const qa = QUALITY_ORDER.indexOf(a.quality);
+        const qb = QUALITY_ORDER.indexOf(b.quality);
+        if (qa !== qb) return qb - qa;
+        return a.name.localeCompare(b.name, 'zh-Hans-CN');
+      });
+    const ringItems = Object.values(RINGS).filter((r) => (ringFragments[r.id] || 0) > 0);
+    const wTotal = weaponItems.reduce((s, w) => s + (fragments[w.id] || 0), 0);
+    const rTotal = ringItems.reduce((s, r) => s + (ringFragments[r.id] || 0), 0);
+    const hearts = Math.max(0, Math.floor(Store.data.demonHearts || 0));
+
+    this.add.text(480, 116, `撒旦之心 ×${hearts}     武器碎片共 ×${wTotal}     戒指碎片共 ×${rTotal}`, UI.textStyle(12, {
+      color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(2);
 
-    const xs = [210, 318, 426, 534, 642, 750];
-    const ys = [172, 268, 364];
-    weapons.forEach((w, i) => {
-      const x = xs[i % 6];
-      const y = ys[Math.floor(i / 6)] || 364;
-      this.createSlot(w, x, y);
-    });
+    this.add.text(132, 142, '武器碎片', UI.textStyle(12, {
+      color: '#dfe8c8', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0, 0.5).setDepth(2);
 
-    this.add.text(480, 448, '小怪/Boss 掉碎片 · 恶魔武器碎片来自奇旅商人', UI.textStyle(10, {
+    if (weaponItems.length === 0) {
+      this.add.text(480, 180, '暂无武器碎片', UI.textStyle(11, {
+        color: '#7f9a6d', strokeThickness: 2, bold: false, shadow: false,
+      })).setOrigin(0.5).setDepth(2);
+    } else {
+      weaponItems.forEach((w, i) => {
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        this.createWeaponItem(w, 196 + col * 176, 168 + row * 32, fragments[w.id] || 0);
+      });
+    }
+
+    this.add.text(132, 354, '戒指碎片', UI.textStyle(12, {
+      color: '#dfe8c8', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0, 0.5).setDepth(2);
+
+    if (ringItems.length === 0) {
+      this.add.text(480, 392, '暂无戒指碎片', UI.textStyle(11, {
+        color: '#7f9a6d', strokeThickness: 2, bold: false, shadow: false,
+      })).setOrigin(0.5).setDepth(2);
+    } else {
+      ringItems.forEach((r, i) => {
+        const col = i % 4;
+        const row = Math.floor(i / 4);
+        this.createRingItem(r, 196 + col * 176, 378 + row * 30, ringFragments[r.id] || 0);
+      });
+    }
+
+    this.add.text(480, 444, '碎片来自小怪 / 精英 / Boss · 恶魔武器碎片来自奇旅商人', UI.textStyle(9, {
       color: '#93a97d', strokeThickness: 2, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
@@ -49,59 +85,68 @@ class InventoryScene extends Phaser.Scene {
       variant: 'ghost', fontSize: 13,
     }).setDepth(3);
 
-    const xg = this.add.rectangle(820, 66, 64, 30, 0x1b2817, 0.94)
+    const xg = this.add.rectangle(820, 62, 64, 28, 0x1b2817, 0.94)
       .setStrokeStyle(2, 0xd9b45a, 0.9).setDepth(30)
       .setInteractive({ useHandCursor: true });
-    this.add.text(820, 66, '关 闭', UI.textStyle(11, {
+    this.add.text(820, 62, '关 闭', UI.textStyle(11, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(31);
     xg.on('pointerup', () => this.close());
 
     this.closeRect = { x: 480, y: 482, w: 190, h: 36 };
-    this.cornerRect = { x: 820, y: 66, w: 70, h: 36 };
+    this.cornerRect = { x: 820, y: 62, w: 70, h: 34 };
     this.input.on('pointerup', (pointer) => this.handlePointer(pointer));
     this.input.keyboard.on('keydown-ESC', () => this.close());
     this.cameras.main.fadeIn(150, 6, 10, 6);
   }
 
-  createSlot(w, x, y) {
+  createWeaponItem(w, x, y, count) {
     const q = QUALITIES[w.quality] || QUALITIES.white;
-    const have = Store.data.fragments[w.id] || 0;
-    const owned = Store.hasWeapon(w.id);
-    const cw = 96, ch = 82;
-
+    const cw = 166, ch = 27;
     const c = this.add.container(x, y).setDepth(2);
     const g = this.add.graphics();
     c.add(g);
-    g.fillStyle(0x000000, 0.28);
-    g.fillRect(-cw / 2 + 3, -ch / 2 + 4, cw, ch);
-    g.fillStyle(0x111a0d, 0.96);
-    g.fillRect(-cw / 2, -ch / 2, cw, ch);
-    g.lineStyle(2, q.color, have > 0 ? 0.9 : 0.35);
-    g.strokeRect(-cw / 2, -ch / 2, cw, ch);
-    g.fillStyle(q.color, have > 0 ? 0.7 : 0.28);
-    g.fillRect(-cw / 2, -ch / 2, 3, ch);
+    g.fillStyle(0x111a0d, 0.92);
+    g.fillRect(0, -ch / 2, cw, ch);
+    g.lineStyle(1, q.color, 0.55);
+    g.strokeRect(0, -ch / 2, cw, ch);
+    g.fillStyle(q.color, 0.7);
+    g.fillRect(0, -ch / 2, 2, ch);
 
-    const icon = this.add.image(0, -18, w.texture)
-      .setScale(Math.min(1.25, w.iconScale || 1.0));
+    const icon = this.add.image(12, 0, w.texture).setScale(0.48);
     c.add(icon);
-
-    const name = this.add.text(0, 17, w.name, UI.textStyle(8, {
-      color: owned ? '#9ff0a8' : '#e8ddb8', strokeThickness: 2, bold: false, shadow: false,
-    })).setOrigin(0.5);
+    const name = this.add.text(24, 0, w.name, UI.textStyle(8, {
+      color: q.hex, strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0, 0.5);
     c.add(name);
+    const num = this.add.text(cw - 7, 0, `×${count}`, UI.textStyle(10, {
+      color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(1, 0.5);
+    c.add(num);
+  }
 
-    const count = this.add.text(0, 31, have > 0 ? `×${have}` : '—', UI.textStyle(10, {
-      color: have > 0 ? '#ffe9a8' : '#6f7f62', strokeThickness: 2, bold: true, shadow: false,
-    })).setOrigin(0.5);
-    c.add(count);
+  createRingItem(r, x, y, count) {
+    const cw = 166, ch = 26;
+    const c = this.add.container(x, y).setDepth(2);
+    const g = this.add.graphics();
+    c.add(g);
+    g.fillStyle(0x111a0d, 0.92);
+    g.fillRect(0, -ch / 2, cw, ch);
+    g.lineStyle(1, r.color, 0.5);
+    g.strokeRect(0, -ch / 2, cw, ch);
+    g.fillStyle(r.color, 0.7);
+    g.fillRect(0, -ch / 2, 2, ch);
 
-    if (owned) {
-      const tag = this.add.text(0, -41, '已拥有', UI.textStyle(7, {
-        color: '#9ff0a8', strokeThickness: 2, bold: false, shadow: false,
-      })).setOrigin(0.5);
-      c.add(tag);
-    }
+    const icon = this.add.image(12, 0, 'ring_icon').setTint(r.color).setScale(0.72);
+    c.add(icon);
+    const name = this.add.text(24, 0, r.name, UI.textStyle(8, {
+      color: '#e8ddb8', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0, 0.5);
+    c.add(name);
+    const num = this.add.text(cw - 7, 0, `×${count}`, UI.textStyle(10, {
+      color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(1, 0.5);
+    c.add(num);
   }
 
   handlePointer(pointer) {

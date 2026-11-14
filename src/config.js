@@ -5,6 +5,11 @@ const GAME_H = 540;
 
 // 可活动区域（四周是树篱）
 const ARENA = { left: 62, top: 78, right: 898, bottom: 470 };
+const ARENA_BASE = { left: 62, top: 78, right: 898, bottom: 470 };
+// 无尽挑战：地图面积约为普通地图的 4 倍
+const ENDLESS_W = 1920;
+const ENDLESS_H = 1080;
+const ENDLESS_ARENA = { left: 62, top: 78, right: ENDLESS_W - 62, bottom: ENDLESS_H - 70 };
 
 const SAVE_KEY = 'grassland_gunner_save_v1';
 
@@ -233,6 +238,34 @@ const WEAPONS = {
     sulfur: true, damage: 7, fireRate: 0.12, tint: 0xff3a1a, texture: 'weapon_sulfur',
     desc: '撒旦的硫磺火。长按喷射粗大的红色激光，持续烧穿前方敌人。', iconScale: 1.15,
   },
+  fire_staff: {
+    id: 'fire_staff', name: '火元素法杖', quality: 'red', fragReq: 150, energyCost: 5,
+    damage: 28, fireRate: 0.52, bulletSpeed: 640, pellets: 1, spread: 0.03, pierce: 1,
+    tint: 0xff8a3a, texture: 'gun_staff_fire', projectileTexture: 'fire_bolt', projectileScale: 1.25,
+    burn: { duration: 2000, dps: 7 },
+    desc: '凝聚火元素，发射会持续灼烧的火球。命中后 2 秒内持续掉血。', iconScale: 1.1,
+  },
+  water_staff: {
+    id: 'water_staff', name: '水元素法杖', quality: 'blue', fragReq: 55, energyCost: 3,
+    damage: 20, fireRate: 0.38, bulletSpeed: 780, pellets: 1, spread: 0.02, pierce: 2,
+    tint: 0x5ad8ff, texture: 'gun_staff_water', projectileTexture: 'water_bolt', projectileScale: 1.25,
+    water: true,
+    desc: '发射可穿透 2 个敌人的水弹；每次命中回复 1 点能量。', iconScale: 1.1,
+  },
+  wind_staff: {
+    id: 'wind_staff', name: '风元素法杖', quality: 'green', fragReq: 40, energyCost: 1,
+    damage: 11, fireRate: 0.15, bulletSpeed: 1100, pellets: 1, spread: 0.05, pierce: 0,
+    tint: 0x8ff0b0, texture: 'gun_staff_wind', projectileTexture: 'wind_blade', projectileScale: 1.15,
+    desc: '高速射出风刃，单发伤害不高但射速极快，适合持续压制。', iconScale: 1.1,
+  },
+  goat_eye: {
+    id: 'goat_eye', name: '山羊之眼', quality: 'rainbow', fragReq: 5, energyCost: 0,
+    sulfur: true, beam: true, damage: 12, fireRate: 0.1, tint: 0xffd76a,
+    beamColor: 0xffb02a, beamCore: 0xfff2a8, beamLength: 620, beamWidth: 640,
+    beamThickness: 34, beamCoreThickness: 12, beamRadius: 30, beamTick: 90, beamEnergy: 2,
+    texture: 'weapon_goat_eye',
+    desc: '山羊王的眼睛。长按发射贯穿全场的金色激光，像激光鱼一样持续灼烧前方。', iconScale: 1.05,
+  },
 };
 
 const CHAR_DEFS = [
@@ -265,6 +298,25 @@ const UPGRADES = [
   { id: 'dual_wield', name: '双持大师', icon: '双', color: 0xffa8e8, rarity: 'epic', desc: '同时持有两把不同的已拥有武器，自动装备品质最高的另一把，两把武器同时开火。' },
   { id: 'treasure', name: '无限财宝', icon: '财', color: 0xe8b54a, rarity: 'epic', desc: '每活过一轮存下 200 金币，可随时点击「取财」取出；死亡则全部失去。' },
   { id: 'no_scratch', name: '不掉一根毛', icon: '净', color: 0x9fe8ff, rarity: 'epic', desc: '本轮全程无伤时，通关 Boss 获得紫色以上武器碎片和戒指碎片大礼。' },
+  { id: 'armor', name: '铁甲护体', icon: '甲', color: 0x9aa8b8, desc: '受到的伤害 -15%（最多叠加到 -45%）。' },
+  { id: 'regen', name: '再生', icon: '愈', color: 0x6fdd68, desc: '每 4 秒回复 2% 生命上限。' },
+  { id: 'energy_core', name: '能量核心', icon: '能', color: 0x5ab0ff, desc: '能量上限 +30，能量回复 +25%。' },
+  { id: 'lucky', name: '幸运', icon: '运', color: 0xffd76a, desc: '武器碎片掉落率 +60%，戒指碎片掉落率提高。' },
+  { id: 'magnet', name: '磁铁', icon: '磁', color: 0x9fe8ff, desc: '金币、血包、能量包和碎片的拾取范围 +55%。' },
+  { id: 'rich', name: '点金手', icon: '金', color: 0xe8b54a, desc: '金币获取量 +50%。' },
+  { id: 'glass', name: '玻璃大炮', icon: '炮', color: 0xff6a5a, rarity: 'epic', desc: '武器伤害 +30%，但生命上限 -20%。' },
+  { id: 'dash_master', name: '翻滚大师', icon: '闪', color: 0x9ff0e0, desc: '翻滚冷却 -25%，翻滚无敌时间延长。' },
+  { id: 'pierce', name: '穿甲弹', icon: '穿', color: 0xa8c8ff, desc: '所有子弹额外穿透 1 个敌人。' },
+  { id: 'crit', name: '暴击', icon: '暴', color: 0xff8a6a, desc: '子弹有 18% 概率造成双倍伤害。' },
+  { id: 'thorns', name: '荆棘', icon: '刺', color: 0x6fdd68, desc: '被敌人碰到时，对敌人反伤 12 点。' },
+  { id: 'second_wind', name: '第二次呼吸', icon: '生', color: 0xffd76a, rarity: 'epic', desc: '每局一次：受到致命伤害时以 30% 生命复活，并获得 2 秒无敌。' },
+  { id: 'bullet_life', name: '远射', icon: '远', color: 0x8ac8e8, desc: '子弹存在时间 +30%，子弹速度 +8%。' },
+  { id: 'overcharge', name: '超载', icon: '充', color: 0x5ab0ff, desc: '能量上限 +20，能量回复 +35%。' },
+  { id: 'fortress', name: '堡垒', icon: '垒', color: 0x7a9a5a, desc: '生命上限 +45，体型增大 4%。' },
+  { id: 'executioner', name: '处刑', icon: '刑', color: 0xff4a4a, desc: '对生命低于 30% 的敌人伤害 +25%。' },
+  { id: 'first_aid', name: '急救', icon: '药', color: 0x9ff0a8, desc: '血包回复量 +50%。' },
+  { id: 'scavenger', name: '拾荒者', icon: '拾', color: 0xd9b45a, desc: '血包和能量包掉落率 +30%。' },
+  { id: 'quick_hands', name: '快手', icon: '快', color: 0xffa8e8, desc: '武器射速 +10%。' },
 ];
 
 const RINGS = {
@@ -304,6 +356,10 @@ const ENEMY_LORE = {
   satan: '恶魔之地的统治者。第一阶段投掷三叉戟、召唤卫兵、巨掌拍击和突刺；第二阶段只剩三分之一生命，但会持续喷射硫磺火。击败后必定掉落撒旦之心。',
   dragonling: '龙巢里的小飞龙，绕圈飞行并从空中吐出火球。',
   dragon_baby: '龙巢的 Boss。会喷吐扇形火球和长条龙息，也会俯冲撞击；半血后攻击频率提高。',
+  angel_guard: '天堂的守卫，白色长袍与金色圣枪。会保持距离并连续射出三发圣光弹。',
+  cloud_wisp: '天堂云海中诞生的精灵，绕着玩家飘动，接触会造成伤害，血量不高但很灵活。',
+  temple_knight: '披着金色铠甲的圣殿骑士，移动缓慢但生命很高，靠近后会挥剑重击。',
+  angel: '最终 Boss。六翼天使，会释放环形圣光、追踪光弹并召唤天使侍从；半血后进入圣辉形态，弹幕数量和速度都会提升。击败它即可通关。',
   boss: '草原的统治者。会跳跃砸地放出环形弹幕、蓄力冲锋，半血后暴怒并召唤史莱姆。',
   boar_boss: '第二轮 Boss。会进入狂暴状态到处乱撞，撞击伤害很高；还会召唤持续一段时间的石头雨。',
   mushroom_boss: '第四轮 Boss。会短时间反射子弹，并连续发射三轮会逐渐减速的环形弹幕；精英版会发射六轮。',
@@ -363,6 +419,22 @@ const ENEMY_DEFS = {
   dragon_baby: {
     name: '飞龙宝宝', texture: 'dragon_baby_0', hp: 720, damage: 18, coins: [30, 45],
     body: [42, 22], offset: [8, 26], shadowY: 20, shadowScale: 1.4, depthY: 20,
+  },
+  angel_guard: {
+    name: '天使侍从', texture: 'angel_guard_0', hp: 95, damage: 13, coins: [3, 5],
+    body: [20, 16], offset: [7, 20], shadowY: 17, shadowScale: 0.9, depthY: 17,
+  },
+  cloud_wisp: {
+    name: '云端精灵', texture: 'cloud_wisp_0', hp: 58, damage: 9, coins: [2, 4],
+    body: [20, 12], offset: [6, 10], shadowY: 13, shadowScale: 0.7, depthY: 12,
+  },
+  temple_knight: {
+    name: '圣殿骑士', texture: 'temple_knight_0', hp: 165, damage: 16, coins: [4, 7],
+    body: [28, 18], offset: [6, 20], shadowY: 19, shadowScale: 1.05, depthY: 19,
+  },
+  angel: {
+    name: '天使', texture: 'angel_0', hp: 900, damage: 16, coins: [100, 150],
+    body: [44, 26], offset: [10, 36], shadowY: 26, shadowScale: 1.9, depthY: 24,
   },
   goat_king: {
     name: '山羊王', texture: 'goat_king_0', hp: 760, damage: 18, coins: [30, 42],

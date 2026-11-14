@@ -95,6 +95,10 @@ class MenuScene extends Phaser.Scene {
       this.scene.start('Lobby');
     }, { variant: 'ghost', fontSize: 14 }).setDepth(20);
 
+    UI.button(this, 872, 318, 148, 36, '无尽挑战', () => {
+      this.scene.start('Select', { endless: true });
+    }, { fontSize: 14 }).setDepth(20);
+
     UI.button(this, 110, 144, 148, 36, '全屏模式', () => this.tryFullscreen(), {
       variant: 'ghost', fontSize: 14,
     }).setDepth(20);

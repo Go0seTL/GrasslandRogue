@@ -299,8 +299,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       if (scene.weapon && this.gun.texture.key !== scene.weapon.texture) {
         this.gun.setTexture(scene.weapon.texture);
       }
-      const gx = this.x + cos * 8;
-      const gy = this.y + 4 + Math.sin(aim) * 8;
+      const gx = this.x + cos * 10;
+      const gy = this.y + 5 + Math.sin(aim) * 8;
       this.gun.setPosition(gx, gy);
       this.gun.setRotation(aim);
       this.gun.setFlipY(cos < 0);
@@ -339,7 +339,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       // 枪手技能自动接管攻击
     } else if (weapon.id === 'demon_trident') {
       this.updateDemonTrident(time, aim, firing, weapon);
-    } else if (weapon.id === 'demon_sulfur') {
+    } else if (weapon.id === 'demon_sulfur' || weapon.beam) {
       scene.updateSulfurBeam(time, aim, firing, weapon);
     } else if (weapon.id === 'boar_axe') {
       this.updateBoarAxe(time, aim, firing, weapon);
@@ -353,7 +353,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     const ringRegen = this.scene.hasRing && this.scene.hasRing('azure') ? 3 : 1;
-    this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * ringRegen * delta / 1000);
+    const energyMul = (scene.buffs && scene.buffs.energyRegen) || 1;
+    this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * ringRegen * energyMul * delta / 1000);
     this.setDepth(this.y + 20);
     this.shadow.setPosition(this.x, this.y + (this.giant ? 30 : 19)).setDepth(this.y + 18);
   }
@@ -604,8 +605,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const px = this.x + Math.cos(aim) * 2;
     const py = this.y + 2 + Math.sin(aim) * 2;
     const tip = this.gun.displayWidth * (1 - this.gun.originX);
-    const fxX = this.x + Math.cos(aim) * (8 + tip);
-    const fxY = this.y + 4 + Math.sin(aim) * (8 + tip);
+    const fxX = this.x + Math.cos(aim) * (10 + tip);
+    const fxY = this.y + 5 + Math.sin(aim) * (10 + tip);
     const spread = w.spread * (buffs.spreadMul || 1);
     const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
     for (let i = 0; i < w.pellets + extra; i++) {
@@ -616,11 +617,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         pierce: w.pierce,
         color: q.color,
         power,
-        burn: w.id === 'flamer' ? FLAMER_BURN : null,
+        texture: w.projectileTexture,
+        scale: w.projectileScale,
+        water: !!w.water,
+        burn: w.burn || (w.id === 'flamer' ? FLAMER_BURN : null),
       });
     }
     this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
-    this.scene.fx.shell(this.x + Math.cos(aim) * 8, this.y + 4 + Math.sin(aim) * 8, aim);
+    this.scene.fx.shell(this.x + Math.cos(aim) * 10, this.y + 5 + Math.sin(aim) * 8, aim);
     this.body.velocity.x -= Math.cos(aim) * (w.pellets > 1 ? 40 : 10);
     this.body.velocity.y -= Math.sin(aim) * (w.pellets > 1 ? 40 : 10);
     this.scene.cameras.main.shake(45, w.pellets > 1 ? 0.0022 : 0.0009);
@@ -642,7 +646,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const buffs = this.scene.buffs || {};
     this.dashUntil = time + BALANCE.dashTime * 1000;
     this.dashReadyAt = time + BALANCE.dashCooldown * 1000 * (buffs.dashCd || 1);
-    this.invulnUntil = Math.max(this.invulnUntil, time + 260);
+    this.invulnUntil = Math.max(this.invulnUntil, time + 260 + (buffs.dashInvuln || 0));
     this.body.setVelocity(Math.cos(ang) * BALANCE.dashSpeed, Math.sin(ang) * BALANCE.dashSpeed);
     this.scene.fx.dash(this.x, this.y, ang);
     Sfx.dash();
@@ -667,7 +671,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.onRingDodge();
       return false;
     }
-    this.hp = Math.max(0, this.hp - amount);
+    const armor = Math.min(0.45, (this.scene.buffs && this.scene.buffs.armor) || 0);
+    this.hp = Math.max(0, this.hp - amount * (1 - armor));
     this.invulnUntil = time + BALANCE.hurtInvuln;
     const ang = Math.atan2(this.y - srcY, this.x - srcX);
     this.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
@@ -685,6 +690,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         return true;
       }
       if (this.scene.tryGhostSave && this.scene.tryGhostSave()) {
+        return true;
+      }
+      if (this.scene.trySecondWind && this.scene.trySecondWind()) {
         return true;
       }
       this.die();
@@ -776,6 +784,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.ghostBurst = 0;
     this.guardAttackAt = 0;
     this.dragonCd = rand(900, 1600);
+    this.angelCd = rand(900, 1600);
 
     this.burnUntil = 0;
     this.burnTickAt = 0;
@@ -822,6 +831,12 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.play('dragonling_fly');
       this.setAlpha(0.06);
       this.shadow.setAlpha(0);
+    } else if (type === 'angel_guard') {
+      this.play('angel_guard_walk');
+    } else if (type === 'cloud_wisp') {
+      this.play('cloud_wisp_float');
+    } else if (type === 'temple_knight') {
+      this.play('temple_knight_walk');
     }
 
     if (type !== 'ghost') {
@@ -994,6 +1009,60 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.updateDemonGuard(time, delta, dist, angTo, p);
     } else if (this.enemyType === 'dragonling') {
       this.updateDragonling(time, delta, dist, angTo, p);
+    } else if (this.enemyType === 'angel_guard') {
+      this.updateAngelGuard(time, delta, dist, angTo, p);
+    } else if (this.enemyType === 'cloud_wisp') {
+      this.orbit += delta * 0.0038;
+      const tx = p.x + Math.cos(this.orbit) * 120;
+      const ty = p.y + Math.sin(this.orbit * 1.3) * 90;
+      const a = Math.atan2(ty - this.y, tx - this.x);
+      this.setVelocity(Math.cos(a) * 182, Math.sin(a) * 182);
+      this.setFlipX(Math.cos(a) < -0.1);
+    } else if (this.enemyType === 'temple_knight') {
+      this.updateTempleKnight(time, dist, angTo, p);
+    }
+  }
+
+  updateAngelGuard(time, delta, dist, angTo, p) {
+    const strafe = angTo + Math.PI / 2 * this.strafe;
+    let vx = Math.cos(strafe) * 52;
+    let vy = Math.sin(strafe) * 52;
+    if (dist > 330) {
+      vx += Math.cos(angTo) * 55;
+      vy += Math.sin(angTo) * 55;
+    } else if (dist < 190) {
+      vx -= Math.cos(angTo) * 70;
+      vy -= Math.sin(angTo) * 70;
+    }
+    this.setVelocity(vx, vy);
+    this.setFlipX(p.x < this.x);
+    this.angelCd -= delta;
+    if (this.angelCd <= 0 && dist < 560) {
+      this.angelCd = rand(1500, 2100);
+      const base = Math.atan2(p.y - this.y, p.x - this.x);
+      for (let i = -1; i <= 1; i++) {
+        this.scene.spawnEnemyOrb(this.x, this.y - 4, base + i * 0.15, Math.round(this.damage * 0.7), {
+          speed: 285, tint: 0xfff2c8,
+        });
+      }
+      this.scene.fx.muzzle(this.x, this.y - 4, base, 0xfff2c8, 2);
+      Sfx.spore();
+    }
+  }
+
+  updateTempleKnight(time, dist, angTo, p) {
+    const sp = 72;
+    this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+    this.setFlipX(p.x < this.x);
+    if (dist < 88 && time >= this.guardAttackAt) {
+      this.guardAttackAt = time + 1250;
+      this.setVelocity(0, 0);
+      p.takeDamage(this.damage, this.x, this.y, this.scene.time.now);
+      const sl = this.scene.add.image(this.x, this.y - 8, 'slash')
+        .setTint(0xffe9a8).setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(720).setScale(0.95).setRotation(angTo);
+      this.scene.tweens.add({ targets: sl, alpha: 0, duration: 160, onComplete: () => sl.destroy() });
+      this.scene.cameras.main.shake(55, 0.0022);
     }
   }
 
