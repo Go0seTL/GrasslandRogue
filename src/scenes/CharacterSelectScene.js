@@ -301,11 +301,13 @@ class CharacterSelectScene extends Phaser.Scene {
     const refresh = () => {
       const lvl = Store.getSkillLevel(def.id);
       const costValue = Store.skillUpgradeCost(def.id);
-      const cur = Math.round(lvl * SKILL_UPGRADE.damagePerLevel * 100);
-      const next = Math.round((lvl + 1) * SKILL_UPGRADE.damagePerLevel * 100);
+      const durationSkill = def.id === 'knight' || def.id === 'frankenstein';
+      const per = durationSkill ? SKILL_UPGRADE.durationPerLevel : SKILL_UPGRADE.damagePerLevel;
+      const cur = Math.round(lvl * per * 100);
+      const next = Math.round((lvl + 1) * per * 100);
       stats.setText(
         `技能等级    Lv.${lvl}\n` +
-        `技能伤害    +${cur}%\n` +
+        `${durationSkill ? '技能持续' : '技能伤害'}    +${cur}%\n` +
         `下一级      +${next}%`
       );
       cost.setText(`升级消耗：${costValue} 金币`);

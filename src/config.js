@@ -48,7 +48,7 @@ const SKILL = {
 // 科学怪人：绿色巨人形态
 const GIANT = {
   duration: 10000,
-  cooldown: 30000,
+  cooldown: 22000,
   damage: 95,
   range: 116,
   arc: 1.45,
@@ -73,6 +73,7 @@ const SKILL_UPGRADE = {
   baseCost: 150,
   costPerLevel: 100,
   damagePerLevel: 0.08,
+  durationPerLevel: 0.06,
 };
 
 // Boss 平衡：血量提高、伤害降低
@@ -106,7 +107,7 @@ const DEMON = {
 
 // 法师：持续 8 秒的跟随朝向激光
 const MAGE_LASER = {
-  duration: 8000,
+  duration: 6500,
   cooldown: 20000,
   length: 780,
   width: 22,
@@ -124,7 +125,10 @@ const RANGER_VOLLEY = { cooldown: 14000, damage: 18, arrowsPerTarget: 4, maxTarg
 // 刺客：瞬身到最近敌人身后并斩击
 const ROGUE_STRIKE = { cooldown: 10000, damage: 85, radius: 82 };
 // 炼金术士：毒瓶，命中后持续中毒
-const ALCHEMIST_FLASK = { cooldown: 16000, damage: 6, dps: 5, duration: 4000, maxTargets: 5 };
+const ALCHEMIST_FLASK = {
+  cooldown: 16000, damage: 6, dps: 5, duration: 4000, maxTargets: 5,
+  poolRadius: 88, poolDuration: 5000, poolTick: 500, poolHeal: 2,
+};
 
 // 吸血鬼：5 秒吸取周围最多 5 个敌人
 const VAMPIRE = {

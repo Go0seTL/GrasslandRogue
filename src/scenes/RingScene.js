@@ -108,6 +108,11 @@ class RingScene extends Phaser.Scene {
   }
 
   action(ring) {
+    if (this.preEndless && ring.id === 'teleport') {
+      Sfx.uiDeny();
+      this.showMsg('无尽模式禁用传送戒指', '#ffd0a0');
+      return;
+    }
     if (!Store.hasRing(ring.id)) {
       if (!Store.craftRing(ring.id)) {
         Sfx.uiDeny();
@@ -152,7 +157,8 @@ class RingScene extends Phaser.Scene {
         g.fillRect(-cw / 2 + 4, -ch / 2 + 2, 3, 3);
       }
       let label;
-      if (equipped) label = '卸 下';
+      if (this.preEndless && ring.id === 'teleport') label = '无尽禁用';
+      else if (equipped) label = '卸 下';
       else if (owned) label = '装 备';
       else if (have >= ring.fragReq) label = '合 成';
       else label = '碎片不足';

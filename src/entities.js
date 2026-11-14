@@ -35,6 +35,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.giant = false;
     this.networkGuest = false;
     this.networkWeapon = null;
+    this.shieldHp = 0;
+    this.shieldMax = 0;
+    this.shieldUntil = 0;
+    this.shieldAura = null;
     this.axeChanneling = false;
     this.axeChanneled = false;
     this.axeChannelStart = 0;
@@ -85,6 +89,42 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.shadow.setScale(this.giant ? base * 1.7 : base);
     }
     if (this.backSword) this.backSword.setScale(base);
+  }
+
+  addShield(amount, duration) {
+    this.shieldMax = Math.max(this.shieldMax || 0, Math.round(amount));
+    this.shieldHp = this.shieldMax;
+    this.shieldUntil = this.scene.time.now + duration;
+    if (!this.shieldAura) {
+      this.shieldAura = this.scene.add.image(this.x, this.y, 'ring')
+        .setTint(0x7dffb0).setScale(1.25).setAlpha(0.55)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(this.y - 2);
+    }
+    this.scene.fx.ring(this.x, this.y, 0x7dffb0, 0.2, 2.0, 500, 0.9, 738);
+  }
+
+  clearShield() {
+    this.shieldHp = 0;
+    this.shieldMax = 0;
+    this.shieldUntil = 0;
+    if (this.shieldAura) {
+      const aura = this.shieldAura;
+      this.shieldAura = null;
+      this.scene.tweens.add({ targets: aura, alpha: 0, scale: 1.8, duration: 220, onComplete: () => aura.destroy() });
+    }
+  }
+
+  updateShield(time) {
+    if (this.shieldHp <= 0 || time >= this.shieldUntil) {
+      if (this.shieldHp > 0) this.clearShield();
+      return;
+    }
+    if (this.shieldAura && this.shieldAura.active) {
+      this.shieldAura.setPosition(this.x, this.y)
+        .setDepth(this.y - 2)
+        .setScale(1.2 + Math.sin(time * 0.01) * 0.1)
+        .setAlpha(0.35 + (this.shieldHp / Math.max(1, this.shieldMax)) * 0.25);
+    }
   }
 
   isDemonActive() {
@@ -362,6 +402,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
+    this.updateShield(time);
     const ringRegen = this.scene.hasRing && this.scene.hasRing('azure') ? 3 : 1;
     const energyMul = (scene.buffs && scene.buffs.energyRegen) || 1;
     this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * ringRegen * energyMul * delta / 1000);
@@ -696,6 +737,17 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (buffs.lastStand > 0 && this.hp < this.maxHp * 0.4) {
       incoming *= (1 - buffs.lastStand);
     }
+    if (this.shieldHp > 0 && time < this.shieldUntil) {
+      const absorbed = Math.min(this.shieldHp, incoming);
+      this.shieldHp -= absorbed;
+      incoming -= absorbed;
+      this.scene.fx.ring(this.x, this.y, 0x7dffb0, 0.2, 1.4, 240, 0.8, 736);
+      if (this.shieldHp <= 0) this.clearShield();
+      if (incoming <= 0.01) {
+        this.invulnUntil = Math.max(this.invulnUntil, time + 300);
+        return true;
+      }
+    }
     this.hp = Math.max(0, this.hp - incoming);
     this.invulnUntil = time + BALANCE.hurtInvuln;
     const ang = Math.atan2(this.y - srcY, this.x - srcX);
@@ -739,6 +791,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   die() {
     if (this.isDead) return;
     this.isDead = true;
+    this.clearShield();
     this.cancelCharge();
     this.body.setVelocity(0, 0);
     this.body.enable = false;
@@ -815,6 +868,12 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.burnDps = 0;
     this.burnEmitter = null;
     this.burnGlow = null;
+    this.poisonUntil = 0;
+    this.poisonTickAt = 0;
+    this.poisonDps = 0;
+    this.poisonEmitter = null;
+    this.poisonIcon = null;
+    this.poisonRing = null;
 
     if (elite) {
       this.setScale(1.3);
@@ -969,6 +1028,98 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
         duration: 180,
         onComplete: () => glow.destroy(),
       });
+    }
+  }
+
+  applyPoison(duration, dps) {
+    if (this.dying || !this.active) return;
+    const now = this.scene.time.now;
+    this.poisonUntil = Math.max(this.poisonUntil || 0, now + duration);
+    this.poisonDps = Math.max(this.poisonDps || 0, dps);
+    if (!this.poisonTickAt) this.poisonTickAt = now + 420;
+    if (!this.poisonEmitter) {
+      this.poisonEmitter = this.scene.add.particles(0, 0, 'spark', {
+        lifespan: { min: 420, max: 820 },
+        speed: { min: 8, max: 40 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.8, end: 0 },
+        alpha: { start: 0.55, end: 0 },
+        tint: [0x7ad9a0, 0x3a9a5a, 0xb8ffd0],
+        frequency: 90,
+        quantity: 1,
+        blendMode: 'ADD',
+      }).setDepth(810);
+      this.poisonEmitter.startFollow(this, 0, -10);
+    }
+    if (!this.poisonIcon) {
+      const scale = this.isBoss ? 0.75 : 0.34;
+      this.poisonIcon = this.scene.add.image(this.x, this.y - 52, 'skull')
+        .setTint(0x7ad9a0).setScale(scale).setAlpha(0.9).setDepth(812);
+    }
+    if (!this.poisonRing) {
+      const scale = this.isBoss ? 1.1 : 0.42;
+      this.poisonRing = this.scene.add.image(this.x, this.y - 52, 'ring')
+        .setTint(0x7ad9a0).setScale(scale).setAlpha(0.5)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(811);
+    }
+  }
+
+  updatePoison(time) {
+    if (!this.poisonUntil) return;
+    if (time >= this.poisonUntil) {
+      this.clearPoison();
+      return;
+    }
+    const iconY = this.y - (this.isBoss ? 76 : 52);
+    if (this.poisonEmitter) this.poisonEmitter.setDepth(this.y + this.def.depthY + 4);
+    if (this.poisonIcon && this.poisonIcon.active) {
+      this.poisonIcon.setPosition(this.x, iconY + Math.sin(time * 0.006) * 3)
+        .setDepth(this.y + this.def.depthY + 6);
+    }
+    if (this.poisonRing && this.poisonRing.active) {
+      this.poisonRing.setPosition(this.x, iconY)
+        .setRotation(this.poisonRing.rotation + 0.06)
+        .setAlpha(0.35 + Math.sin(time * 0.008) * 0.15)
+        .setDepth(this.y + this.def.depthY + 5);
+    }
+    if (time >= this.poisonTickAt) {
+      this.poisonTickAt = time + 500;
+      const dmg = Math.max(1, Math.round((this.poisonDps || 4) * 0.5));
+      if (this.enemyType === 'ghost') {
+        this.ghostRevealUntil = time + 3000;
+        this.ghostVisible = true;
+      }
+      this.hp -= dmg;
+      this.setTint(0x8ff0b0);
+      this.scene.time.delayedCall(90, () => {
+        if (this.active && !this.dying) this.clearTint();
+      });
+      if (this.hp <= 0) {
+        this.clearPoison();
+        this.die();
+      }
+    }
+  }
+
+  clearPoison() {
+    this.poisonUntil = 0;
+    this.poisonTickAt = 0;
+    this.poisonDps = 0;
+    if (this.poisonEmitter) {
+      this.poisonEmitter.stop();
+      const emitter = this.poisonEmitter;
+      this.poisonEmitter = null;
+      this.scene.tweens.add({ targets: emitter, alpha: 0, duration: 200, onComplete: () => emitter.destroy() });
+    }
+    if (this.poisonIcon) {
+      const icon = this.poisonIcon;
+      this.poisonIcon = null;
+      this.scene.tweens.add({ targets: icon, alpha: 0, duration: 180, onComplete: () => icon.destroy() });
+    }
+    if (this.poisonRing) {
+      const ring = this.poisonRing;
+      this.poisonRing = null;
+      this.scene.tweens.add({ targets: ring, alpha: 0, duration: 180, onComplete: () => ring.destroy() });
     }
   }
 
@@ -1408,6 +1559,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dying = true;
     this.active = false;
     this.clearBurn();
+    this.clearPoison();
     this.clearGoatFx();
     if (this.body) this.body.enable = false;
     if (this.aura) this.aura.stop();
@@ -1427,6 +1579,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   destroy(fromScene) {
     this.clearBurn();
+    this.clearPoison();
     this.clearGoatFx();
     if (this.shadow && this.shadow.active) this.shadow.destroy();
     if (this.bow && this.bow.active) this.bow.destroy();

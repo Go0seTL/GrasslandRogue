@@ -41,6 +41,7 @@ class GuestScene extends Phaser.Scene {
       scale: { start: 1.0, end: 0 }, alpha: { start: 1, end: 0 },
       blendMode: 'ADD', emitting: false,
     }).setDepth(820);
+    this.poisonG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
     this.goo = this.add.particles(0, 0, 'spark', {
       lifespan: { min: 220, max: 520 }, speed: { min: 50, max: 190 },
       gravityY: 360, scale: { start: 0.9, end: 0 }, alpha: { start: 1, end: 0 },
@@ -470,6 +471,15 @@ class GuestScene extends Phaser.Scene {
       this.portalA.setVisible(false);
       this.portalB.setVisible(false);
     }
+    if (this.poisonG) {
+      this.poisonG.clear();
+      (d.pools || []).forEach((p) => {
+        this.poisonG.fillStyle(0x3a9a5a, 0.16);
+        this.poisonG.fillCircle(p.x, p.y, p.r);
+        this.poisonG.lineStyle(2, 0x7ad9a0, 0.6);
+        this.poisonG.strokeCircle(p.x, p.y, p.r);
+      });
+    }
     this.updateHud(d);
     if (d.fx && d.fx.length) this.playFx(d.fx);
   }
@@ -542,7 +552,9 @@ class GuestScene extends Phaser.Scene {
       if (!entry) {
         const tex = this.textures.exists(d.tex) ? d.tex : 'slime_0';
         const sprite = this.add.sprite(d.x, d.y, tex).setDepth(500);
-        entry = { sprite, id: d.id };
+        const poisonIcon = this.add.image(d.x, d.y - 42, 'skull').setTint(0x7ad9a0)
+          .setScale(d.boss ? 0.55 : 0.24).setDepth(831).setVisible(false);
+        entry = { sprite, poisonIcon, id: d.id };
         this.enemyMap.set(d.id, entry);
       }
       const s = entry.sprite;
@@ -557,9 +569,15 @@ class GuestScene extends Phaser.Scene {
       s.setFlipX(!!d.flip);
       s.setAlpha(d.alpha == null ? 1 : d.alpha);
       s.setDepth(500 + Math.floor(d.y));
-      if (d.boss) s.setTint(0xfff2c8);
-      else if (d.elite) s.setTint(0xffd76a);
-      else if (s.isTinted) s.clearTint();
+      if (d.poison) {
+        s.setTint(0x9ff0b0);
+        entry.poisonIcon.setVisible(true).setPosition(d.x, d.y - (d.boss ? 74 : 42));
+      } else {
+        entry.poisonIcon.setVisible(false);
+        if (d.boss) s.setTint(0xfff2c8);
+        else if (d.elite) s.setTint(0xffd76a);
+        else if (s.isTinted) s.clearTint();
+      }
       entry.meta = d;
     });
     this.enemyMap.forEach((entry, id) => {
@@ -722,7 +740,13 @@ class GuestScene extends Phaser.Scene {
     this.enemyMap.forEach((entry) => {
       lerp(entry.sprite, entry.sprite.tx, entry.sprite.ty, 0.4);
       entry.sprite.setDepth(500 + Math.floor(entry.sprite.y));
+      if (entry.poisonIcon && entry.poisonIcon.visible) {
+        entry.poisonIcon.setPosition(entry.sprite.x, entry.sprite.y - (entry.meta && entry.meta.boss ? 74 : 42));
+      }
     });
+    if (this.poisonG && this.poisonG.active) {
+      this.poisonG.setAlpha(0.75 + Math.sin(time * 0.006) * 0.2);
+    }
     // 子弹/掉落物按速度在两次快照之间平滑移动，避免 30Hz 的跳格感
     const advance = (pool) => {
       pool.forEach((img) => {

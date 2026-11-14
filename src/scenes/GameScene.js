@@ -32,6 +32,7 @@ class GameScene extends Phaser.Scene {
     };
     this.nextGuestStateReal = 0;
     this.guestFx = [];
+    this.poisonPools = [];
     this.netIdSeq = 0;
     this.netIds = new WeakMap();
     this.hostDowned = false;
@@ -110,6 +111,7 @@ class GameScene extends Phaser.Scene {
         if (typeof v === 'number' && isFinite(v)) this.buffs[key] = v;
       });
     }
+    if (this.endless && Store.data.equippedRing === 'teleport') Store.unequipRing();
     this.charLevel = Store.getCharLevel(this.characterId);
     if (!cp) {
       this.buffs.damage *= 1 + this.charLevel * CHAR_UPGRADE.damagePerLevel;
@@ -1111,6 +1113,7 @@ class GameScene extends Phaser.Scene {
   }
 
   clearRoomObjects() {
+    this.clearPoisonPools();
     this.enemies.getChildren().slice().forEach((e) => {
       if (e.active) e.destroy();
     });
@@ -2357,7 +2360,8 @@ class GameScene extends Phaser.Scene {
         alpha: round(e.alpha == null ? 1 : e.alpha),
         elite: !!e.isElite,
         boss: !!e.isBoss,
-        name: e.bossName || (e.def && e.def.name) || '',
+        poison: (e.poisonUntil || 0) > time,
+        name: e.bossName || (e.def && e.def.name) || '', 
       });
     });
     const playerData = (pl) => ({
@@ -2415,6 +2419,7 @@ class GameScene extends Phaser.Scene {
       pb: this.playerBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),
       coins, hpacks, epacks, frags,
       portal: this.portal ? { x: round(this.portal.x), y: round(this.portal.y), armed: !!this.portal.armed } : null,
+      pools: this.poisonPools.map((p) => ({ x: round(p.x), y: round(p.y), r: Math.round(p.r) })),
     });
   }
 
@@ -2545,8 +2550,8 @@ class GameScene extends Phaser.Scene {
         .setAlpha(0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(g.y - 2);
       this.hud.toastQueue.push('玩家2：生命汲取');
     } else if (type === 'knight') {
-      g.invulnUntil = Math.max(g.invulnUntil, now + 4000);
-      skill.activeUntil = now + 4000;
+      g.invulnUntil = Math.max(g.invulnUntil, now + 4000 * (1 + this.guestSkillLevel * SKILL_UPGRADE.durationPerLevel));
+      skill.activeUntil = now + 4000 * (1 + this.guestSkillLevel * SKILL_UPGRADE.durationPerLevel);
       skill.aura = this.add.image(g.x, g.y, 'ring').setTint(color).setScale(1.5)
         .setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(g.y - 2);
       this.hud.toastQueue.push('玩家2：圣盾 · 4 秒无敌');
@@ -2578,32 +2583,42 @@ class GameScene extends Phaser.Scene {
         const by = clamp(target.y + Math.sin(a) * 58, ARENA.top + 24, ARENA.bottom - 24);
         g.body.reset(bx, by);
         g.aimAngle = a + Math.PI;
+        let executed = false;
         this.enemies.getChildren().forEach((e) => {
           if (e.active && !e.dying && dist2(e.x, e.y, target.x, target.y) < 82 * 82) {
-            e.takeDamage(dmg, a);
+            if (e.hp <= e.maxHp * 0.2) {
+              e.takeDamage(e.hp + 999999, a);
+              executed = true;
+            } else {
+              e.takeDamage(dmg, a);
+            }
             this.markGuestHit(e.x, e.y, 0xff4a6a);
           }
         });
+        if (executed) {
+          this.guestSkill.cooldownUntil = now;
+          this.hud.toastQueue.push('玩家2：斩杀成功，技能冷却重置');
+        }
         this.fx.ring(target.x, target.y, 0xff4a6a, 0.2, 2.0, 420, 0.9, 744);
       }
       g.invulnUntil = Math.max(g.invulnUntil, now + 1200);
       skill.activeUntil = now + 700;
       this.hud.toastQueue.push('玩家2：影袭');
     } else if (type === 'alchemist') {
-      const dmg = this.guestSkillDamage(6);
       const dps = this.guestSkillDamage(5);
       const targets = this.guestSkillTargets(5);
-      const toss = (a) => {
-        this.spawnPlayerBullet(g.x, g.y - 2, a, dmg, {
-          speed: 430, tint: 0x7ad9a0, pierce: 0, color: 0x7ad9a0, power: 3,
-          texture: 'orb', scale: 0.95,
-          burn: { duration: ALCHEMIST_FLASK.duration, dps },
-        });
-      };
-      if (targets.length) targets.forEach((e) => toss(Math.atan2(e.y - g.y, e.x - g.x)));
-      else for (let i = 0; i < 8; i++) toss((i / 8) * Math.PI * 2);
+      if (targets.length) {
+        targets.forEach((e) => this.throwPoisonFlask(g.x, g.y - 2, e.x, e.y, dps));
+      } else {
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          this.throwPoisonFlask(g.x, g.y - 2,
+            clamp(g.x + Math.cos(a) * 130, ARENA.left + 30, ARENA.right - 30),
+            clamp(g.y + Math.sin(a) * 110, ARENA.top + 30, ARENA.bottom - 30), dps);
+        }
+      }
       skill.activeUntil = now + 700;
-      this.hud.toastQueue.push('玩家2：毒瓶');
+      this.hud.toastQueue.push('玩家2：毒瓶毒圈');
     }
     this.fx.ring(g.x, g.y, color, 0.18, 1.8, 420, 0.85, 743);
     this.cameras.main.shake(80, 0.002);
@@ -3321,6 +3336,10 @@ class GameScene extends Phaser.Scene {
     return 1 + Store.getSkillLevel(this.characterId) * SKILL_UPGRADE.damagePerLevel;
   }
 
+  skillDurationMul() {
+    return 1 + Store.getSkillLevel(this.characterId) * SKILL_UPGRADE.durationPerLevel;
+  }
+
   // 技能伤害不吃角色等级，只吃「技能升级」和局内强化
   skillDamageMul() {
     return ((this.buffs.damage || 1) / this.charDamageMul()) * this.skillUpgradeMul();
@@ -3346,6 +3365,17 @@ class GameScene extends Phaser.Scene {
     this.secondaryId = owned[0] || null;
     this.secondaryWeapon = this.secondaryId ? WEAPONS[this.secondaryId] : null;
     if (this.player) this.player.secondaryNextShotAt = 0;
+  }
+
+  setSecondaryWeapon(id) {
+    const w = WEAPONS[id];
+    if (!w || !this.dualWield || id === this.weaponId) return false;
+    this.secondaryId = id;
+    this.secondaryWeapon = w;
+    if (this.player) this.player.secondaryNextShotAt = 0;
+    this.hud.toastQueue.push(`副手武器：${w.name}`);
+    this.saveCheckpoint();
+    return true;
   }
 
   openUpgrade(isStart) {
@@ -3741,18 +3771,20 @@ class GameScene extends Phaser.Scene {
   activateGiantSkill() {
     const s = this.skill;
     const now = this.time.now;
+    const giantDuration = GIANT.duration * this.skillDurationMul();
     s.type = 'giant';
     s.active = true;
-    s.endsAt = now + GIANT.duration;
+    s.endsAt = now + giantDuration;
     s.cooldown = GIANT.cooldown * (this.buffs.skillCd || 1);
     s.cooldownUntil = now + s.cooldown;
-    s.duration = GIANT.duration;
+    s.duration = giantDuration;
     s.targets = [];
     s.locks = [];
     s.swords = [];
     s.aimTarget = null;
     s.lastSound = 0;
     this.player.setGiantForm(true);
+    this.player.addShield(150, giantDuration);
     this.giantAura = this.add.image(this.player.x, this.player.y + 8, 'glow')
       .setTint(0x7dff5a).setScale(2.1).setAlpha(0.22)
       .setBlendMode(Phaser.BlendModes.ADD)
@@ -3762,7 +3794,7 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.shake(240, 0.007);
     Sfx.skillStart();
     Sfx.giantPunch();
-    this.hud.toastQueue.push('科学怪人：巨型化！10 秒内用绿色铁拳锤击敌人');
+    this.hud.toastQueue.push(`科学怪人：巨型化！${Math.round(giantDuration / 1000)} 秒内用绿色铁拳锤击敌人`);
   }
 
   activateMageSkill() {
@@ -3884,10 +3916,10 @@ class GameScene extends Phaser.Scene {
     const now = this.time.now;
     s.type = 'knight';
     s.active = true;
-    s.endsAt = now + KNIGHT_SHIELD.duration;
+    s.endsAt = now + KNIGHT_SHIELD.duration * this.skillDurationMul();
     s.cooldown = KNIGHT_SHIELD.cooldown * (this.buffs.skillCd || 1);
     s.cooldownUntil = now + s.cooldown;
-    s.duration = KNIGHT_SHIELD.duration;
+    s.duration = KNIGHT_SHIELD.duration * this.skillDurationMul();
     s.targets = [];
     s.locks = [];
     s.swords = [];
@@ -3986,14 +4018,25 @@ class GameScene extends Phaser.Scene {
       this.player.body.reset(bx, by);
       this.player.aimAngle = ang + Math.PI;
       this.player.invulnUntil = Math.max(this.player.invulnUntil, now + 1200);
+      let executed = false;
       this.enemies.getChildren().forEach((e) => {
         if (!e.active || e.dying) return;
         if (dist2(e.x, e.y, target.x, target.y) <= ROGUE_STRIKE.radius * ROGUE_STRIKE.radius) {
-          e.takeDamage(dmg, ang);
+          if (e.hp <= e.maxHp * 0.2) {
+            e.takeDamage(e.hp + 999999, ang);
+            executed = true;
+          } else {
+            e.takeDamage(dmg, ang);
+          }
           this.fx.hitSpark(e.x, e.y);
         }
       });
       this.fx.ring(target.x, target.y, 0xff4a6a, 0.2, 2.0, 420, 0.9, 742);
+      if (executed) {
+        s.cooldownUntil = now;
+        s.cooldown = 0;
+        this.hud.toastQueue.push('刺客斩杀成功！技能冷却立即重置');
+      }
     } else {
       const ang = this.player.aimAngle || 0;
       const bx = clamp(this.player.x + Math.cos(ang) * 150, ARENA.left + 24, ARENA.right - 24);
@@ -4019,23 +4062,113 @@ class GameScene extends Phaser.Scene {
     s.targets = this.nearestEnemies(ALCHEMIST_FLASK.maxTargets);
     s.locks = [];
     s.swords = [];
-    const dmg = Math.round(ALCHEMIST_FLASK.damage * this.skillDamageMul());
     const dps = Math.round(ALCHEMIST_FLASK.dps * this.skillDamageMul());
-    const throwFlask = (angle) => {
-      this.spawnPlayerBullet(this.player.x, this.player.y - 2, angle, dmg, {
-        speed: 430, tint: 0x7ad9a0, pierce: 0, color: 0x7ad9a0, power: 3,
-        texture: 'orb', scale: 0.95,
-        burn: { duration: ALCHEMIST_FLASK.duration, dps },
-      });
+    const throwAt = (tx, ty) => {
+      this.throwPoisonFlask(this.player.x, this.player.y - 2, tx, ty, dps);
     };
     if (s.targets.length > 0) {
-      s.targets.forEach((e) => throwFlask(Math.atan2(e.y - this.player.y, e.x - this.player.x)));
+      s.targets.forEach((e) => throwAt(e.x, e.y));
     } else {
-      for (let i = 0; i < 8; i++) throwFlask((i / 8) * Math.PI * 2);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        throwAt(
+          clamp(this.player.x + Math.cos(a) * 130, ARENA.left + 30, ARENA.right - 30),
+          clamp(this.player.y + Math.sin(a) * 110, ARENA.top + 30, ARENA.bottom - 30)
+        );
+      }
     }
     this.fx.ring(this.player.x, this.player.y, 0x7ad9a0, 0.18, 1.5, 360, 0.85, 738);
     Sfx.spore();
-    this.hud.toastQueue.push('炼金术士：毒瓶命中后会持续中毒');
+    this.hud.toastQueue.push('炼金术士：毒瓶落地形成毒圈，友军站进去回血');
+  }
+
+  throwPoisonFlask(fromX, fromY, tx, ty, dps) {
+    const flask = this.add.image(fromX, fromY, 'orb').setTint(0x7ad9a0)
+      .setScale(1.05).setDepth(818).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: flask,
+      x: tx, y: ty - 4,
+      scale: 0.85, duration: 300, ease: 'Quad.Out',
+      onComplete: () => {
+        const lx = flask.x;
+        const ly = flask.y;
+        flask.destroy();
+        this.createPoisonPool(lx, ly, dps);
+      },
+    });
+  }
+
+  createPoisonPool(x, y, dps) {
+    const now = this.time.now;
+    if (this.poisonPools.length >= 10) {
+      const old = this.poisonPools.shift();
+      this.destroyPoisonPool(old);
+    }
+    const r = ALCHEMIST_FLASK.poolRadius;
+    const disc = this.add.circle(x, y, r, 0x3a9a5a, 0.16)
+      .setDepth(3).setStrokeStyle(2, 0x7ad9a0, 0.55);
+    const ring = this.add.image(x, y, 'ring').setTint(0x7ad9a0)
+      .setScale(r / 48).setAlpha(0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(4);
+    const emitter = this.add.particles(x, y, 'spark', {
+      lifespan: { min: 500, max: 900 },
+      speed: { min: 5, max: 26 },
+      scale: { start: 0.65, end: 0 },
+      alpha: { start: 0.45, end: 0 },
+      tint: [0x7ad9a0, 0x3a9a5a, 0xb8ffd0],
+      frequency: 150,
+      quantity: 1,
+      blendMode: 'ADD',
+    }).setDepth(5);
+    const pool = {
+      x, y, r, dps, disc, ring, emitter,
+      expiresAt: now + ALCHEMIST_FLASK.poolDuration,
+      nextTick: now + 250,
+    };
+    this.poisonPools.push(pool);
+    this.fx.ring(x, y, 0x7ad9a0, 0.12, 1.1, 300, 0.7, 738);
+  }
+
+  updatePoisonPools(time) {
+    if (!this.poisonPools.length) return;
+    for (let i = this.poisonPools.length - 1; i >= 0; i--) {
+      const pool = this.poisonPools[i];
+      if (time >= pool.expiresAt) {
+        this.destroyPoisonPool(pool);
+        this.poisonPools.splice(i, 1);
+        continue;
+      }
+      if (pool.ring.active) {
+        pool.ring.setAlpha(0.35 + Math.sin(time * 0.01) * 0.15)
+          .setRotation(pool.ring.rotation + 0.01);
+      }
+      if (time >= pool.nextTick) {
+        pool.nextTick = time + ALCHEMIST_FLASK.poolTick;
+        this.enemies.getChildren().forEach((e) => {
+          if (e.active && !e.dying && dist2(e.x, e.y, pool.x, pool.y) <= pool.r * pool.r) {
+            if (e.applyPoison) e.applyPoison(1300, pool.dps);
+          }
+        });
+        if (this.player && !this.player.isDead && dist2(this.player.x, this.player.y, pool.x, pool.y) <= pool.r * pool.r) {
+          this.player.heal(ALCHEMIST_FLASK.poolHeal);
+        }
+        if (this.player2 && !this.player2.isDead && dist2(this.player2.x, this.player2.y, pool.x, pool.y) <= pool.r * pool.r) {
+          this.player2.hp = Math.min(this.player2.maxHp, this.player2.hp + ALCHEMIST_FLASK.poolHeal);
+        }
+      }
+    }
+  }
+
+  destroyPoisonPool(pool) {
+    if (!pool) return;
+    ['disc', 'ring', 'emitter'].forEach((key) => {
+      const obj = pool[key];
+      if (obj && obj.active) obj.destroy();
+    });
+  }
+
+  clearPoisonPools() {
+    this.poisonPools.forEach((p) => this.destroyPoisonPool(p));
+    this.poisonPools = [];
   }
 
   activateGunnerSkill() {
@@ -4607,6 +4740,7 @@ class GameScene extends Phaser.Scene {
     s.swords = [];
     if (s.type === 'giant' && this.player && this.player.setGiantForm) {
       this.player.setGiantForm(false);
+      this.player.clearShield();
       this.clearGiantAura();
     }
     if (s.type === 'guitar') this.clearGuitarSkill();
@@ -4695,6 +4829,7 @@ class GameScene extends Phaser.Scene {
     s.aimTarget = null;
     if (wasType === 'giant' && this.player && this.player.setGiantForm) {
       this.player.setGiantForm(false);
+      this.player.clearShield();
       this.clearGiantAura();
     }
     if (wasType === 'guitar') this.clearGuitarSkill();
@@ -5189,12 +5324,14 @@ class GameScene extends Phaser.Scene {
     this.updateGhost(time);
     this.updateMercenary(time, delta);
     this.updateMerchant(time);
+    this.updatePoisonPools(time);
     this.updateTouchUI();
 
     const aiDelta = this.endless ? delta * (this.endlessAtkMul || 1) : delta;
     this.enemies.getChildren().forEach((e) => {
       if (!e.active || e.dying) return;
       if (e.updateBurn) e.updateBurn(time);
+      if (e.updatePoison) e.updatePoison(time);
       if (e.active && !e.dying && e.updateAI) e.updateAI(time, aiDelta);
     });
 

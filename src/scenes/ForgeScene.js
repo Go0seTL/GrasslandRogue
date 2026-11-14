@@ -132,7 +132,15 @@ class ForgeScene extends Phaser.Scene {
     });
     c.add(btn);
 
-    const row = { w, q, c, g, bar, progress, btn };
+    let subBtn = null;
+    if (this.fromGame) {
+      subBtn = UI.button(this, 122, -17, 80, 16, '副武器', () => this.setSecondary(w), {
+        fontSize: 8, variant: 'ghost',
+      });
+      c.add(subBtn);
+    }
+
+    const row = { w, q, c, g, bar, progress, btn, subBtn };
     this.rows.push(row);
   }
 
@@ -211,7 +219,32 @@ class ForgeScene extends Phaser.Scene {
       else label = '碎片不足';
       const text = btn.list[1];
       if (text) text.setText(label);
+      if (row.subBtn) {
+        const active = gameActive && this.gameScene.dualWield
+          && owned && this.gameScene.weaponId !== w.id;
+        row.subBtn.setVisible(active);
+        if (active && row.subBtn.list[1]) {
+          const isSecondary = this.gameScene.secondaryId === w.id;
+          row.subBtn.list[1].setText(isSecondary ? '副手中' : '副武器');
+        }
+      }
     });
+  }
+
+  setSecondary(w) {
+    if (!this.fromGame || !this.gameScene || !this.gameScene.dualWield) {
+      Sfx.uiDeny();
+      this.toast.show('需要先获得「双持大师」强化', '#ffd0a0');
+      return;
+    }
+    if (this.gameScene.setSecondaryWeapon(w.id)) {
+      Sfx.unlock();
+      this.toast.show(`副手已换成「${w.name}」`, '#9ff0a8');
+      this.refreshRows();
+    } else {
+      Sfx.uiDeny();
+      this.toast.show('不能把主武器设为副手', '#ffd0a0');
+    }
   }
 
   close() {
