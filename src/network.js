@@ -21,6 +21,9 @@ const Net = {
   onState: null,
   onWait: null,
   onGameOver: null,
+  onUpgradeOffer: null,
+  onUpgradeClose: null,
+  onUpgradeMsg: null,
 
   peerIdFor(code) {
     return `leshen-gunner-${code}`;
@@ -108,6 +111,9 @@ const Net = {
       else if (data.t === 'state' && this.onState) this.onState(data);
       else if (data.t === 'wait' && this.onWait) this.onWait(data.text || '房主正在操作');
       else if (data.t === 'gameover' && this.onGameOver) this.onGameOver(data.data || {});
+      else if (data.t === 'upgrade_offer' && this.onUpgradeOffer) this.onUpgradeOffer(data);
+      else if (data.t === 'upgrade_close' && this.onUpgradeClose) this.onUpgradeClose();
+      else if (data.t === 'upgrade_msg' && this.onUpgradeMsg) this.onUpgradeMsg(data.text || '');
       else if (data.t === 'ended' && this.onEnded) this.onEnded(data.reason || '房主结束了游戏');
     }
   },

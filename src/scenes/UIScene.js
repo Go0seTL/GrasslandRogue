@@ -127,7 +127,7 @@ class UIScene extends Phaser.Scene {
       knight: 'ring_icon', ranger: 'bow', rogue: 'sword', alchemist: 'orb',
     }[this.characterId] || 'flame_icon';
     this.skillG = this.add.graphics().setDepth(3000);
-    this.skillIcon = this.add.image(806, 410, skillIconKey).setDepth(3001);
+    this.skillIcon = this.add.image(784, 404, skillIconKey).setDepth(3001);
     if (isSword || this.characterId === 'rogue') {
       this.skillIcon.setScale(0.6).setRotation(-0.7);
     } else if (this.characterId === 'ranger') {
@@ -138,13 +138,13 @@ class UIScene extends Phaser.Scene {
     } else {
       this.skillIcon.setScale(0.82);
     }
-    this.skillState = this.add.text(806, 372, 'E · 技能', UI.textStyle(11, {
+    this.skillState = this.add.text(784, 348, 'E · 技能', UI.textStyle(12, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
-    this.skillCostText = this.add.text(806, 441, isDemon ? '随机失血' : `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
+    this.skillCostText = this.add.text(784, 447, isDemon ? '随机失血' : `${BALANCE.skillEnergyCost} 能量`, UI.textStyle(8, {
       color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001);
-    this.skillHit = this.add.rectangle(806, 410, 78, 78, 0x000000, 0)
+    this.skillHit = this.add.rectangle(784, 404, 100, 100, 0x000000, 0)
       .setDepth(3002)
       .setInteractive({ useHandCursor: true });
     this.skillHit.on('pointerup', () => {
@@ -155,17 +155,17 @@ class UIScene extends Phaser.Scene {
     // 手机手动射击按钮：技能按钮右侧，电脑端默认隐藏
     this.fireG = this.add.graphics().setDepth(3000).setVisible(false);
     this.fireG.fillStyle(0x1a0e0a, 0.72);
-    this.fireG.fillCircle(884, 410, 30);
+    this.fireG.fillCircle(892, 420, 40);
     this.fireG.lineStyle(3, 0xff7a3a, 0.95);
-    this.fireG.strokeCircle(884, 410, 30);
+    this.fireG.strokeCircle(892, 420, 40);
     this.fireG.lineStyle(1, 0xffd76a, 0.8);
-    this.fireG.strokeCircle(884, 410, 35);
-    this.fireIcon = this.add.image(884, 410, 'gun')
-      .setScale(1.0).setRotation(-0.18).setDepth(3001).setVisible(false);
-    this.fireLabel = this.add.text(884, 372, '射击', UI.textStyle(11, {
+    this.fireG.strokeCircle(892, 420, 45);
+    this.fireIcon = this.add.image(892, 420, 'gun')
+      .setScale(1.15).setRotation(-0.18).setDepth(3001).setVisible(false);
+    this.fireLabel = this.add.text(892, 366, '射击', UI.textStyle(12, {
       color: '#ffd0a0', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(3001).setVisible(false);
-    this.fireHit = this.add.rectangle(884, 410, 78, 78, 0x000000, 0)
+    this.fireHit = this.add.rectangle(892, 420, 100, 100, 0x000000, 0)
       .setDepth(3002)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
@@ -182,7 +182,7 @@ class UIScene extends Phaser.Scene {
     this.input.on('pointerupoutside', releaseFire);
 
     // 切枪按钮
-    this.switchBtn = UI.button(this, 728, 410, 58, 34, '切枪', () => {
+    this.switchBtn = UI.button(this, 700, 436, 70, 40, '切枪', () => {
       const game = this.hudSource;
       if (game) game.switchWeapon();
     }, { variant: 'ghost', fontSize: 12 }).setDepth(3001);
@@ -523,7 +523,7 @@ class UIScene extends Phaser.Scene {
     const s = game.skill;
     if (!s) return;
     const now = game.time.now;
-    const x = 806, y = 410, r = 30;
+    const x = 784, y = 404, r = 50;
     let state = 'ready';
     let pct = 1;
     if (s.active) {
@@ -562,8 +562,8 @@ class UIScene extends Phaser.Scene {
     this.skillIcon.setAlpha(state === 'cool' ? 0.42 : 1);
     this.skillIcon.setTint(state === 'ready' ? 0xffffff : (state === 'active' ? 0xffe08a : 0x8f9a84));
     this.skillIcon.setScale(state === 'active'
-      ? baseScale * (1.1 + Math.sin(now * 0.02) * 0.1)
-      : baseScale);
+      ? baseScale * 1.15 * (1.1 + Math.sin(now * 0.02) * 0.1)
+      : baseScale * 1.15);
     const activeLabel = this.skillCharacter === 'swordsman' ? '剑阵中'
       : (this.skillCharacter === 'frankenstein' ? '巨人中'
         : (this.skillCharacter === 'mage' ? '激光中'

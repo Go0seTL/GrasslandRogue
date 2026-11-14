@@ -72,6 +72,11 @@ class GuestScene extends Phaser.Scene {
     }).setDepth(820);
     this.poisonG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
     this.stickG = this.add.graphics().setDepth(840).setScrollFactor(0);
+    this.dashG = this.add.graphics().setDepth(840).setScrollFactor(0);
+    this.dashReadyLocal = 0;
+    this.dashLabel = this.add.text(700, 370, '闪', UI.textStyle(22, {
+      color: '#fff1c8', strokeThickness: 5,
+    })).setOrigin(0.5).setDepth(841).setScrollFactor(0);
     this.localVampireG = this.add.graphics().setDepth(828).setBlendMode(Phaser.BlendModes.ADD);
     this.visionMaskG = this.make.graphics({ x: 0, y: 0, add: false });
     this.visionMask = this.visionMaskG.createGeometryMask();
@@ -126,6 +131,13 @@ class GuestScene extends Phaser.Scene {
     Net.onGameOver = (data) => this.showGameOver(data);
     Net.onEnded = (reason) => this.showEnded(reason);
     Net.onStatus = (text) => { if (this.statusText) this.statusText.textContent = text; };
+    Net.onUpgradeOffer = (data) => this.openRemoteUpgrade(data);
+    Net.onUpgradeClose = () => this.closeRemoteUpgrade();
+    Net.onUpgradeMsg = (text) => {
+      const up = this.scene.get('Upgrade');
+      if (up && up.showMsg) up.showMsg(text);
+      else if (this.statusText) this.statusText.textContent = text;
+    };
     if (Net.conn && !Net.conn.open) this.showEnded('与房主断开连接');
 
     this.inputTimer = setInterval(() => this.sendInput(), 16);
@@ -268,7 +280,7 @@ class GuestScene extends Phaser.Scene {
     let icon = null;
     if (iconKey) {
       icon = this.makeEl('img', [
-        'width:26px', 'height:26px', 'object-fit:contain',
+        `width:${big ? 36 : 26}px`, `height:${big ? 36 : 26}px`, 'object-fit:contain',
         'image-rendering:pixelated', 'pointer-events:none',
       ].join(';'), b);
       const url = this.textureURL(iconKey);
@@ -342,10 +354,10 @@ class GuestScene extends Phaser.Scene {
     place(this.bossText, 360, 58, 240, 18);
     place(this.weaponPanel, 10, 484, 260, 46);
     place(this.ctrlPanel, 0, 0, 0, 0);
-    place(this.btnSwitch, 728, 410, 58, 34);
-    place(this.btnSkill, 806, 410, 78, 78);
-    place(this.btnFire, 884, 410, 84, 84);
-    place(this.btnDash, 884, 492, 64, 28);
+    place(this.btnSwitch, 665, 416, 70, 40);
+    place(this.btnSkill, 734, 354, 100, 100);
+    place(this.btnFire, 840, 368, 104, 104);
+    place(this.btnDash, 662, 332, 76, 76);
     place(this.btnExit, 660, 492, 64, 28);
     place(this.btnPause, 895, 76, 54, 32);
     place(this.btnBestiary, 895, 124, 54, 32);
@@ -464,6 +476,7 @@ class GuestScene extends Phaser.Scene {
   isUiZone(x, y) {
     return (x > 888 && y > 58 && y < 320)
       || (x > 688 && y > 360 && y < 532)
+      || (x > 650 && x < 750 && y > 320 && y < 460)
       || (x > 620 && y > 470 && x < 700);
   }
 
@@ -479,14 +492,14 @@ class GuestScene extends Phaser.Scene {
       if (y > 220 && y < 252) { this.showToast('联机中角色升级请回主菜单', '#ffd0a0'); return true; }
       if (y > 268 && y < 300) { this.openGuestModal('Inventory'); return true; }
     }
-    if (x > 699 && x < 757 && y > 393 && y < 427) { this.sendAction('switch'); return true; }
-    if (x > 767 && x < 845 && y > 371 && y < 449) { this.sendAction('skill'); return true; }
-    if (x > 845 && x < 923 && y > 371 && y < 449) {
+    if (x > 665 && x < 735 && y > 416 && y < 456) { this.sendAction('switch'); return true; }
+    if (x > 734 && x < 834 && y > 354 && y < 454) { this.sendAction('skill'); return true; }
+    if (x > 842 && x < 942 && y > 370 && y < 470) {
       this.fire = true;
       this.uiFirePointer = pointerId;
       return true;
     }
-    if (x > 852 && x < 916 && y > 478 && y < 506) { this.sendAction('dash'); return true; }
+    if (x > 658 && x < 742 && y > 328 && y < 412) { this.sendAction('dash'); return true; }
     if (x > 628 && x < 692 && y > 478 && y < 506) { this.exitToMenu(); return true; }
     return false;
   }
@@ -751,6 +764,9 @@ class GuestScene extends Phaser.Scene {
   sendAction(key) {
     if (this.ended) return;
     Net.send({ t: 'action', key });
+    if (key === 'dash') {
+      this.dashReadyLocal = this.time.now + BALANCE.dashCooldown * 1000;
+    }
     if (key === 'skill' && (!this.state || !this.state.gs || !this.state.gs.cd)) {
       this.playLocalSkill();
     }
@@ -946,6 +962,27 @@ class GuestScene extends Phaser.Scene {
     const m = d.merchant;
     this.merchantNear = !!(m && d.g && Math.hypot(d.g.x - m.x, d.g.y - m.y) < 145);
     if (this.merchantBtnEl) this.merchantBtnEl.style.display = this.merchantNear ? 'block' : 'none';
+  }
+
+  openRemoteUpgrade(data) {
+    if (!data || !Array.isArray(data.choices) || data.choices.length === 0) return;
+    const up = this.scene.get('Upgrade');
+    if (up && up.scene && up.scene.isActive()) {
+      if (up.setChoices) up.setChoices(data.choices);
+      return;
+    }
+    this.scene.launch('Upgrade', {
+      from: 'guest',
+      choices: data.choices,
+      isStart: !!data.isStart,
+    });
+    this.scene.bringToTop('Upgrade');
+  }
+
+  closeRemoteUpgrade() {
+    const up = this.scene.get('Upgrade');
+    if (up && up.close) up.close(true);
+    else this.scene.stop('Upgrade');
   }
 
   applyState(d) {
@@ -1609,6 +1646,29 @@ class GuestScene extends Phaser.Scene {
       this.portalA.rotation += 0.04;
       this.portalB.rotation -= 0.03;
     }
+    this.drawDashButton(time);
+  }
+
+  drawDashButton(time) {
+    if (!this.dashG) return;
+    const g = this.dashG;
+    const cd = BALANCE.dashCooldown * 1000;
+    const pct = Phaser.Math.Clamp(1 - Math.max(0, this.dashReadyLocal - time) / cd, 0, 1);
+    g.clear();
+    g.fillStyle(0x111b0e, 0.55);
+    g.fillCircle(700, 370, 38);
+    g.lineStyle(2, 0xd9b45a, 0.75);
+    g.strokeCircle(700, 370, 38);
+    if (pct < 1) {
+      g.lineStyle(3, 0x6f8a5a, 0.9);
+      g.beginPath();
+      g.arc(700, 370, 33, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct, false);
+      g.strokePath();
+    } else {
+      g.lineStyle(3, 0xffd76a, 0.9);
+      g.strokeCircle(700, 370, 33);
+    }
+    if (this.dashLabel) this.dashLabel.setAlpha(pct >= 1 ? 1 : 0.45);
   }
 
   // ------------------------------------------------------------ 结束
@@ -1707,6 +1767,9 @@ class GuestScene extends Phaser.Scene {
     Net.onEnded = null;
     Net.onHud = null;
     Net.onStream = null;
+    Net.onUpgradeOffer = null;
+    Net.onUpgradeClose = null;
+    Net.onUpgradeMsg = null;
     if (this.uiLaunched) { try { this.scene.stop('UI'); } catch (e) {} }
     if (this.modalCheck) clearInterval(this.modalCheck);
     if (this.toastTimer) clearTimeout(this.toastTimer);

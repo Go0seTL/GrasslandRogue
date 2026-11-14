@@ -199,7 +199,7 @@ const UI = {
 
   beginModalScene(scene) {
     const paused = [];
-    ['Game', 'Menu'].forEach((key) => {
+    ['Game', 'Menu', 'RemoteGame'].forEach((key) => {
       const s = scene.scene.get(key);
       if (s && s.scene && s.scene.isActive()) {
         s.scene.pause();

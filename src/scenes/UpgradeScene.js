@@ -3,8 +3,17 @@ class UpgradeScene extends Phaser.Scene {
     super('Upgrade');
   }
 
+  init(data) {
+    this.initData = data || {};
+  }
+
   create() {
-    this.gameScene = this.scene.get('Game');
+    this.guestPick = this.initData.from === 'guest';
+    this.gameScene = this.scene.get(this.guestPick ? 'RemoteGame' : 'Game');
+    const forced = Array.isArray(this.initData.choices) ? this.initData.choices : null;
+    this.forcedChoices = forced
+      ? forced.map((id) => UPGRADES.find((u) => u.id === id)).filter(Boolean).slice(0, 3)
+      : null;
     this.chosen = false;
     this.closing = false;
     this.cardRects = [];
@@ -12,7 +21,7 @@ class UpgradeScene extends Phaser.Scene {
     this.lastRefresh = 0;
     this.modalState = UI.beginModalScene(this);
     this.events.once('shutdown', () => {
-      if (this.gameScene) this.gameScene.upgradeOpen = false;
+      if (!this.guestPick && this.gameScene) this.gameScene.upgradeOpen = false;
     });
 
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x040a04, 0.84)
@@ -29,9 +38,9 @@ class UpgradeScene extends Phaser.Scene {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(2);
 
-    // 金币显示
+    // 金币显示（联机时两位玩家共用房主钱包）
     this.add.image(752, 64, 'coin_icon').setDepth(3);
-    this.coinText = this.add.text(770, 64, String(Store.data.coins), UI.textStyle(16, {
+    this.coinText = this.add.text(770, 64, String(this.displayCoins()), UI.textStyle(16, {
       color: '#ffe9a8', strokeThickness: 3,
     })).setOrigin(0, 0.5).setDepth(3);
 
@@ -49,7 +58,28 @@ class UpgradeScene extends Phaser.Scene {
     this.cameras.main.fadeIn(160, 6, 10, 6);
   }
 
+  displayCoins() {
+    if (this.guestPick && this.gameScene && this.gameScene.hudCoins != null) {
+      return this.gameScene.hudCoins;
+    }
+    return Store.data.coins;
+  }
+
+  setChoices(ids) {
+    const list = (Array.isArray(ids) ? ids : [])
+      .map((id) => UPGRADES.find((u) => u.id === id))
+      .filter(Boolean)
+      .slice(0, 3);
+    if (list.length === 0) return;
+    this.forcedChoices = list;
+    this.renderChoices();
+    this.updateCoins();
+  }
+
   pickChoices() {
+    if (this.forcedChoices && this.forcedChoices.length) {
+      return this.forcedChoices.slice();
+    }
     const picks = [];
     const ownedEpics = (this.gameScene && this.gameScene.acquiredUpgrades) || [];
     const available = UPGRADES.filter((u) => !(u.rarity === 'epic' && ownedEpics.includes(u.id)));
@@ -174,6 +204,23 @@ class UpgradeScene extends Phaser.Scene {
   refreshChoices() {
     if (this.chosen || this.closing) return;
     if (this.time.now - this.lastRefresh < 400) return;
+    if (this.guestPick) {
+      Net.send({ t: 'action', key: 'upgrade_refresh' });
+      this.lastRefresh = this.time.now;
+      this.showMsg('已请求房主刷新海克斯');
+      return;
+    }
+    if (this.gameScene && this.gameScene.netHost && this.gameScene.upgradeOpen) {
+      if (this.gameScene.refreshUpgradeChoices(false)) {
+        Sfx.unlock();
+        this.updateCoins();
+        this.showMsg('海克斯已刷新，已同步给玩家2');
+      } else {
+        Sfx.uiDeny();
+        this.showMsg('金币不足或刷新过于频繁');
+      }
+      return;
+    }
     if (Store.data.coins < UPGRADE_REFRESH_COST) {
       Sfx.uiDeny();
       this.showMsg('金币不足，无法刷新');
@@ -189,7 +236,7 @@ class UpgradeScene extends Phaser.Scene {
   }
 
   updateCoins() {
-    if (this.coinText) this.coinText.setText(String(Store.data.coins));
+    if (this.coinText) this.coinText.setText(String(this.displayCoins()));
   }
 
   showMsg(text) {
@@ -203,6 +250,12 @@ class UpgradeScene extends Phaser.Scene {
     if (this.chosen || this.closing) return;
     this.chosen = true;
     Sfx.unlock();
+    if (this.guestPick) {
+      Net.send({ t: 'action', key: 'upgrade', id: u.id });
+      this.cameras.main.flash(180, 220, 200, 140);
+      this.time.delayedCall(150, () => this.close(true));
+      return;
+    }
     try {
       if (this.gameScene) this.gameScene.applyUpgrade(u.id);
     } catch (e) {
@@ -217,11 +270,15 @@ class UpgradeScene extends Phaser.Scene {
       this.closing = true;
       if (!applied) Sfx.uiClick();
     }
-    if (this.gameScene) this.gameScene.upgradeOpen = false;
-    const nextWave = !!(applied && this.gameScene && this.gameScene.endless
+    if (!this.guestPick && this.gameScene) this.gameScene.upgradeOpen = false;
+    const nextWave = !!(applied && !this.guestPick && this.gameScene && this.gameScene.endless
       && this.gameScene.endlessAwaitUpgrade);
     UI.endModalScene(this.modalState);
     if (nextWave) this.gameScene.startEndlessWave();
     this.scene.stop();
+    if (this.guestPick) {
+      const ui = this.scene.get('UI');
+      if (ui && ui.input) ui.input.enabled = false;
+    }
   }
 }

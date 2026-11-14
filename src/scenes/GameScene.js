@@ -564,7 +564,7 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-Q', () => this.switchWeapon());
 
     this.touchGfx = this.add.graphics().setDepth(950).setScrollFactor(0);
-    this.dashLabel = this.add.text(884, 492, '闪', UI.textStyle(20, {
+    this.dashLabel = this.add.text(700, 370, '闪', UI.textStyle(22, {
       color: '#fff1c8', strokeThickness: 5,
     })).setOrigin(0.5).setDepth(951).setScrollFactor(0).setVisible(false);
   }
@@ -2603,6 +2603,23 @@ class GameScene extends Phaser.Scene {
       this.player2.networkWeapon = WEAPONS[this.guestWeaponId];
       return;
     }
+    if (data.key === 'upgrade') {
+      if (!this.upgradeOpen) return;
+      const id = String(data.id || '');
+      if (!UPGRADES.some((u) => u.id === id)) return;
+      this.applyUpgrade(id);
+      this.upgradeOpen = false;
+      const up = this.scene.get('Upgrade');
+      if (up && up.close) up.close(true);
+      else this.scene.stop('Upgrade');
+      if (this.scene.isPaused()) this.scene.resume();
+      return;
+    }
+    if (data.key === 'upgrade_refresh') {
+      if (!this.upgradeOpen) return;
+      this.refreshUpgradeChoices(true);
+      return;
+    }
     if (this.player2.isDead) return;
     if (data.key === 'dash') {
       const g = this.player2;
@@ -3596,10 +3613,61 @@ class GameScene extends Phaser.Scene {
   openUpgrade(isStart) {
     if (this.upgradeOpen || this.player.isDead || !this.scene.isActive()) return;
     this.upgradeOpen = true;
-    if (this.netHost) Net.send({ t: 'wait', text: '房主正在选择强化' });
+    this.lastUpgradeRefresh = 0;
+    this.pendingUpgradeChoices = this.rollUpgradeChoices();
+    if (this.netHost) {
+      Net.send({
+        t: 'upgrade_offer',
+        choices: this.pendingUpgradeChoices,
+        isStart: !!isStart,
+      });
+    }
     if (isStart) this.startUpgradeShown = true;
-    this.scene.launch('Upgrade', { from: 'game', isStart: !!isStart });
+    this.scene.launch('Upgrade', {
+      from: 'game',
+      isStart: !!isStart,
+      choices: this.pendingUpgradeChoices,
+    });
     this.scene.pause();
+  }
+
+  rollUpgradeChoices() {
+    const picks = [];
+    const owned = this.acquiredUpgrades || [];
+    const available = UPGRADES.filter((u) => !(u.rarity === 'epic' && owned.includes(u.id)));
+    for (let i = 0; i < 3; i++) {
+      const wantsEpic = Math.random() < 0.08;
+      let pool = available.filter((u) => !picks.includes(u) && ((u.rarity === 'epic') === wantsEpic));
+      if (pool.length === 0) pool = available.filter((u) => !picks.includes(u));
+      if (pool.length === 0) break;
+      picks.push(Phaser.Utils.Array.GetRandom(pool));
+    }
+    return picks.map((u) => u.id);
+  }
+
+  refreshUpgradeChoices(fromGuest) {
+    if (!this.upgradeOpen) return false;
+    const now = this.time.now;
+    if (now - (this.lastUpgradeRefresh || 0) < 400) {
+      if (fromGuest) Net.send({ t: 'upgrade_msg', text: '刷新太快，稍后再试' });
+      return false;
+    }
+    if (Store.data.coins < UPGRADE_REFRESH_COST) {
+      if (fromGuest) Net.send({ t: 'upgrade_msg', text: '金币不足，无法刷新' });
+      return false;
+    }
+    this.lastUpgradeRefresh = now;
+    Store.data.coins -= UPGRADE_REFRESH_COST;
+    Store.save();
+    this.pendingUpgradeChoices = this.rollUpgradeChoices();
+    const up = this.scene.get('Upgrade');
+    if (up && up.scene && up.scene.isActive() && up.setChoices) {
+      up.setChoices(this.pendingUpgradeChoices);
+    }
+    if (this.netHost) {
+      Net.send({ t: 'upgrade_offer', choices: this.pendingUpgradeChoices, refresh: true });
+    }
+    return true;
   }
 
   applyUpgrade(id) {
@@ -3767,6 +3835,7 @@ class GameScene extends Phaser.Scene {
     this.hud.toastQueue.push(`获得强化：${u.name}`);
     Sfx.unlock();
     this.saveCheckpoint();
+    if (this.netHost) Net.send({ t: 'upgrade_close' });
   }
 
   onEnemyBulletHitPlayer(player, bullet) {
@@ -5091,15 +5160,15 @@ class GameScene extends Phaser.Scene {
   }
 
   isSkillButton(x, y) {
-    return dist2(x, y, 806, 410) <= 40 * 40;
+    return dist2(x, y, 784, 404) <= 54 * 54;
   }
 
   isFireButton(x, y) {
-    return dist2(x, y, 884, 410) <= 42 * 42;
+    return dist2(x, y, 892, 420) <= 52 * 52;
   }
 
   isSwitchButton(x, y) {
-    return x >= 698 && x <= 758 && y >= 392 && y <= 428;
+    return x >= 665 && x <= 735 && y >= 416 && y <= 456;
   }
 
   setTouchFire(active) {
@@ -5482,7 +5551,7 @@ class GameScene extends Phaser.Scene {
   }
 
   isDashButton(x, y) {
-    return dist2(x, y, 884, 492) <= 40 * 40;
+    return dist2(x, y, 700, 370) <= 42 * 42;
   }
 
   consumeDash() {
@@ -5543,23 +5612,23 @@ class GameScene extends Phaser.Scene {
     g.clear();
     if (!this.touchMode) return;
 
-    const dx = 884, dy = 492;
+    const dx = 700, dy = 370;
     const cd = BALANCE.dashCooldown * 1000;
     const readyAt = this.player ? this.player.dashReadyAt : 0;
     const pct = clamp(1 - Math.max(0, readyAt - this.time.now) / cd, 0, 1);
 
     g.fillStyle(0x111b0e, 0.55);
-    g.fillCircle(dx, dy, 34);
+    g.fillCircle(dx, dy, 38);
     g.lineStyle(2, 0xd9b45a, 0.75);
-    g.strokeCircle(dx, dy, 34);
+    g.strokeCircle(dx, dy, 38);
     if (pct < 1) {
       g.lineStyle(3, 0x6f8a5a, 0.9);
       g.beginPath();
-      g.arc(dx, dy, 29, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct, false);
+      g.arc(dx, dy, 33, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct, false);
       g.strokePath();
     } else {
       g.lineStyle(3, 0xffd76a, 0.9);
-      g.strokeCircle(dx, dy, 29);
+      g.strokeCircle(dx, dy, 33);
     }
     if (this.dashLabel) this.dashLabel.setAlpha(pct >= 1 ? 1 : 0.45);
 
