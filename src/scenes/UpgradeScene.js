@@ -51,10 +51,12 @@ class UpgradeScene extends Phaser.Scene {
 
   pickChoices() {
     const picks = [];
+    const ownedEpics = (this.gameScene && this.gameScene.acquiredUpgrades) || [];
+    const available = UPGRADES.filter((u) => !(u.rarity === 'epic' && ownedEpics.includes(u.id)));
     for (let i = 0; i < 3; i++) {
       const wantsEpic = Math.random() < 0.08;
-      let pool = UPGRADES.filter((u) => !picks.includes(u) && ((u.rarity === 'epic') === wantsEpic));
-      if (pool.length === 0) pool = UPGRADES.filter((u) => !picks.includes(u));
+      let pool = available.filter((u) => !picks.includes(u) && ((u.rarity === 'epic') === wantsEpic));
+      if (pool.length === 0) pool = available.filter((u) => !picks.includes(u));
       if (pool.length === 0) break;
       picks.push(Phaser.Utils.Array.GetRandom(pool));
     }

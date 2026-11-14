@@ -220,7 +220,7 @@ class UIScene extends Phaser.Scene {
 
     this.drawHp(BALANCE.playerHP, BALANCE.playerHP);
     this.drawEnergy(BALANCE.playerEnergy, BALANCE.playerEnergy);
-    this.coinText.setText(String(Store.data.coins));
+    this.coinText.setText(String(this.hudSource && this.hudSource.hudCoins != null ? this.hudSource.hudCoins : Store.data.coins));
   }
 
   createPauseButton() {
@@ -356,7 +356,7 @@ class UIScene extends Phaser.Scene {
       this.drawEnergy(energy, game.player.maxEnergy);
     }
 
-    const coins = Store.data.coins;
+    const coins = game.hudCoins != null ? game.hudCoins : Store.data.coins;
     if (coins !== this.lastCoins) {
       this.lastCoins = coins;
       this.coinText.setText(String(coins));
@@ -391,7 +391,9 @@ class UIScene extends Phaser.Scene {
       if (g2 && game.netHost) {
         this.guestText.setVisible(true);
         this.guestHpText.setVisible(true);
-        this.guestText.setText(g2.isDead ? '玩家2 · 复活中' : '玩家2');
+        this.guestText.setText(this.isGuestHud
+          ? (g2.isDead ? '房主 · 倒地' : '房主')
+          : (g2.isDead ? '玩家2 · 复活中' : '玩家2'));
         const g = this.guestPanelG;
         g.clear();
         g.fillStyle(0x0b1208, 0.86);

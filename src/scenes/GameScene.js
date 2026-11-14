@@ -2527,6 +2527,9 @@ class GameScene extends Phaser.Scene {
           * (this.guestSkill.type === 'guitar' ? GUITAR.speed : 1)),
       },
       upgrades: this.acquiredUpgrades,
+      dualWield: !!this.dualWield,
+      secondaryId: this.secondaryId || null,
+      treasurePot: this.treasurePot || 0,
       fx: this.guestFx.splice(0, 30),
       beams: this.collectSyncBeams(),
       hostSkill: this.skill && this.skill.active
@@ -3601,6 +3604,7 @@ class GameScene extends Phaser.Scene {
   applyUpgrade(id) {
     const u = UPGRADES.find((x) => x.id === id);
     if (!u) return;
+    if (u.rarity === 'epic' && this.acquiredUpgrades.includes(id)) return;
     this.acquiredUpgrades.push(id);
     switch (id) {
       case 'big':

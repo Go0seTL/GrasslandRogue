@@ -13,6 +13,7 @@ class GuestScene extends Phaser.Scene {
     this.characterId = this.characterId || Store.data.lastChar || 'gunner';
     this.player = { hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, isDead: false };
     this.player2 = null;
+    this.hudCoins = 0;
     this.weapon = WEAPONS.pistol;
     this.weaponId = 'pistol';
     this.secondaryWeapon = null;
@@ -849,6 +850,17 @@ class GuestScene extends Phaser.Scene {
     this.player.energy = g.energy || 0;
     this.player.maxEnergy = Math.max(1, g.maxEnergy || 1);
     this.player.isDead = !!g.dead;
+    this.player2 = d.p ? {
+      hp: d.p.hp || 0, maxHp: Math.max(1, d.p.maxHp || 1),
+      energy: d.p.energy || 0, maxEnergy: Math.max(1, d.p.maxEnergy || 1),
+      isDead: !!d.p.dead,
+    } : null;
+    this.netHost = !!this.player2;
+    this.hudCoins = d.wallet && d.wallet.coins != null ? d.wallet.coins : this.hudCoins;
+    this.dualWield = !!d.dualWield;
+    this.secondaryId = d.secondaryId || null;
+    this.secondaryWeapon = this.secondaryId && WEAPONS[this.secondaryId] ? WEAPONS[this.secondaryId] : null;
+    this.treasurePot = d.treasurePot || 0;
     this.characterId = g.character || this.characterId;
     if (d.gs && d.gs.weaponId && WEAPONS[d.gs.weaponId]) {
       this.weaponId = d.gs.weaponId;
