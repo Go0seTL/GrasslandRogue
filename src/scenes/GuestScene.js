@@ -767,15 +767,69 @@ class GuestScene extends Phaser.Scene {
     const color = colors[char] || 0x9fe8ff;
     const x = this.predX;
     const y = this.predY;
-    if (char === 'mage') {
+    if (char === 'gunner') {
+      const glow = this.add.image(x, y, 'glow').setTint(0xff8a3a).setScale(1.4).setAlpha(0.28)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(828);
+      const flames = this.add.particles(0, 0, 'spark', {
+        lifespan: { min: 220, max: 480 }, speedY: { min: -120, max: -40 },
+        speedX: { min: -30, max: 30 }, scale: { start: 0.9, end: 0 },
+        alpha: { start: 0.9, end: 0 }, tint: [0xffe066, 0xff9a3a, 0xff5a2a],
+        frequency: 40, quantity: 1, blendMode: 'ADD', emitting: true,
+      }).setDepth(829);
+      flames.startFollow(this.guestSprite, 0, -4);
+      this.localGunnerGlow = glow;
+      this.localGunnerFlames = flames;
+      const targets = (this.state && this.state.enemies ? this.state.enemies : [])
+        .filter((e) => e.active !== false)
+        .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))
+        .slice(0, 3);
+      targets.forEach((e) => {
+        const lock = this.add.image(e.x, e.y, 'ring').setTint(0xff6a3a)
+          .setScale(0.5).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
+        this.tweens.add({ targets: lock, scale: 0.3, alpha: 0.2, duration: 350, yoyo: true, repeat: 7, onComplete: () => lock.destroy() });
+      });
+      this.time.delayedCall(3000, () => {
+        if (glow.active) glow.destroy();
+        flames.stop();
+        this.time.delayedCall(500, () => { if (flames.active) flames.destroy(); });
+        this.localGunnerGlow = null;
+        this.localGunnerFlames = null;
+      });
+    } else if (char === 'swordsman') {
+      this.localSwords = [];
+      for (let i = 0; i < 8; i++) {
+        const img = this.add.image(x, y, 'sword').setTint(0xbfe8ff)
+          .setDepth(829).setBlendMode(Phaser.BlendModes.ADD);
+        this.localSwords.push({ img, angle: (i / 8) * Math.PI * 2, radius: 42 });
+      }
+      this.localSwordUntil = this.time.now + 1000;
+      this.time.delayedCall(1050, () => {
+        (this.localSwords || []).forEach((sw) => {
+          if (sw.img.active) {
+            this.tweens.add({ targets: sw.img, alpha: 0, scale: 1.5, duration: 260, onComplete: () => sw.img.destroy() });
+          }
+        });
+        this.localSwords = [];
+        this.localSwordUntil = 0;
+      });
+    } else if (char === 'frankenstein') {
+      const aura = this.add.image(x, y, 'glow').setTint(0x7dff5a)
+        .setScale(1.7).setAlpha(0.32).setBlendMode(Phaser.BlendModes.ADD).setDepth(828);
+      this.localAura = aura;
+      this.tweens.add({ targets: aura, scale: 2.1, alpha: 0.18, duration: 700, yoyo: true, repeat: 12 });
+      this.time.delayedCall(10000, () => {
+        if (this.localAura === aura) this.localAura = null;
+        if (aura.active) aura.destroy();
+      });
+    } else if (char === 'mage') {
       const aim = this.aimSet ? Math.atan2((this.aimY || 0) - y, (this.aimX || 0) - x) : (this.state.g.aim || 0);
-      const glow = this.add.rectangle(x, y - 6, 560, 24, color, 0.3)
+      const glow = this.add.rectangle(x, y - 6, 700, 30, color, 0.3)
         .setOrigin(0, 0.5).setRotation(aim).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
-      const core = this.add.rectangle(x, y - 6, 560, 8, 0xffffff, 0.95)
+      const core = this.add.rectangle(x, y - 6, 700, 10, 0xffffff, 0.95)
         .setOrigin(0, 0.5).setRotation(aim).setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
       this.localBeam = { glow, core };
       this.tweens.add({
-        targets: [glow, core], alpha: 0, duration: 1700, ease: 'Sine.In',
+        targets: [glow, core], alpha: 0, duration: 6500, ease: 'Sine.In',
         onComplete: () => {
           if (this.localBeam && this.localBeam.glow === glow) this.localBeam = null;
           glow.destroy(); core.destroy();
@@ -800,8 +854,9 @@ class GuestScene extends Phaser.Scene {
       const aura = this.add.image(x, y, 'ring').setTint(color)
         .setScale(0.4).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
       this.localAura = aura;
-      this.tweens.add({ targets: aura, scale: 1.8, alpha: 0.2, duration: 500, yoyo: true, repeat: 5 });
-      this.time.delayedCall(3200, () => {
+      const dur = char === 'guitarist' ? 6000 : (char === 'knight' ? 4000 : 5000);
+      this.tweens.add({ targets: aura, scale: 1.8, alpha: 0.2, duration: 500, yoyo: true, repeat: Math.round(dur / 500) });
+      this.time.delayedCall(dur, () => {
         if (this.localAura === aura) this.localAura = null;
         if (aura.active) aura.destroy();
       });
@@ -1493,6 +1548,14 @@ class GuestScene extends Phaser.Scene {
     if (this.localAura && this.localAura.active) {
       this.localAura.setPosition(this.guestSprite.x, this.guestSprite.y);
     }
+    if (this.localSwords && this.localSwords.length) {
+      this.localSwords.forEach((sw) => {
+        sw.angle += 0.1;
+        sw.img.setPosition(this.guestSprite.x + Math.cos(sw.angle) * sw.radius,
+          this.guestSprite.y + Math.sin(sw.angle) * sw.radius)
+          .setRotation(sw.angle + Math.PI / 2);
+      });
+    }
     if (this.localVampireG) {
       this.localVampireG.clear();
       if (this.localVampireUntil > this.time.now && this.state && this.state.enemies) {
@@ -1647,6 +1710,8 @@ class GuestScene extends Phaser.Scene {
     if (this.menuEl && this.menuEl.parentNode) this.menuEl.remove();
     if (this.merchantBtnEl && this.merchantBtnEl.parentNode) this.merchantBtnEl.remove();
     if (this.merchantPanel && this.merchantPanel.parentNode) this.merchantPanel.remove();
+    if (this.localGunnerFlames && this.localGunnerFlames.active) this.localGunnerFlames.destroy();
+    (this.localSwords || []).forEach((sw) => { if (sw.img.active) sw.img.destroy(); });
     if (this.endMask && this.endMask.parentNode) this.endMask.remove();
     if (this.hud && this.hud.parentNode) this.hud.remove();
     if (this.touchLayer && this.touchLayer.parentNode) this.touchLayer.remove();
