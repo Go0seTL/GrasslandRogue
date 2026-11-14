@@ -622,7 +622,7 @@ class SatanBoss extends Enemy {
     this.bossName = '撒旦';
     this.bossWeapon = null;
     const base = 560 * (1 + 0.65 * (round - 1));
-    this.maxHp = Math.round(base * 7 * BOSS_BALANCE.hp);
+    this.maxHp = Math.round(base * 20 * BOSS_BALANCE.hp);
     this.hp = this.maxHp;
     this.damage = Math.round(24 * (1 + 0.32 * (round - 1)) * BOSS_BALANCE.damage);
     this.setScale(2.2);
@@ -637,6 +637,14 @@ class SatanBoss extends Enemy {
     this.beamAngle = 0;
     this.phase2Beam = null;
     this.beamNextTick = 0;
+    this.phase2Beams = [];
+    this.patternActive = false;
+    this.patternIndex = 0;
+    this.patternType = 0;
+    this.patternEndsAt = 0;
+    this.patternNextAt = 0;
+    this.patternTickAt = 0;
+    this.circleRings = [];
     this.satanGlow = scene.add.image(x, y, 'glow')
       .setTint(0xff3a2a).setScale(2.2).setAlpha(0.22)
       .setBlendMode(Phaser.BlendModes.ADD)
@@ -746,44 +754,170 @@ class SatanBoss extends Enemy {
   }
 
   updatePhase2(time, delta, p) {
+    // 二阶段不再锁头：缓慢移动，按固定轨迹喷射硫磺火
     const ang = Math.atan2(p.y - this.y, p.x - this.x);
-    this.setVelocity(Math.cos(ang) * 22, Math.sin(ang) * 22);
-    const target = ang;
-    this.beamAngle = Phaser.Math.Angle.RotateTo(this.beamAngle, target, 0.018);
-    if (!this.phase2Beam) {
-      const glow = this.scene.add.rectangle(this.x, this.y - 10, 760, 34, 0xff2a1a, 0.27)
-        .setOrigin(0, 0.5).setDepth(740).setBlendMode(Phaser.BlendModes.ADD);
-      const core = this.scene.add.rectangle(this.x, this.y - 10, 760, 10, 0xffb04a, 0.95)
-        .setOrigin(0, 0.5).setDepth(741).setBlendMode(Phaser.BlendModes.ADD);
-      this.phase2Beam = { glow, core };
+    this.setVelocity(Math.cos(ang) * 16, Math.sin(ang) * 16);
+    if (!this.patternActive && time >= this.patternNextAt) {
+      this.startSatanPattern(time, p);
     }
-    this.phase2Beam.glow.setPosition(this.x, this.y - 10).setRotation(this.beamAngle)
-      .setAlpha(0.22 + Math.sin(time * 0.03) * 0.08);
-    this.phase2Beam.core.setPosition(this.x, this.y - 10).setRotation(this.beamAngle);
-    if (time >= this.beamNextTick) {
-      this.beamNextTick = time + 140;
-      const len = 760;
-      const cos = Math.cos(this.beamAngle);
-      const sin = Math.sin(this.beamAngle);
-      const dx = p.x - this.x;
-      const dy = p.y - (this.y - 10);
-      const along = dx * cos + dy * sin;
-      const perp = Math.abs(-dx * sin + dy * cos);
-      if (along > 0 && along < len && perp < 34) {
-        p.takeDamage(Math.round(this.damage * 0.5), this.x, this.y, this.scene.time.now);
-        this.scene.fx.hitSpark(p.x, p.y);
+    if (this.patternActive) {
+      this.updateSatanPattern(time, p);
+      if (time >= this.patternEndsAt) {
+        this.clearSatanPattern();
+        this.patternActive = false;
+        this.patternNextAt = time + 700;
       }
-      this.scene.cameras.main.shake(30, 0.001);
-      if (time % 500 < 140) Sfx.shoot();
+    }
+  }
+
+  makeSatanBeam(x1, y1, x2, y2, width) {
+    const len = Math.max(20, Math.hypot(x2 - x1, y2 - y1));
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const glow = this.scene.add.rectangle(x1, y1, len, width + 20, 0xff2a1a, 0.22)
+      .setOrigin(0, 0.5).setDepth(742).setBlendMode(Phaser.BlendModes.ADD).setRotation(ang);
+    const core = this.scene.add.rectangle(x1, y1, len, width, 0xffb04a, 0.9)
+      .setOrigin(0, 0.5).setDepth(743).setBlendMode(Phaser.BlendModes.ADD).setRotation(ang);
+    const beam = { x1, y1, x2, y2, width, glow, core };
+    this.phase2Beams.push(beam);
+    return beam;
+  }
+
+  startSatanPattern(time, p) {
+    this.clearSatanPattern();
+    this.patternActive = true;
+    this.patternIndex = (this.patternIndex || 0) + 1;
+    this.patternType = ((this.patternIndex - 1) % 4) + 1;
+    this.patternTickAt = 0;
+    this.patternEndsAt = time + 1600;
+    const left = ARENA.left + 24;
+    const right = ARENA.right - 24;
+    const top = ARENA.top + 24;
+    const bottom = ARENA.bottom - 24;
+    const cx = (left + right) / 2;
+    const cy = (top + bottom) / 2;
+
+    if (this.patternType === 1) {
+      // 五角星：五条弦组成星形
+      const pts = [];
+      const rx = (right - left) * 0.42;
+      const ry = (bottom - top) * 0.42;
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+        pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]);
+      }
+      for (let i = 0; i < 5; i++) {
+        const a = pts[i];
+        const b = pts[(i + 2) % 5];
+        this.makeSatanBeam(a[0], a[1], b[0], b[1], 15);
+      }
+      this.patternEndsAt = time + 1500;
+      this.scene.hud.toastQueue.push('撒旦：五角星硫磺火！');
+    } else if (this.patternType === 2) {
+      // 三行五列交叉网格
+      for (let r = 1; r <= 3; r++) {
+        const y = top + (bottom - top) * (r / 4);
+        this.makeSatanBeam(left, y, right, y, 13);
+      }
+      for (let c = 1; c <= 5; c++) {
+        const x = left + (right - left) * (c / 6);
+        this.makeSatanBeam(x, top, x, bottom, 13);
+      }
+      this.patternEndsAt = time + 1500;
+      this.scene.hud.toastQueue.push('撒旦：硫磺火网格！');
+    } else if (this.patternType === 3) {
+      // 朝玩家方向弧形喷射（起手方向固定，不追踪）
+      const base = Math.atan2(p.y - this.y, p.x - this.x);
+      for (let i = -3; i <= 3; i++) {
+        const a = base + i * 0.17;
+        const len = 820;
+        this.makeSatanBeam(this.x, this.y - 10,
+          this.x + Math.cos(a) * len, this.y - 10 + Math.sin(a) * len, 12);
+      }
+      this.patternEndsAt = time + 1300;
+      this.scene.hud.toastQueue.push('撒旦：弧形硫磺火！');
+    } else {
+      // 以自己为中心画两个圆
+      this.circleAngles = [0, Math.PI];
+      this.circleRadii = [170, 320];
+      this.circleRings = [];
+      this.circleRadii.forEach((r) => {
+        const ring = this.scene.add.image(this.x, this.y, 'ring')
+          .setTint(0xff5a2a).setScale((r / 48) * 2).setAlpha(0.18)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(741);
+        this.circleRings.push(ring);
+      });
+      this.rebuildCircleBeams();
+      this.patternEndsAt = time + 3600;
+      this.scene.hud.toastQueue.push('撒旦：双圆硫磺火！');
+    }
+    Sfx.bossRoar();
+    this.scene.cameras.main.shake(160, 0.005);
+  }
+
+  rebuildCircleBeams() {
+    this.phase2Beams.forEach((b) => {
+      if (b.glow && b.glow.active) b.glow.destroy();
+      if (b.core && b.core.active) b.core.destroy();
+    });
+    this.phase2Beams = [];
+    this.circleRadii.forEach((r, i) => {
+      const a = this.circleAngles[i];
+      const tx = this.x + Math.cos(a) * r;
+      const ty = this.y + Math.sin(a) * r;
+      this.makeSatanBeam(tx - Math.cos(a + Math.PI / 2) * 34, ty - Math.sin(a + Math.PI / 2) * 34,
+        tx + Math.cos(a + Math.PI / 2) * 34, ty + Math.sin(a + Math.PI / 2) * 34, 18);
+    });
+  }
+
+  updateSatanPattern(time, p) {
+    if (this.patternType === 4) {
+      const step = 0.055;
+      this.circleAngles[0] += step;
+      this.circleAngles[1] -= step * 0.85;
+      if (this.circleRings) this.circleRings.forEach((ring) => ring.setPosition(this.x, this.y));
+      this.rebuildCircleBeams();
+    }
+    if (time >= this.patternTickAt) {
+      this.patternTickAt = time + 140;
+      const dmg = Math.round(this.damage * (this.patternType === 4 ? 0.35 : 0.45));
+      this.phase2Beams.forEach((b) => {
+        if (this.pointNearBeam(p.x, p.y, b)) {
+          p.takeDamage(dmg, this.x, this.y, this.scene.time.now);
+          this.scene.fx.hitSpark(p.x, p.y);
+        }
+      });
+      this.scene.cameras.main.shake(24, 0.0008);
+      if (time % 420 < 140) Sfx.shoot();
+    }
+  }
+
+  pointNearBeam(px, py, b) {
+    const dx = b.x2 - b.x1;
+    const dy = b.y2 - b.y1;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 1) return false;
+    let t = ((px - b.x1) * dx + (py - b.y1) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const nx = b.x1 + dx * t;
+    const ny = b.y1 + dy * t;
+    return dist2(px, py, nx, ny) < (b.width / 2 + 13) * (b.width / 2 + 13);
+  }
+
+  clearSatanPattern() {
+    this.phase2Beams = this.phase2Beams || [];
+    this.phase2Beams.forEach((b) => {
+      if (b.glow && b.glow.active) b.glow.destroy();
+      if (b.core && b.core.active) b.core.destroy();
+    });
+    this.phase2Beams = [];
+    if (this.circleRings) {
+      this.circleRings.forEach((r) => { if (r.active) r.destroy(); });
+      this.circleRings = [];
     }
   }
 
   clearSatanBeam() {
-    if (!this.phase2Beam) return;
-    const beam = this.phase2Beam;
-    this.phase2Beam = null;
-    if (beam.glow.active) beam.glow.destroy();
-    if (beam.core.active) beam.core.destroy();
+    this.clearSatanPattern();
   }
 
   die() {
@@ -794,6 +928,10 @@ class SatanBoss extends Enemy {
       this.mode = 'phase2';
       this.modeTimer = 0;
       this.beamNextTick = 0;
+      this.patternActive = false;
+      this.patternNextAt = 0;
+      this.patternIndex = 0;
+      this.clearSatanPattern();
       this.setTint(0xff3a2a);
       this.scene.cameras.main.flash(320, 255, 60, 30);
       this.scene.cameras.main.shake(360, 0.01);
