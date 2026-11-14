@@ -75,7 +75,7 @@ class MenuScene extends Phaser.Scene {
     }, { variant: 'ghost', fontSize: 15 });
     this.soundBtn.setDepth(20);
 
-    UI.button(this, 872, 82, 148, 36, '怪物图鉴', () => {
+    UI.button(this, 872, 82, 148, 36, '图 鉴', () => {
       this.scene.launch('Bestiary', { from: 'menu' });
     }, { variant: 'ghost', fontSize: 14 }).setDepth(20);
 

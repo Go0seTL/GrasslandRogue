@@ -204,6 +204,12 @@ class UIScene extends Phaser.Scene {
       if (this.isGuestHud) this.hudSource.openGuestModal('Inventory');
       else this.scene.launch('Inventory', { from: 'game' });
     });
+    this.upgradeListBtn = this.createHudButton(922, 332, 54, 32, '强化', () => {
+      this.scene.launch('UpgradeList', {
+        upgrades: (this.hudSource && this.hudSource.acquiredUpgrades) || [],
+        from: this.isGuestHud ? 'guest' : 'game',
+      });
+    });
     this.treasureBtn = this.createHudButton(872, 70, 120, 28, '取财', () => {
       const game = this.hudSource;
       if (game) game.collectTreasure();

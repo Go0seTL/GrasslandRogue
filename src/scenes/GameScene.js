@@ -47,6 +47,9 @@ class GameScene extends Phaser.Scene {
       && Number(Store.data.runCheckpoint.round) > 0)
       ? Store.data.runCheckpoint : null;
     this.resumeData = cp;
+    this.acquiredUpgrades = cp && Array.isArray(cp.upgrades)
+      ? cp.upgrades.filter((id) => UPGRADES.some((u) => u.id === id))
+      : [];
     this.characterId = cp
       ? (cp.characterId || 'gunner')
       : ((data && data.character) || 'gunner');
@@ -1065,6 +1068,7 @@ class GameScene extends Phaser.Scene {
       dualWield: !!this.dualWield,
       secondaryId: this.secondaryId || null,
       buffs: Object.assign({}, this.buffs),
+      upgrades: this.acquiredUpgrades.slice(),
       maxHp: Math.round(this.player.maxHp),
       maxEnergy: Math.round(this.player.maxEnergy),
       runCoins: this.runCoins,
@@ -2522,6 +2526,7 @@ class GameScene extends Phaser.Scene {
         speed: Math.round(BALANCE.playerSpeed * (this.buffs.speed || 1)
           * (this.guestSkill.type === 'guitar' ? GUITAR.speed : 1)),
       },
+      upgrades: this.acquiredUpgrades,
       fx: this.guestFx.splice(0, 30),
       beams: this.collectSyncBeams(),
       hostSkill: this.skill && this.skill.active
@@ -3594,6 +3599,7 @@ class GameScene extends Phaser.Scene {
   applyUpgrade(id) {
     const u = UPGRADES.find((x) => x.id === id);
     if (!u) return;
+    this.acquiredUpgrades.push(id);
     switch (id) {
       case 'big':
         this.buffs.size *= 1.10;

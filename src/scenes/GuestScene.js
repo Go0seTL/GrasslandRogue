@@ -469,6 +469,10 @@ class GuestScene extends Phaser.Scene {
   handleUiPress(x, y, pointerId) {
     if (x > 895 && x < 949) {
       if (y > 76 && y < 108) { this.showGuestMenu(); return true; }
+      if (y > 316 && y < 348) {
+        this.scene.launch('UpgradeList', { upgrades: this.acquiredUpgrades || [], from: 'guest' });
+        return true;
+      }
       if (y > 124 && y < 156) { this.openGuestModal('Bestiary'); return true; }
       if (y > 172 && y < 204) { this.openGuestModal('Forge'); return true; }
       if (y > 220 && y < 252) { this.showToast('联机中角色升级请回主菜单', '#ffd0a0'); return true; }
@@ -860,6 +864,7 @@ class GuestScene extends Phaser.Scene {
       bossName: e.name, hp: e.hp, maxHp: e.maxHp, x: e.x, y: e.y,
     }));
     this.boss = this.remoteBosses[0] || null;
+    this.acquiredUpgrades = Array.isArray(d.upgrades) ? d.upgrades : [];
     this.hostDowned = !!d.hostDowned;
     this.reviveWho = d.reviveWho || null;
     this.reviveProgress = d.reviveProgress || 0;
