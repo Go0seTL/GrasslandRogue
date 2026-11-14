@@ -2755,6 +2755,7 @@ class GameScene extends Phaser.Scene {
         g.body.reset(bx, by);
         g.aimAngle = a + Math.PI;
         let executed = false;
+        let killed = false;
         this.enemies.getChildren().forEach((e) => {
           if (e.active && !e.dying && dist2(e.x, e.y, target.x, target.y) < 82 * 82) {
             if (e.hp <= e.maxHp * 0.2) {
@@ -2763,12 +2764,13 @@ class GameScene extends Phaser.Scene {
             } else {
               e.takeDamage(dmg, a);
             }
+            if (e.dying || !e.active) killed = true;
             this.markGuestHit(e.x, e.y, 0xff4a6a);
           }
         });
-        if (executed) {
+        if (killed) {
           this.guestSkill.cooldownUntil = now;
-          this.hud.toastQueue.push('玩家2：斩杀成功，技能冷却重置');
+          this.hud.toastQueue.push(executed ? '玩家2：斩杀成功，技能冷却重置' : '玩家2：技能击杀，冷却重置');
         }
         this.fx.ring(target.x, target.y, 0xff4a6a, 0.2, 2.0, 420, 0.9, 744);
       }
@@ -4229,6 +4231,7 @@ class GameScene extends Phaser.Scene {
       this.player.aimAngle = ang + Math.PI;
       this.player.invulnUntil = Math.max(this.player.invulnUntil, now + 1200);
       let executed = false;
+      let killed = false;
       this.enemies.getChildren().forEach((e) => {
         if (!e.active || e.dying) return;
         if (dist2(e.x, e.y, target.x, target.y) <= ROGUE_STRIKE.radius * ROGUE_STRIKE.radius) {
@@ -4238,14 +4241,15 @@ class GameScene extends Phaser.Scene {
           } else {
             e.takeDamage(dmg, ang);
           }
+          if (e.dying || !e.active) killed = true;
           this.fx.hitSpark(e.x, e.y);
         }
       });
       this.fx.ring(target.x, target.y, 0xff4a6a, 0.2, 2.0, 420, 0.9, 742);
-      if (executed) {
+      if (killed) {
         s.cooldownUntil = now;
         s.cooldown = 0;
-        this.hud.toastQueue.push('刺客斩杀成功！技能冷却立即重置');
+        this.hud.toastQueue.push(executed ? '刺客斩杀成功！技能冷却立即重置' : '刺客技能击杀！冷却立即重置');
       }
     } else {
       const ang = this.player.aimAngle || 0;
