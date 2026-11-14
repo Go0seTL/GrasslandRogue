@@ -90,6 +90,7 @@ class GuestScene extends Phaser.Scene {
       .setScale(1.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(702);
     this.mercSprite = this.add.sprite(480, 405, 'merc_xuan_0').setVisible(false).setDepth(699);
     this.merchantSprite = this.add.sprite(480, 405, 'merchant_0').setVisible(false).setDepth(698);
+    this.ghostSprite = this.add.image(480, 405, 'ghost_baby').setVisible(false).setDepth(697).setAlpha(0.85);
     this.merchantTag = this.add.text(480, 375, '奇旅商人', UI.textStyle(9, {
       color: '#ffd76a', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(880).setVisible(false);
@@ -735,6 +736,7 @@ class GuestScene extends Phaser.Scene {
     this.applyEnemies(d.enemies || []);
     this.applyMercenary(d.merc);
     this.applyMerchant(d.merchant);
+    this.applyGhostBaby(d.ghostBaby);
     this.updatePool(this.pbSprites, d.pb || [], 'bullet', 690);
     this.updatePool(this.ebSprites, d.eb || [], 'orb', 692);
     this.updatePickups(d);
@@ -931,6 +933,16 @@ class GuestScene extends Phaser.Scene {
         this.predY += dy * 0.08;
       }
     }
+  }
+
+  applyGhostBaby(g) {
+    if (!g) {
+      this.ghostSprite.setVisible(false);
+      return;
+    }
+    this.ghostSprite.setVisible(true).setPosition(g.x, g.y);
+    this.ghostSprite.tx = g.x;
+    this.ghostSprite.ty = g.y;
   }
 
   applyMerchant(m) {
@@ -1180,6 +1192,9 @@ class GuestScene extends Phaser.Scene {
       lerp(this.guestSprite, this.guestSprite.tx, this.guestSprite.ty, 0.35);
     }
     lerp(this.hostSprite, this.hostSprite.tx, this.hostSprite.ty, 0.35);
+    if (this.ghostSprite && this.ghostSprite.visible) {
+      lerp(this.ghostSprite, this.ghostSprite.tx, this.ghostSprite.ty, 0.3);
+    }
     if (this.merchantSprite && this.merchantSprite.visible) {
       lerp(this.merchantSprite, this.merchantSprite.tx, this.merchantSprite.ty, 0.25);
       this.merchantSprite.setDepth(500 + Math.floor(this.merchantSprite.y));
