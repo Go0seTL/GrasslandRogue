@@ -191,9 +191,6 @@ class UIScene extends Phaser.Scene {
     this.bagBtn = this.createHudButton(922, 284, 54, 32, '背包', () => {
       this.scene.launch('Inventory', { from: 'game' });
     });
-    this.ringBtn = this.createHudButton(922, 332, 54, 32, '戒指', () => {
-      this.scene.launch('Ring', { from: 'game' });
-    });
     this.treasureBtn = this.createHudButton(872, 70, 120, 28, '取财', () => {
       const game = this.scene.get('Game');
       if (game) game.collectTreasure();

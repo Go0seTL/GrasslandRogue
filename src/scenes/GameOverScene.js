@@ -31,6 +31,14 @@ class GameOverScene extends Phaser.Scene {
       this.add.text(480, 180, '天使陨落 · 你走完了 10-6，天堂重归宁静', UI.textStyle(13, {
         color: '#c8e8ff', strokeThickness: 3, bold: false,
       })).setOrigin(0.5).setDepth(4);
+    } else if (d.coop) {
+      this.add.image(480, 92, 'skull').setScale(1.6).setDepth(4).setAlpha(0.9);
+      this.add.text(480, 148, '全队阵亡', UI.textStyle(40, {
+        color: '#ff9a8a', strokeThickness: 9,
+      })).setOrigin(0.5).setDepth(4);
+      this.add.text(480, 180, '联机模式 · 两名玩家都倒下了，本局结束', UI.textStyle(13, {
+        color: '#a9bd8f', strokeThickness: 3, bold: false,
+      })).setOrigin(0.5).setDepth(4);
     } else {
       this.add.image(480, 92, 'skull').setScale(1.6).setDepth(4).setAlpha(0.9);
       this.add.text(480, 148, '你倒下了', UI.textStyle(40, {
@@ -110,7 +118,9 @@ class GameOverScene extends Phaser.Scene {
     Sfx.uiClick();
     this.cameras.main.fadeOut(240, 6, 10, 6);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      if (this.data_.endless) {
+      if (this.data_.coop) {
+        this.scene.start('Lobby');
+      } else if (this.data_.endless) {
         this.scene.start('Ring', { preRun: true, character: this.data_.character || 'gunner', endless: true });
       } else {
         this.scene.start('Game', { character: this.data_.character || 'gunner' });
@@ -124,7 +134,8 @@ class GameOverScene extends Phaser.Scene {
     Sfx.uiClick();
     this.cameras.main.fadeOut(220, 6, 10, 6);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('Select', { endless: !!this.data_.endless });
+      if (this.data_.coop) this.scene.start('Lobby');
+      else this.scene.start('Select', { endless: !!this.data_.endless });
     });
   }
 

@@ -1,7 +1,7 @@
 /* 玩家、敌人与 Boss */
 
 class Player extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, character) {
+  constructor(scene, x, y, character, levelOverride) {
     const isSword = character === 'swordsman';
     const isFrankenstein = character === 'frankenstein';
     const isMage = character === 'mage';
@@ -42,7 +42,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.tridentThrown = false;
     this.tridentChannelStart = 0;
 
-    const charLevel = scene.charLevel || 0;
+    const charLevel = typeof levelOverride === 'number' ? levelOverride : (scene.charLevel || 0);
     this.maxHp = BALANCE.playerHP + charLevel * CHAR_UPGRADE.hpPerLevel;
     this.hp = this.maxHp;
     this.maxEnergy = BALANCE.playerEnergy + charLevel * CHAR_UPGRADE.energyPerLevel;
@@ -978,7 +978,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -1233,7 +1233,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       },
     });
 
-    const p = this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
     if (p && !p.isDead) {
       const dx = p.x - this.x;
       const dy = p.y - this.y;
@@ -1450,7 +1450,7 @@ class Boss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -1484,7 +1484,7 @@ class Boss extends Enemy {
 
   pickAttack() {
     this.actionCount++;
-    const p = this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
     const dist = Math.hypot(p.x - this.x, p.y - this.y);
     const r = Math.random();
     if (this.phase2 && this.actionCount % 4 === 0) {
@@ -1509,14 +1509,14 @@ class Boss extends Enemy {
     this.setVelocity(0, 0);
     this.setTint(0xffb08a);
     if (type === 'leap') {
-      const p = this.scene.player;
+      const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
       this.scene.fx.telegraph(p.x, p.y, 46, 0xff9a5a, this.modeTimer);
     }
   }
 
   executeAttack() {
     this.clearTint();
-    const p = this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
     const ang = Math.atan2(p.y - this.y, p.x - this.x);
     if (this.nextMode === 'leap') {
       this.setVelocity(Math.cos(ang) * 450, Math.sin(ang) * 450);

@@ -52,6 +52,7 @@ class GuestScene extends Phaser.Scene {
 
     Net.onState = (data) => this.applyState(data);
     Net.onWait = (text) => { if (this.statusText) this.statusText.textContent = text; };
+    Net.onGameOver = (data) => this.showGameOver(data);
     Net.onEnded = (reason) => this.showEnded(reason);
     Net.onStatus = (text) => { if (this.statusText) this.statusText.textContent = text; };
     if (Net.conn && !Net.conn.open) this.showEnded('与房主断开连接');
@@ -389,7 +390,7 @@ class GuestScene extends Phaser.Scene {
     sprite.setAlpha(p.dead ? 0.25 : 1);
     if (isGuest) sprite.setTint(p.dead ? 0x666666 : 0xbfe8ff);
     tag.setPosition(p.x, p.y - 34);
-    tag.setText(isGuest ? (p.dead ? '玩家2 · 复活中' : '玩家2') : '房主');
+    tag.setText(isGuest ? (p.dead ? '玩家2 · 倒地' : '玩家2') : (p.dead ? '房主 · 倒地' : '房主'));
     tag.setAlpha(1);
   }
 
@@ -479,11 +480,20 @@ class GuestScene extends Phaser.Scene {
     this.hpText.textContent = `${Math.ceil(g.hp || 0)} / ${Math.ceil(maxHp)}`;
     this.enFill.style.width = `${Math.max(0, Math.min(100, (g.energy || 0) / maxEn * 100))}%`;
     this.enText.textContent = `${Math.floor(g.energy || 0)} / ${Math.ceil(maxEn)}`;
-    this.hudName.textContent = g.dead ? '玩家2 · 复活中' : '玩家2';
+    this.hudName.textContent = g.dead ? '玩家2 · 倒地' : '玩家2';
     this.hudStatus.textContent = g.dead
-      ? (g.respawn > 0 ? `${g.respawn} 秒后复活` : '等待复活')
+      ? (d.reviveWho === 'g' && d.reviveProgress > 0 ? `救援中 ${d.reviveProgress}%` : '等待救援')
       : '联机中';
     this.weaponText.textContent = `武器：${(d.gs && d.gs.weapon) || '手枪'}`;
+    if (g.dead) {
+      this.helpText.textContent = '你倒下了 · 房主靠近并站立 5 秒可以救你';
+    } else if (d.hostDowned) {
+      this.helpText.textContent = d.reviveWho === 'p' && d.reviveProgress > 0
+        ? `救援房主 ${d.reviveProgress}% · 继续站在房主身边`
+        : '房主倒地 · 靠近房主站立 5 秒救援';
+    } else {
+      this.helpText.textContent = '左半屏移动 · 右半屏瞄准开火 · E 技能 · 空格翻滚 · Q 切枪';
+    }
     this.levelText.textContent = d.endless ? `第 ${d.endlessWave || 1} 波` : `${d.round || 1}-${d.stage || 1}`;
     this.levelSub.textContent = d.endless ? '无尽挑战' : (d.mapName || '草原');
     const boss = (d.enemies || []).find((e) => e.boss);
@@ -515,8 +525,48 @@ class GuestScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ 结束
 
+  showGameOver(data) {
+    if (this.gameOverShown) return;
+    this.gameOverShown = true;
+    this.ended = true;
+    this.fire = false;
+    Store.loseRingOnDeath();
+    Store.save();
+    const mask = this.makeEl('div', [
+      'position:fixed', 'inset:0', 'z-index:960', 'background:rgba(4,8,4,.82)',
+      'display:flex', 'flex-direction:column', 'align-items:center',
+      'justify-content:center', 'gap:14px', 'pointer-events:auto',
+      'font-family:"Microsoft YaHei","PingFang SC",sans-serif', 'color:#e8d9a8',
+      'text-align:center',
+    ].join(';'));
+    const title = this.makeEl('div', 'font-size:36px;color:#ff9a8a;font-weight:700;text-shadow:0 3px 0 #000;', mask);
+    title.textContent = '全队阵亡';
+    const sub = this.makeEl('div', 'font-size:13px;color:#a9bd8f;', mask);
+    sub.textContent = '联机模式 · 两名玩家都倒下了，本局结束';
+    const stats = this.makeEl('div', 'font-size:15px;line-height:1.9;color:#dfe8c8;', mask);
+    stats.textContent = [
+      `到达关卡：${data.endless ? `无尽第 ${data.wave || 1} 波` : `${data.round || 1}-${data.stage || 1}`}`,
+      `击杀数量：${data.kills || 0}`,
+      `本局金币：+${data.runCoins || 0}`,
+      `存活时间：${fmtTime(data.timeMs || 0)}`,
+      `当前装备戒指已遗失`,
+    ].join('\n');
+    const b = this.makeEl('button', [
+      'min-width:180px', 'height:46px', 'border:2px solid #d9b45a',
+      'background:#23301f', 'color:#ffe9a8', 'font-size:16px',
+      'font-weight:700', 'border-radius:4px', 'margin-top:8px',
+    ].join(';'), mask);
+    b.textContent = '返回主菜单';
+    b.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.exitToMenu();
+    });
+    document.body.appendChild(mask);
+    this.endMask = mask;
+  }
+
   showEnded(reason) {
-    if (this.ended) return;
+    if (this.ended || this.gameOverShown) return;
     this.ended = true;
     this.fire = false;
     const mask = this.makeEl('div', [
@@ -565,6 +615,7 @@ class GuestScene extends Phaser.Scene {
     this.onResize = null;
     Net.onState = null;
     Net.onWait = null;
+    Net.onGameOver = null;
     Net.onEnded = null;
     Net.onHud = null;
     Net.onStream = null;

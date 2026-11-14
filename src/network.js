@@ -13,12 +13,14 @@ const Net = {
   onGuestLeft: null,
   onInput: null,
   onAction: null,
+  onGuestLoadout: null,
   onStarted: null,
   onEnded: null,
   onStream: null,
   onHud: null,
   onState: null,
   onWait: null,
+  onGameOver: null,
 
   peerIdFor(code) {
     return `leshen-gunner-${code}`;
@@ -96,6 +98,7 @@ const Net = {
     if (this.role === 'host') {
       if (data.t === 'input' && this.onInput) this.onInput(data);
       else if (data.t === 'action' && this.onAction) this.onAction(data);
+      else if (data.t === 'loadout' && this.onGuestLoadout) this.onGuestLoadout(data);
       else if (data.t === 'leave' && this.onGuestLeft) this.onGuestLeft();
       return;
     }
@@ -104,6 +107,7 @@ const Net = {
       else if (data.t === 'hud' && this.onHud) this.onHud(data);
       else if (data.t === 'state' && this.onState) this.onState(data);
       else if (data.t === 'wait' && this.onWait) this.onWait(data.text || '房主正在操作');
+      else if (data.t === 'gameover' && this.onGameOver) this.onGameOver(data.data || {});
       else if (data.t === 'ended' && this.onEnded) this.onEnded(data.reason || '房主结束了游戏');
     }
   },

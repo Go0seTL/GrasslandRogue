@@ -12,6 +12,13 @@ class GameScene extends Phaser.Scene {
     this.worldH = this.endless ? ENDLESS_H : GAME_H;
     Object.assign(ARENA, this.endless ? ENDLESS_ARENA : ARENA_BASE);
     this.netHost = !!(data && data.netHost);
+    this.guestCharacter = (data && data.guestCharacter) || 'gunner';
+    this.guestRing = (data && data.guestRing) || null;
+    this.guestLevel = Math.max(0, Math.floor(Number(data && data.guestLevel) || 0));
+    this.guestSkillLevel = Math.max(0, Math.floor(Number(data && data.guestSkillLevel) || 0));
+    this.guestRingUndyingUsed = false;
+    this.guestRingExecuteUsed = false;
+    this.guestRingBloodBonus = 0;
     this.guestInput = { moveX: 0, moveY: 0, fire: false, aimX: null, aimY: null };
     this.player2 = null;
     this.guestTag = null;
@@ -23,6 +30,13 @@ class GameScene extends Phaser.Scene {
     this.nextGuestStateAt = 0;
     this.netIdSeq = 0;
     this.netIds = new WeakMap();
+    this.hostDowned = false;
+    this.guestDowned = false;
+    this.hostReviveTimer = 0;
+    this.guestReviveTimer = 0;
+    this.reviveProgress = 0;
+    this.reviveWho = null;
+    this.coopEnding = false;
     // 「继续游戏」：读取上一次退出时的房间检查点
     const cp = (data && data.resume && Store.data.runCheckpoint
       && Number(Store.data.runCheckpoint.round) > 0)
@@ -192,7 +206,7 @@ class GameScene extends Phaser.Scene {
       if (this.player.backSword) this.player.backSword.setScale(size);
     }
     if (this.netHost) {
-      this.player2 = new Player(this, spawnX - 50, spawnY + 20, this.characterId);
+      this.player2 = new Player(this, spawnX - 50, spawnY + 20, this.guestCharacter, this.guestLevel);
       this.player2.networkGuest = true;
       this.guestTag = this.add.text(spawnX - 50, spawnY - 32, '玩家2', UI.textStyle(10, {
         color: '#9fe8ff', strokeThickness: 3, bold: true, shadow: false,
@@ -203,6 +217,9 @@ class GameScene extends Phaser.Scene {
       this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
       this.setupDecor('grass');
     }
+    this.reviveText = this.add.text(0, 0, '', UI.textStyle(10, {
+      color: '#9fe8ff', strokeThickness: 3, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(890).setVisible(false);
     this.enemies = this.physics.add.group();
     this.playerBullets = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
@@ -1991,12 +2008,17 @@ class GameScene extends Phaser.Scene {
     this.hud.toastQueue.push('幽灵宝宝加入了战斗');
   }
 
+  targetPlayer() {
+    if (this.player && !this.player.isDead) return this.player;
+    if (this.player2 && !this.player2.isDead) return this.player2;
+    return this.player;
+  }
+
   updateGuestPlayer(time, delta) {
     if (!this.netHost || !this.player2) return;
     const g = this.player2;
     if (g.isDead) {
-      if (time >= this.guestRespawnAt) this.respawnGuest();
-      else if (this.guestTag) this.guestTag.setPosition(g.x, g.y - 52);
+      if (this.guestTag) this.guestTag.setPosition(g.x, g.y - 52);
       return;
     }
     const input = this.guestInput || {};
@@ -2041,7 +2063,7 @@ class GameScene extends Phaser.Scene {
     if (g.shadow) g.shadow.setPosition(g.x, g.y + 19).setDepth(g.y + 18);
     g.setDepth(g.y + 20);
     if (this.guestTag) this.guestTag.setPosition(g.x, g.y - 52).setDepth(880);
-    const ringRegen = this.hasRing('azure') ? 3 : 1;
+    const ringRegen = (this.hasRing('azure') ? 3 : 1) * (this.guestRing === 'azure' ? 3 : 1);
     g.energy = Math.min(g.maxEnergy, g.energy + BALANCE.energyRegen * ringRegen * delta / 1000);
     if (g.chargeFx) g.updateChargeFx(g.chargeRatio || 0);
     if (weapon.charge) {
@@ -2056,12 +2078,32 @@ class GameScene extends Phaser.Scene {
     if (!g || g.isDead) return;
     const now = this.time.now;
     if (now < g.invulnUntil) return;
-    g.hp -= amount;
+    if (this.guestRing === 'phantom') {
+      const sp = Math.hypot(g.body.velocity.x, g.body.velocity.y);
+      const chance = Math.min(0.30, 0.01 + sp / Math.max(1, BALANCE.playerSpeed) * 0.04);
+      if (Math.random() < chance) {
+        g.invulnUntil = now + 300;
+        this.fx.floatingText(g.x, g.y - 34, '闪避', '#9fe8ff');
+        return;
+      }
+    }
+    const armor = Math.min(0.45, this.buffs.armor || 0);
+    g.hp -= amount * (1 - armor);
     g.invulnUntil = now + 450;
     g.setTintFill(0xff5a4a);
     this.time.delayedCall(80, () => { if (g.active && !g.isDead) g.clearTint(); });
     this.cameras.main.shake(80, 0.002);
-    if (g.hp <= 0) this.guestDown();
+    if (g.hp <= 0) {
+      if (this.guestRing === 'undying' && !this.guestRingUndyingUsed) {
+        this.guestRingUndyingUsed = true;
+        g.hp = 1;
+        g.invulnUntil = now + 2500;
+        this.hud.toastQueue.push('玩家2 的不死戒指抵挡了致命伤害');
+        this.fx.ring(g.x, g.y, 0xffd76a, 0.2, 2.2, 600, 0.9, 740);
+        return;
+      }
+      this.guestDown();
+    }
   }
 
   guestDown() {
@@ -2069,31 +2111,115 @@ class GameScene extends Phaser.Scene {
     if (!g || g.isDead) return;
     g.isDead = true;
     g.hp = 0;
+    this.guestDowned = true;
+    this.guestReviveTimer = 0;
     g.body.enable = false;
-    g.setVisible(false);
+    g.setVisible(true).setAlpha(0.35).setTint(0x8a8a8a);
     if (g.gun) g.gun.setVisible(false);
-    if (g.shadow) g.shadow.setVisible(false);
-    if (this.guestTag) this.guestTag.setText('玩家2 · 复活中').setPosition(g.x, g.y - 52);
-    this.guestRespawnAt = this.time.now + 8000;
+    if (g.shadow) g.shadow.setVisible(true).setAlpha(0.15);
+    if (this.guestTag) this.guestTag.setText('玩家2 · 倒地').setPosition(g.x, g.y - 52);
     this.guestInput.fire = false;
-    this.hud.toastQueue.push('玩家2 倒下了，8 秒后复活');
+    this.hud.toastQueue.push('玩家2 倒下了，靠近并站立 5 秒可以救援');
+    if (this.hostDowned || (this.player && this.player.isDead)) this.endCoopDefeat();
   }
 
   respawnGuest() {
     const g = this.player2;
     if (!g) return;
+    this.guestDowned = false;
+    this.guestReviveTimer = 0;
+    this.reviveProgress = 0;
+    this.reviveWho = null;
     g.isDead = false;
     g.hp = Math.max(1, Math.round(g.maxHp * 0.5));
     g.energy = g.maxEnergy;
     g.body.enable = true;
     g.setVisible(true).setAlpha(1).clearTint();
     if (g.gun) g.gun.setVisible(true);
-    if (g.shadow) g.shadow.setVisible(true);
-    g.setPosition(this.player.x - 52, this.player.y + 18);
+    if (g.shadow) g.shadow.setVisible(true).setAlpha(0.28);
+    const px = this.player && !this.player.isDead ? this.player.x - 52 : g.x;
+    const py = this.player && !this.player.isDead ? this.player.y + 18 : g.y;
+    g.setPosition(px, py);
     g.body.reset(g.x, g.y);
     g.invulnUntil = this.time.now + 2000;
     if (this.guestTag) this.guestTag.setText('玩家2').setPosition(g.x, g.y - 52);
-    this.hud.toastQueue.push('玩家2 已复活');
+    this.hud.toastQueue.push('玩家2 已被救起');
+  }
+
+  reviveHost() {
+    const p = this.player;
+    if (!p) return;
+    this.hostDowned = false;
+    this.hostReviveTimer = 0;
+    this.reviveProgress = 0;
+    this.reviveWho = null;
+    p.isDead = false;
+    p.hp = Math.max(1, Math.round(p.maxHp * 0.5));
+    p.energy = Math.max(p.energy, p.maxEnergy * 0.5);
+    this.tweens.killTweensOf(p);
+    p.body.enable = true;
+    p.setAlpha(1).setAngle(0).clearTint();
+    p.anims.stop();
+    if (p.texture.key !== p.idleTexture) p.setTexture(p.idleTexture);
+    p.gun.setVisible(true);
+    if (p.secondaryGun) p.secondaryGun.setVisible(false);
+    if (p.shadow) p.shadow.setVisible(true).setAlpha(0.3);
+    p.invulnUntil = this.time.now + 2000;
+    p.body.reset(p.x, p.y);
+    if (this.hostDownTag) { this.hostDownTag.destroy(); this.hostDownTag = null; }
+    this.hud.bannerQueue.push({ title: '房主已被救起', sub: '生命恢复 50% · 2 秒无敌', color: '#9ff0a8' });
+  }
+
+  updateRevive(delta) {
+    if (this.coopEnding || !this.netHost) return;
+    const p = this.player;
+    const g = this.player2;
+    if (!p || !g) return;
+    let active = null;
+    if (this.hostDowned && !g.isDead) {
+      const near = dist2(p.x, p.y, g.x, g.y) < 74 * 74;
+      const still = Math.hypot(g.body.velocity.x, g.body.velocity.y) < 28;
+      if (near && still) {
+        this.hostReviveTimer += delta;
+        active = { who: 'p', timer: this.hostReviveTimer };
+      } else {
+        this.hostReviveTimer = 0;
+      }
+      if (this.hostReviveTimer >= 5000) {
+        this.reviveHost();
+        return;
+      }
+    } else {
+      this.hostReviveTimer = 0;
+    }
+    if (this.guestDowned && !p.isDead) {
+      const near = dist2(p.x, p.y, g.x, g.y) < 74 * 74;
+      const still = Math.hypot(p.body.velocity.x, p.body.velocity.y) < 28;
+      if (near && still) {
+        this.guestReviveTimer += delta;
+        active = { who: 'g', timer: this.guestReviveTimer };
+      } else {
+        this.guestReviveTimer = 0;
+      }
+      if (this.guestReviveTimer >= 5000) {
+        this.respawnGuest();
+        return;
+      }
+    } else {
+      this.guestReviveTimer = 0;
+    }
+    this.reviveWho = active ? active.who : null;
+    this.reviveProgress = active ? Math.min(1, active.timer / 5000) : 0;
+    if (this.reviveText) {
+      if (active) {
+        const target = active.who === 'p' ? p : g;
+        this.reviveText.setVisible(true)
+          .setPosition(target.x, target.y - 66)
+          .setText(`救援 ${(active.timer / 1000).toFixed(1)} / 5.0 秒`);
+      } else {
+        this.reviveText.setVisible(false);
+      }
+    }
   }
 
   netIdFor(e) {
@@ -2158,9 +2284,13 @@ class GameScene extends Phaser.Scene {
       room: this.roomState,
       round: this.round, stage: this.stage,
       endless: !!this.endless, endlessWave: this.endlessWave,
+      hostDowned: !!this.hostDowned,
+      reviveWho: this.reviveWho,
+      reviveProgress: Math.round((this.reviveProgress || 0) * 100),
       p: playerData(p),
       g: Object.assign(playerData(g), {
-        respawn: g.isDead ? Math.max(0, Math.ceil((this.guestRespawnAt - time) / 1000)) : 0,
+        respawn: 0,
+        revive: this.reviveWho === 'g' ? Math.round(this.reviveProgress * 100) : 0,
       }),
       gs: {
         cd: Math.max(0, Math.ceil((this.guestSkill.cooldownUntil - time) / 1000)),
@@ -2198,7 +2328,8 @@ class GameScene extends Phaser.Scene {
       this.guestSkill.cooldownUntil = this.time.now + GUEST_SKILL.cooldown;
       const g = this.player2;
       const weapon = g.networkWeapon || this.weapon || WEAPONS.pistol;
-      const dmg = Math.round((weapon.damage || 18) * (this.buffs.damage || 1) * GUEST_SKILL.damageMul);
+      const guestSkillMul = 1 + this.guestSkillLevel * SKILL_UPGRADE.damagePerLevel;
+      const dmg = Math.round((weapon.damage || 18) * (this.buffs.damage || 1) * GUEST_SKILL.damageMul * guestSkillMul);
       for (let i = 0; i < GUEST_SKILL.bullets; i++) {
         const a = (i / GUEST_SKILL.bullets) * Math.PI * 2;
         this.spawnPlayerBullet(g.x, g.y - 2, a, dmg, {
@@ -2225,6 +2356,7 @@ class GameScene extends Phaser.Scene {
       this.guestTag = null;
     }
     this.hud.toastQueue.push('玩家2 已离开房间');
+    if (this.hostDowned) this.endCoopDefeat();
   }
 
   onEnemyBulletHitGuest(guest, bullet) {
@@ -2530,11 +2662,16 @@ class GameScene extends Phaser.Scene {
   }
 
   ringBloodOnKill() {
-    if (!this.hasRing('blood') || !this.player || this.player.isDead) return;
-    if (this.ringBloodBonus >= 100) return;
-    this.ringBloodBonus += 2;
-    this.player.addMaxHp(2);
-    this.hud.hpDirty = true;
+    if (this.hasRing('blood') && this.player && !this.player.isDead && this.ringBloodBonus < 100) {
+      this.ringBloodBonus += 2;
+      this.player.addMaxHp(2);
+      this.hud.hpDirty = true;
+    }
+    if (this.guestRing === 'blood' && this.player2 && !this.player2.isDead && this.guestRingBloodBonus < 100) {
+      this.guestRingBloodBonus += 2;
+      this.player2.maxHp += 2;
+      this.player2.hp = Math.min(this.player2.maxHp, this.player2.hp + 2);
+    }
   }
 
   trySecondWind() {
@@ -3082,6 +3219,38 @@ class GameScene extends Phaser.Scene {
   }
 
   onPlayerDeath() {
+    if (this.gameOverStarted || this.coopEnding) return;
+    if (this.netHost && this.player2) {
+      if (this.player2.isDead) {
+        this.endCoopDefeat();
+        return;
+      }
+      this.hostDowned = true;
+      this.hostReviveTimer = 0;
+      this.locked = false;
+      this.cancelSkill();
+      this.stopSulfurBeam();
+      this.player.body.enable = false;
+      this.tweens.killTweensOf(this.player);
+      this.player.setAlpha(0.35).setAngle(0);
+      this.player.gun.setVisible(false);
+      if (this.player.shadow) this.player.shadow.setAlpha(0.15);
+      if (this.hostDownTag) this.hostDownTag.destroy();
+      this.hostDownTag = this.add.text(this.player.x, this.player.y - 58, '房主 · 倒地', UI.textStyle(10, {
+        color: '#ffb09a', strokeThickness: 3, bold: true, shadow: false,
+      })).setOrigin(0.5).setDepth(890);
+      this.hud.bannerQueue.push({ title: '你倒下了', sub: '队友靠近并站立 5 秒可以救你', color: '#ffb09a' });
+      this.hud.hurtAt = this.time.now;
+      Sfx.explosion();
+      this.fx.playerDeath(this.player.x, this.player.y);
+      this.cameras.main.shake(420, 0.012);
+      Net.send({ t: 'wait', text: '房主倒下了，等待队友救援' });
+      return;
+    }
+    this.beginGameOver();
+  }
+
+  beginGameOver() {
     if (this.gameOverStarted) return;
     this.gameOverStarted = true;
     this.clearVision();
@@ -3118,10 +3287,31 @@ class GameScene extends Phaser.Scene {
         character: this.characterId,
         endless: this.endless,
         wave: this.endlessWave,
+        coop: !!this.netHost,
       };
       this.scene.stop('UI');
       this.scene.start('Over', data);
     });
+  }
+
+  endCoopDefeat() {
+    if (this.coopEnding || this.gameOverStarted) return;
+    this.coopEnding = true;
+    const data = {
+      coop: true,
+      defeat: true,
+      runCoins: this.runCoins,
+      kills: this.kills,
+      round: this.round,
+      stage: this.stage,
+      timeMs: this.time.now - this.runStartTime,
+      character: this.characterId,
+      endless: this.endless,
+      wave: this.endlessWave,
+    };
+    Net.send({ t: 'gameover', data });
+    this.hud.bannerQueue.push({ title: '全队阵亡', sub: '联机对局结束', color: '#ff6a5a' });
+    this.time.delayedCall(250, () => this.beginGameOver());
   }
 
   // ------------------------------------------------------------ 技能
@@ -4603,6 +4793,10 @@ class GameScene extends Phaser.Scene {
       }
     }
     this.updateGuestPlayer(time, delta);
+    if (this.netHost) this.updateRevive(delta);
+    if (this.hostDownTag && this.player) {
+      this.hostDownTag.setPosition(this.player.x, this.player.y - 58);
+    }
     if (this.netHost && this.player2) this.sendGuestState(time);
     this.updateVision();
     this.updateGhost(time);
