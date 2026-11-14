@@ -3098,10 +3098,11 @@ class GameScene extends Phaser.Scene {
   summonBoarAxeRain(player) {
     if (!player || player.isDead) return;
     const count = BOAR_AXE.rockCount;
+    // 覆盖整张地图，而不是只覆盖玩家周围半屏
     for (let i = 0; i < count; i++) {
-      const x = Phaser.Math.Clamp(player.x + rand(-220, 220), ARENA.left + 46, ARENA.right - 46);
-      const y = Phaser.Math.Clamp(player.y + rand(-155, 155), ARENA.top + 70, ARENA.bottom - 40);
-      this.time.delayedCall(i * 75, () => {
+      const x = rand(ARENA.left + 36, ARENA.right - 36);
+      const y = rand(ARENA.top + 42, ARENA.bottom - 32);
+      this.time.delayedCall(i * 55, () => {
         if (!this.scene.isActive() || !this.player || this.player.isDead) return;
         this.spawnFallingRock(x, y, true);
       });
@@ -3145,10 +3146,10 @@ class GameScene extends Phaser.Scene {
         this.fx.ring(x, y, friendly ? 0xffd76a : 0xffb15a, 0.2, 1.2, 300, 0.7, 745);
         this.cameras.main.shake(100, 0.004);
         if (friendly) {
-          const dmg = 24 + this.round * 2;
+          const dmg = 30 + this.round * 3;
           this.enemies.getChildren().forEach((e) => {
             if (!e.active || e.dying) return;
-            if (dist2(x, y, e.x, e.y) < 58 * 58) {
+            if (dist2(x, y, e.x, e.y) < 66 * 66) {
               e.takeDamage(dmg, Math.atan2(e.y - y, e.x - x));
               this.fx.weaponHit(e.x, e.y, 0xffd76a, 4);
             }
@@ -4404,6 +4405,8 @@ class GameScene extends Phaser.Scene {
           pierce: weapon.pierce,
           color: q.color,
           power,
+          texture: weapon.projectileTexture,
+          scale: weapon.projectileScale,
         });
       }
       this.fx.ring(p.x, p.y - 2, q.color, 0.2, 1.3, 320, 0.8, 720);

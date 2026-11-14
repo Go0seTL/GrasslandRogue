@@ -83,7 +83,7 @@ const BOAR_AXE = {
   channelMs: 650,
   rainCooldown: 1600,
   slow: 0.35,
-  rockCount: 12,
+  rockCount: 22,
 };
 
 // 吉他手：持续音浪 + 移速提升
@@ -212,8 +212,9 @@ const WEAPONS = {
   },
   mushroom_orb: {
     id: 'mushroom_orb', name: '蘑菇怪法球', quality: 'rainbow', fragReq: 5, energyCost: 10,
-    damage: 16, fireRate: 0.8, bulletSpeed: 520, ringCount: 10, spread: 0, pierce: 0, tint: 0xc8a0ff,
-    texture: 'weapon_orb', desc: '蘑菇怪的力量。向四面八方发射环形法球。', iconScale: 1.2,
+    damage: 12, fireRate: 0.85, bulletSpeed: 330, ringCount: 24, spread: 0, pierce: 0, tint: 0xc8a0ff,
+    texture: 'weapon_orb', projectileTexture: 'orb', projectileScale: 0.85,
+    desc: '蘑菇怪的力量。以自身为中心向四周射出一整圈密集的球状子弹。', iconScale: 1.2,
   },
   bow: {
     id: 'bow', name: '蓄力弓', quality: 'purple', fragReq: 100, energyCost: 6, charge: true,

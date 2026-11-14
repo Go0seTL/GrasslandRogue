@@ -222,6 +222,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
           this.nextShotAt = time + 500;
           scene.onEnergyDenied();
         }
+      } else if (this.axeChanneled && time >= this.nextShotAt) {
+        if (this.spendEnergy(w.energyCost)) {
+          this.nextShotAt = time + BOAR_AXE.rainCooldown;
+          scene.summonBoarAxeRain(this);
+        } else {
+          this.nextShotAt = time + 500;
+          scene.onEnergyDenied();
+        }
       }
     } else if (this.axeChanneling) {
       const held = time - this.axeChannelStart;
@@ -598,6 +606,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
           pierce: w.pierce,
           color: q.color,
           power,
+          texture: w.projectileTexture,
+          scale: w.projectileScale,
         });
       }
       this.scene.fx.ring(this.x, this.y - 2, q.color, 0.2, 1.3, 320, 0.8, 720);
