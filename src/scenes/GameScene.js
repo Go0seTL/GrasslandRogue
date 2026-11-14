@@ -33,6 +33,7 @@ class GameScene extends Phaser.Scene {
     this.nextGuestStateReal = 0;
     this.guestFx = [];
     this.poisonPools = [];
+    this.guestDrops = [];
     this.netIdSeq = 0;
     this.netIds = new WeakMap();
     this.hostDowned = false;
@@ -2559,7 +2560,7 @@ class GameScene extends Phaser.Scene {
       enemies,
       eb: this.enemyBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),
       pb: this.playerBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),
-      coins, hpacks, epacks, frags,
+      guestDrops: this.guestDrops.slice(0, 90),
       portal: this.portal ? { x: round(this.portal.x), y: round(this.portal.y), armed: !!this.portal.armed } : null,
       pools: this.poisonPools.map((p) => ({ x: round(p.x), y: round(p.y), r: Math.round(p.r) })),
       ghostBaby: this.ghost && this.ghost.sprite && this.ghost.sprite.active
@@ -4398,8 +4399,10 @@ class GameScene extends Phaser.Scene {
   }
 
   clearPoisonPools() {
+    this.guestDrops = [];
     this.poisonPools.forEach((p) => this.destroyPoisonPool(p));
     this.poisonPools = [];
+    this.guestDrops = [];
   }
 
   activateGunnerSkill() {
@@ -5125,6 +5128,46 @@ class GameScene extends Phaser.Scene {
       c.value = 1;
       c.collectReadyAt = this.time.now + 300;
       this.tweens.add({ targets: c, scale: 1, duration: 180, ease: 'Back.Out' });
+      if (this.netHost) this.guestDrops.push({ k: 'coin', x: c.x, y: c.y, v: 1 });
+    }
+    this.trimGuestDrops();
+  }
+
+  trimGuestDrops() {
+    if (this.guestDrops.length > 90) this.guestDrops.splice(0, this.guestDrops.length - 90);
+  }
+
+  updateGuestDrops(time) {
+    if (!this.netHost || !this.player2 || this.player2.isDead) return;
+    const g = this.player2;
+    const pickup = 42;
+    for (let i = this.guestDrops.length - 1; i >= 0; i--) {
+      const d = this.guestDrops[i];
+      if (dist2(g.x, g.y, d.x, d.y) > pickup * pickup) continue;
+      this.guestDrops.splice(i, 1);
+      if (d.k === 'coin') {
+        const v = d.v || 1;
+        this.runCoins += v;
+        Store.addCoins(v);
+        this.hud.coinDirty = true;
+        this.fx.coinPop(d.x, d.y);
+        Sfx.coin();
+      } else if (d.k === 'hp') {
+        const amount = 18 + this.buffs.healBonus;
+        g.hp = Math.min(g.maxHp, g.hp + amount);
+        this.fx.healBurst(g.x, g.y, amount);
+        Sfx.heal();
+      } else if (d.k === 'ep') {
+        g.energy = Math.min(g.maxEnergy, g.energy + 35);
+        this.fx.ring(g.x, g.y, 0x5ad8ff, 0.15, 0.8, 300, 0.7, 740);
+        Sfx.energy();
+      } else if (d.k === 'frag') {
+        if (d.ring) Store.addRingFragment(d.id, d.amount || 1);
+        else Store.addFragment(d.id, d.amount || 1);
+        this.hud.toastQueue.push(`玩家2 拾取 ${d.ring ? RINGS[d.id].name : WEAPONS[d.id].name}碎片 ×${d.amount || 1}`);
+        this.fx.ring(d.x, d.y, d.color || 0xffd76a, 0.12, 0.8, 260, 0.7, 740);
+        Sfx.coin();
+      }
     }
   }
 
@@ -5172,6 +5215,8 @@ class GameScene extends Phaser.Scene {
     h.collectReadyAt = this.time.now + 350;
     h.setScale(0);
     this.tweens.add({ targets: h, scale: 1, duration: 180, ease: 'Back.Out' });
+    if (this.netHost) this.guestDrops.push({ k: 'hp', x: h.x, y: h.y });
+    this.trimGuestDrops();
   }
 
   collectHealthPack(h, target) {
@@ -5202,6 +5247,8 @@ class GameScene extends Phaser.Scene {
     e.collectReadyAt = this.time.now + 350;
     e.setScale(0);
     this.tweens.add({ targets: e, scale: 1, duration: 180, ease: 'Back.Out' });
+    if (this.netHost) this.guestDrops.push({ k: 'ep', x: e.x, y: e.y });
+    this.trimGuestDrops();
   }
 
   collectEnergyPack(e, target) {
@@ -5295,6 +5342,10 @@ class GameScene extends Phaser.Scene {
       .setAlpha(0.4).setScale(0.35).setDepth(10);
     f.setScale(0);
     this.tweens.add({ targets: f, scale: 0.9, duration: 200, ease: 'Back.Out' });
+    if (this.netHost) {
+      this.guestDrops.push({ k: 'frag', x: f.x, y: f.y, color: ring.color, id: ring.id, amount, ring: true });
+      this.trimGuestDrops();
+    }
   }
 
   dropFragment(id, x, y, amount, special) {
@@ -5325,6 +5376,10 @@ class GameScene extends Phaser.Scene {
       .setDepth(10);
     f.setScale(0);
     this.tweens.add({ targets: f, scale: special ? 1.15 : 0.9, duration: 200, ease: 'Back.Out' });
+    if (this.netHost) {
+      this.guestDrops.push({ k: 'frag', x: f.x, y: f.y, color: q.color, id, amount, ring: false });
+      this.trimGuestDrops();
+    }
     if (special) {
       this.cameras.main.flash(220, 240, 150, 255);
       this.hud.bannerQueue.push({ title: '彩色碎片', sub: `${w.name} ×${amount}`, color: '#ff8ae8' });
@@ -5556,6 +5611,7 @@ class GameScene extends Phaser.Scene {
     this.updateMercenary(time, delta);
     this.updateMerchant(time);
     this.updatePoisonPools(time);
+    this.updateGuestDrops(time);
     this.updateTouchUI();
 
     const aiDelta = this.endless ? delta * (this.endlessAtkMul || 1) : delta;

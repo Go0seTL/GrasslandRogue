@@ -1373,10 +1373,14 @@ class GuestScene extends Phaser.Scene {
   }
 
   updatePickups(d) {
-    this.layoutPickups(this.coinSprites, d.coins || [], 'coin_0', 1, null, 300);
-    this.layoutPickups(this.hpSprites, d.hpacks || [], 'health_pack', 1, null, 300);
-    this.layoutPickups(this.epSprites, d.epacks || [], 'energy_pack', 1, null, 300);
-    const frags = (d.frags || []).map((f) => ({ x: f.x, y: f.y, tint: f.color }));
+    const drops = d.guestDrops || [];
+    const coins = drops.filter((x) => x.k === 'coin');
+    const hps = drops.filter((x) => x.k === 'hp');
+    const eps = drops.filter((x) => x.k === 'ep');
+    const frags = drops.filter((x) => x.k === 'frag').map((f) => ({ x: f.x, y: f.y, tint: f.color }));
+    this.layoutPickups(this.coinSprites, coins, 'coin_0', 1, null, 300);
+    this.layoutPickups(this.hpSprites, hps, 'health_pack', 1, null, 300);
+    this.layoutPickups(this.epSprites, eps, 'energy_pack', 1, null, 300);
     this.layoutPickups(this.fragSprites, frags, 'fragment', 0.9, (item) => item.tint, 301);
   }
 
