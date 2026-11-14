@@ -712,6 +712,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     for (let i = 0; i < 3; i++) {
       scene.time.delayedCall(i * 45, () => {
         if (!this.active || this.isDead) return;
+        if (scene.relayFx) scene.relayFx({ k: 'afterimage', x: this.x, y: this.y, tex: this.texture.key, flip: this.flipX });
         const img = scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
           .setFlipX(this.flipX)
           .setAlpha(0.32)

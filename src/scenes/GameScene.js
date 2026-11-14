@@ -702,7 +702,7 @@ class GameScene extends Phaser.Scene {
       });
     };
 
-    fx.shell = (x, y) => { shells.explode(1, x, y); };
+    fx.shell = (x, y) => { scene.relayFx({ k: 'shell', x, y }); shells.explode(1, x, y); };
     fx.hitSpark = (x, y) => { sparks.explode(4, x, y); };
     fx.hopDust = (x, y) => { dust.explode(2, x, y); };
 
@@ -2530,7 +2530,12 @@ class GameScene extends Phaser.Scene {
           tex: this.merchant.sprite.texture.key,
           anim: this.merchant.sprite.anims && this.merchant.sprite.anims.currentAnim
             ? this.merchant.sprite.anims.currentAnim.key : null,
+          trades: this.merchant.trades.map((t) => ({
+            kind: t.kind, weaponId: t.weaponId, amount: t.amount,
+            coins: t.coins || 0, hearts: t.hearts || 0, sold: !!t.sold,
+          })),
         } : null,
+      wallet: { coins: Store.data.coins, hearts: Store.data.demonHearts },
       merc: this.mercenary && this.mercenary.active && this.mercenary.recruited
         ? {
           x: round(this.mercenary.x), y: round(this.mercenary.y),
@@ -2561,6 +2566,10 @@ class GameScene extends Phaser.Scene {
       const g = this.player2;
       if (this.time.now < g.dashReadyAt) return;
       g.startDash(this.time.now, this.guestInput.moveX, this.guestInput.moveY);
+      return;
+    }
+    if (data.key === 'merchant_trade') {
+      this.guestMerchantTrade(Number(data.index));
       return;
     }
     if (data.key === 'skill') {
@@ -2867,6 +2876,35 @@ class GameScene extends Phaser.Scene {
     }
     skill.type = null;
     skill.targets = [];
+  }
+
+  guestMerchantTrade(index) {
+    const m = this.merchant;
+    const g = this.player2;
+    if (!m || !g || !m.trades || !Number.isInteger(index)) return;
+    if (dist2(g.x, g.y, m.x, m.y) > 145 * 145) return;
+    const trade = m.trades[index];
+    if (!trade || trade.sold) return;
+    if (trade.kind === 'buy') {
+      if (Store.data.coins < trade.coins) return;
+      Store.data.coins -= trade.coins;
+      Store.addFragment(trade.weaponId, trade.amount);
+      this.hud.toastQueue.push(`玩家2 买入 ${WEAPONS[trade.weaponId].name}碎片 ×${trade.amount}`);
+    } else if (trade.kind === 'heart') {
+      if (Store.data.demonHearts < trade.hearts) return;
+      Store.data.demonHearts -= trade.hearts;
+      Store.addFragment(trade.weaponId, trade.amount);
+      this.hud.toastQueue.push(`玩家2 用撒旦之心换到 ${WEAPONS[trade.weaponId].name}碎片 ×${trade.amount}`);
+    } else {
+      if ((Store.data.fragments[trade.weaponId] || 0) < trade.amount) return;
+      Store.addFragment(trade.weaponId, -trade.amount);
+      Store.addCoins(trade.coins);
+      this.hud.toastQueue.push(`玩家2 卖出碎片，获得 ${trade.coins} 金币`);
+    }
+    trade.sold = true;
+    Store.save();
+    Sfx.coin();
+    this.sendGuestState(this.time.now, true);
   }
 
   removeGuest() {

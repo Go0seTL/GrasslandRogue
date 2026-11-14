@@ -117,6 +117,7 @@ class GuestScene extends Phaser.Scene {
     })).setOrigin(0.5).setDepth(880);
 
     this.buildHud();
+    this.buildMerchantUi();
     this.bindInputs();
 
     Net.onState = (data) => this.applyState(data);
@@ -353,6 +354,10 @@ class GuestScene extends Phaser.Scene {
     place(this.connection, 400, 464, 200, 16);
     place(this.statusText, 400, 480, 200, 16);
     place(this.helpText, 290, 514, 380, 16);
+    if (this.merchantBtnEl) {
+      this.merchantBtnEl.style.left = `${r.left + 480 * sx - 75 * sx}px`;
+      this.merchantBtnEl.style.top = `${r.top + 440 * sy}px`;
+    }
     this.updateTextAlign();
   }
 
@@ -532,6 +537,91 @@ class GuestScene extends Phaser.Scene {
     };
     this.input.on('pointerup', release);
     this.input.on('pointerupoutside', release);
+  }
+
+  buildMerchantUi() {
+    this.merchantBtnEl = this.makeEl('button', [
+      'position:fixed', 'display:none', 'min-width:150px', 'height:38px',
+      'border:2px solid #d9b45a', 'background:#23301f', 'color:#ffe9a8',
+      'font-size:14px', 'font-weight:700', 'border-radius:6px', 'z-index:950',
+      'pointer-events:auto', 'font-family:"Microsoft YaHei","PingFang SC",sans-serif',
+    ].join(';'));
+    this.merchantBtnEl.textContent = '交易奇旅商人';
+    this.merchantBtnEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.openMerchantPanel();
+    });
+    document.body.appendChild(this.merchantBtnEl);
+    this.merchantPanel = null;
+  }
+
+  openMerchantPanel() {
+    if (!this.merchantData || this.merchantPanel) return;
+    this.fire = false;
+    const mask = this.makeEl('div', [
+      'position:fixed', 'inset:0', 'z-index:965', 'background:rgba(4,8,4,.8)',
+      'display:flex', 'align-items:center', 'justify-content:center',
+      'font-family:"Microsoft YaHei","PingFang SC",sans-serif', 'color:#e8d9a8',
+    ].join(';'));
+    const panel = this.makeEl('div', [
+      'width:min(680px,92vw)', 'max-height:86vh', 'overflow:auto', 'padding:16px 18px',
+      'background:#141e0f', 'border:2px solid #e0bd63', 'border-radius:8px',
+      'box-shadow:0 0 0 3px rgba(75,107,62,.4)',
+    ].join(';'), mask);
+    const title = this.makeEl('div', 'font-size:22px;font-weight:700;text-align:center;margin-bottom:4px;', panel);
+    title.textContent = '奇 旅 商 人';
+    const wallet = this.makeEl('div', 'font-size:11px;text-align:center;margin-bottom:10px;color:#a9bd8f;', panel);
+    wallet.textContent = `金币 ${this.merchantWallet.coins} · 撒旦之心 ${this.merchantWallet.hearts}`;
+    (this.merchantData.trades || []).forEach((t, i) => {
+      const w = WEAPONS[t.weaponId];
+      if (!w) return;
+      const row = this.makeEl('div', [
+        'display:flex', 'align-items:center', 'gap:8px', 'padding:7px 10px',
+        'margin-bottom:6px', 'background:#111a0d', 'border:1px solid #5d7048',
+        'border-radius:4px', 'opacity:' + (t.sold ? '0.4' : '1'),
+      ].join(';'), panel);
+      const name = this.makeEl('div', 'flex:1;font-size:12px;', row);
+      const desc = t.kind === 'buy'
+        ? `${w.name}碎片 ×${t.amount} · ${t.coins} 金币`
+        : (t.kind === 'heart'
+          ? `${w.name}碎片 ×${t.amount} · ${t.hearts} 撒旦之心`
+          : `出售 ${w.name}碎片 ×${t.amount} · 获得 ${t.coins} 金币`);
+      name.textContent = desc;
+      if (!t.sold) {
+        const b = this.makeEl('button', [
+          'min-width:76px', 'height:30px', 'border:2px solid #d9b45a',
+          'background:#2f5a2a', 'color:#ffe9a8', 'font-size:12px',
+          'font-weight:700', 'border-radius:4px',
+        ].join(';'), row);
+        b.textContent = '交易';
+        b.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          Net.send({ t: 'action', key: 'merchant_trade', index: i });
+          this.showToast('交易请求已发送', '#9fe8a8');
+          this.closeMerchantPanel();
+        });
+      }
+    });
+    const close = this.makeEl('button', [
+      'display:block', 'margin:10px auto 0', 'min-width:140px', 'height:36px',
+      'border:2px solid #6f8a5a', 'background:#1b2817', 'color:#dfe8c8',
+      'font-size:13px', 'border-radius:4px',
+    ].join(';'), panel);
+    close.textContent = '关 闭';
+    close.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.closeMerchantPanel();
+    });
+    document.body.appendChild(mask);
+    this.merchantPanel = mask;
+  }
+
+  closeMerchantPanel() {
+    if (this.merchantPanel) this.merchantPanel.remove();
+    this.merchantPanel = null;
   }
 
   drawSticks() {
@@ -779,6 +869,11 @@ class GuestScene extends Phaser.Scene {
     this.endlessWave = d.endlessWave || 1;
     this.demonRealm = d.map === 'demon_realm';
     this.mapName = d.mapName || '草原';
+    this.merchantData = d.merchant || null;
+    this.merchantWallet = d.wallet || { coins: 0, hearts: 0 };
+    const m = d.merchant;
+    this.merchantNear = !!(m && d.g && Math.hypot(d.g.x - m.x, d.g.y - m.y) < 145);
+    if (this.merchantBtnEl) this.merchantBtnEl.style.display = this.merchantNear ? 'block' : 'none';
   }
 
   applyState(d) {
@@ -962,6 +1057,17 @@ class GuestScene extends Phaser.Scene {
           this.tweens.add({ targets: ring, scale: 2.2 + i * 0.5, alpha: 0, duration: 500, onComplete: () => ring.destroy() });
         }
         this.cameras.main.shake(big ? 300 : 120, big ? 0.007 : 0.004);
+      } else if (fx.k === 'shell') {
+        const sh = this.add.image(fx.x, fx.y, 'shell').setDepth(710)
+          .setScale(1.0).setRotation(rand(0, Math.PI * 2));
+        this.tweens.add({
+          targets: sh, y: fx.y - 18, x: fx.x + rand(-8, 8), angle: sh.angle + rand(-160, 160),
+          alpha: 0, duration: 550, onComplete: () => sh.destroy(),
+        });
+      } else if (fx.k === 'afterimage') {
+        const ghost = this.add.image(fx.x, fx.y, fx.tex || 'player_idle').setFlipX(!!fx.flip)
+          .setTint(0x9ff0e0).setAlpha(0.32).setDepth(705);
+        this.tweens.add({ targets: ghost, alpha: 0, duration: 240, onComplete: () => ghost.destroy() });
       } else if (fx.k === 'grenade') {
         const n = this.add.image(fx.x1, fx.y1, 'grenade').setDepth(735).setScale(1.2);
         this.tweens.add({
@@ -1522,6 +1628,8 @@ class GuestScene extends Phaser.Scene {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     if (this.toastEl && this.toastEl.parentNode) this.toastEl.remove();
     if (this.menuEl && this.menuEl.parentNode) this.menuEl.remove();
+    if (this.merchantBtnEl && this.merchantBtnEl.parentNode) this.merchantBtnEl.remove();
+    if (this.merchantPanel && this.merchantPanel.parentNode) this.merchantPanel.remove();
     if (this.endMask && this.endMask.parentNode) this.endMask.remove();
     if (this.hud && this.hud.parentNode) this.hud.remove();
     if (this.touchLayer && this.touchLayer.parentNode) this.touchLayer.remove();
