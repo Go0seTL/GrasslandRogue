@@ -34,6 +34,10 @@ class UIScene extends Phaser.Scene {
             : (this.characterId === 'demon' ? 'demon_0'
               : (this.characterId === 'vampire' ? 'vampire_0' : 'player_idle')))));
     this.add.image(46, 42, portraitKey).setDepth(102).setScale(0.95);
+    this.charLevelText = this.add.text(46, 72, 'Lv.0', UI.textStyle(9, {
+      color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(103);
+    this.lastCharLevel = -1;
     this.add.text(82, 20, '生命', UI.textStyle(11, {
       color: '#cfd9b6', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0, 0.5).setDepth(102);
@@ -178,6 +182,14 @@ class UIScene extends Phaser.Scene {
     this.bagBtn = this.createHudButton(922, 284, 54, 32, '背包', () => {
       this.scene.launch('Inventory', { from: 'game' });
     });
+    this.ringBtn = this.createHudButton(922, 332, 54, 32, '戒指', () => {
+      this.scene.launch('Ring', { from: 'game' });
+    });
+    this.treasureBtn = this.createHudButton(872, 70, 120, 28, '取财', () => {
+      const game = this.scene.get('Game');
+      if (game) game.collectTreasure();
+    });
+    this.treasureBtn.setVisible(false);
 
     this.lastWeaponId = null;
 
@@ -414,6 +426,17 @@ class UIScene extends Phaser.Scene {
       this.secondaryTag.setVisible(false);
     }
 
+    const charLevel = Store.getCharLevel(game.characterId);
+    if (charLevel !== this.lastCharLevel) {
+      this.lastCharLevel = charLevel;
+      this.charLevelText.setText(`Lv.${charLevel}`);
+    }
+    if (this.treasureBtn) {
+      const pot = game.treasurePot || 0;
+      this.treasureBtn.setVisible(pot > 0 && game.player && !game.player.isDead);
+      const label = this.treasureBtn.list[1];
+      if (label && pot > 0) label.setText(`取财 ${pot}`);
+    }
     this.drawSkillButton(game);
     const showFire = !!game.touchMode;
     if (this.fireG) this.fireG.setVisible(showFire);

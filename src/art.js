@@ -151,6 +151,23 @@ const Art = {
       ctx.fillRect(14, 6, 2, 1);
     }, 2);
 
+    this._canvas(scene, 'ring_icon', 18, 14, (ctx) => {
+      ctx.strokeStyle = '#2a1a12';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(9, 8, 5.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = '#ffd76a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(9, 8, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      this._ellipse(ctx, 9, 2, 2.4, 2.2, '#ffffff', 1);
+      ctx.fillStyle = '#9fe8ff';
+      this._ellipse(ctx, 9, 2, 1.3, 1.2, '#9fe8ff', 1);
+    }, 2);
+
     // 技能图标
     this._canvas(scene, 'guitar_icon', 24, 24, (ctx) => {
       ctx.fillStyle = '#ffd76a';

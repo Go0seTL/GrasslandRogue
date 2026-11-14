@@ -6,6 +6,9 @@ const Store = {
     unlocked: ['gunner'],
     ownedWeapons: ['pistol', 'knife'],
     fragments: {},
+    ringFragments: {},
+    ownedRings: [],
+    equippedRing: null,
     charLevels: {},
     swordsmanPurchased: false,
     muted: false,
@@ -40,6 +43,9 @@ const Store = {
     if (!this.data.ownedWeapons.includes('pistol')) this.data.ownedWeapons.push('pistol');
     if (!this.data.ownedWeapons.includes('knife')) this.data.ownedWeapons.push('knife');
     if (!this.data.fragments || typeof this.data.fragments !== 'object') this.data.fragments = {};
+    if (!this.data.ringFragments || typeof this.data.ringFragments !== 'object') this.data.ringFragments = {};
+    if (!Array.isArray(this.data.ownedRings)) this.data.ownedRings = [];
+    if (this.data.equippedRing && !this.data.ownedRings.includes(this.data.equippedRing)) this.data.equippedRing = null;
     Object.keys(WEAPONS).forEach((id) => {
       if (WEAPONS[id].quality === 'white') return;
       if (typeof this.data.fragments[id] !== 'number') this.data.fragments[id] = 0;
@@ -76,6 +82,49 @@ const Store = {
     return this.data.unlocked.includes(id);
   },
 
+  addRingFragment(id, amount) {
+    if (!this.data.ringFragments) this.data.ringFragments = {};
+    this.data.ringFragments[id] = (this.data.ringFragments[id] || 0) + amount;
+    this._dirty = true;
+    return this.data.ringFragments[id];
+  },
+
+  hasRing(id) {
+    return this.data.ownedRings.includes(id);
+  },
+
+  craftRing(id) {
+    const ring = RINGS[id];
+    if (!ring) return false;
+    if (this.hasRing(id)) return true;
+    const have = this.data.ringFragments[id] || 0;
+    if (have < ring.fragReq) return false;
+    this.data.ringFragments[id] = have - ring.fragReq;
+    this.data.ownedRings.push(id);
+    this.save();
+    return true;
+  },
+
+  equipRing(id) {
+    if (!id || !this.hasRing(id)) return false;
+    this.data.equippedRing = id;
+    this.save();
+    return true;
+  },
+
+  unequipRing() {
+    this.data.equippedRing = null;
+    this.save();
+  },
+
+  loseRingOnDeath() {
+    const id = this.data.equippedRing;
+    if (!id) return;
+    this.data.equippedRing = null;
+    this.data.ownedRings = this.data.ownedRings.filter((r) => r !== id);
+    this.save();
+  },
+
   addFragment(id, amount) {
     if (!this.data.fragments) this.data.fragments = {};
     this.data.fragments[id] = (this.data.fragments[id] || 0) + amount;
@@ -93,7 +142,7 @@ const Store = {
   },
 
   charUpgradeCost(id) {
-    return 200 * Math.pow(2, this.getCharLevel(id));
+    return 100 + this.getCharLevel(id) * 60;
   },
 
   upgradeChar(id) {

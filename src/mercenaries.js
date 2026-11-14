@@ -63,6 +63,9 @@ class Mercenary extends Phaser.Physics.Arcade.Sprite {
     this.defaultWeapon = def.defaultWeapon;
     this.givenWeapon = null;
     this.weaponName = def.defaultName;
+    this.attackIndex = 0;
+    this.strafe = Math.random() < 0.5 ? -1 : 1;
+    this.strafeTimer = rand(1200, 2200);
 
     this.shadow = scene.add.image(x, y + 19, 'shadow')
       .setAlpha(0.25).setScale(0.95).setDepth(y + 18);
@@ -98,7 +101,7 @@ class Mercenary extends Phaser.Physics.Arcade.Sprite {
     const w = WEAPONS[id] || weapon;
     if (!w) return;
     this.givenWeapon = w;
-    this.weaponName = w.name;
+    this.weaponName = `${this.mercDef.defaultName} + ${w.name}`;
     this.nextAttackAt = this.scene.time.now + 250;
     this.updateLabel();
   }
@@ -170,9 +173,10 @@ class Mercenary extends Phaser.Physics.Arcade.Sprite {
     this.target = this.findNearestEnemy(430);
     let moveTo = null;
     let stopDist = 0;
+    const dw = this.defaultWeapon;
     if (this.target) {
       moveTo = this.target;
-      stopDist = this.weapon.grenade ? 300 : (this.weapon.melee ? this.weapon.range * 0.72 : 280);
+      stopDist = dw.grenade ? 300 : (dw.melee ? dw.range * 0.72 : 280);
     } else {
       const side = player.flipX ? 1 : -1;
       moveTo = { x: player.x + side * 58, y: player.y + 26 };
@@ -181,24 +185,38 @@ class Mercenary extends Phaser.Physics.Arcade.Sprite {
     const dx = moveTo.x - this.x;
     const dy = moveTo.y - this.y;
     const dist = Math.hypot(dx, dy);
+    this.strafeTimer -= delta;
+    if (this.strafeTimer <= 0) {
+      this.strafe *= -1;
+      this.strafeTimer = rand(1200, 2400);
+    }
     if (dist > stopDist + 8) {
       const a = Math.atan2(dy, dx);
-      const sp = this.speed * (resting ? 0.55 : 1);
+      const sp = this.speed * (resting ? 0.5 : 1);
       this.setVelocity(Math.cos(a) * sp, Math.sin(a) * sp);
       this.setFlipX(Math.cos(a) < 0);
       if (!this.anims.isPlaying) this.play(this.mercDef.walkAnim, true);
     } else {
-      this.setVelocity(0, 0);
-      if (this.anims.isPlaying) this.anims.stop();
-      this.setTexture(this.mercDef.texture);
+      // 攻击时保持横向移动，不要站桩
+      const a = Math.atan2(dy, dx) + this.strafe * Math.PI / 2;
+      const sp = this.speed * (resting ? 0.32 : 0.55);
+      this.setVelocity(Math.cos(a) * sp, Math.sin(a) * sp);
+      this.setFlipX(Math.cos(Math.atan2(dy, dx)) < 0);
+      if (!this.anims.isPlaying) this.play(this.mercDef.walkAnim, true);
     }
 
     if (!resting && this.target && time >= this.nextAttackAt) {
       const attackAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
       const attackDist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
-      const w = this.weapon;
-      const maxRange = w.grenade ? 430 : (w.melee ? w.range : 470);
-      if (attackDist <= maxRange) {
+      const candidates = [];
+      [dw, this.givenWeapon].forEach((w) => {
+        if (!w) return;
+        const maxRange = w.grenade ? 430 : (w.melee ? w.range : 470);
+        if (attackDist <= maxRange) candidates.push(w);
+      });
+      if (candidates.length > 0) {
+        const w = candidates[this.attackIndex % candidates.length];
+        this.attackIndex++;
         this.attack(this.target, attackAngle, w, time);
       }
     }

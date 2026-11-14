@@ -70,7 +70,7 @@ class PauseScene extends Phaser.Scene {
   }
 
   stopOverlays() {
-    ['Forge', 'Inventory', 'CharUpgrade', 'Bestiary', 'Upgrade', 'Merchant'].forEach((key) => {
+    ['Forge', 'Inventory', 'CharUpgrade', 'Bestiary', 'Upgrade', 'Merchant', 'Ring'].forEach((key) => {
       const s = this.scene.get(key);
       if (s && s.scene && s.scene.isActive()) s.scene.stop();
     });

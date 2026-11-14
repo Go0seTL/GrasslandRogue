@@ -41,9 +41,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.tridentChannelStart = 0;
 
     const charLevel = scene.charLevel || 0;
-    this.maxHp = BALANCE.playerHP + charLevel * 10;
+    this.maxHp = BALANCE.playerHP + charLevel * CHAR_UPGRADE.hpPerLevel;
     this.hp = this.maxHp;
-    this.maxEnergy = BALANCE.playerEnergy + charLevel * 10;
+    this.maxEnergy = BALANCE.playerEnergy + charLevel * CHAR_UPGRADE.energyPerLevel;
     this.energy = this.maxEnergy;
     this.isDead = false;
     this.aimAngle = 0;
@@ -299,7 +299,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         this.gun.setTexture(scene.weapon.texture);
       }
       const gx = this.x + cos * 8;
-      const gy = this.y - 5 + Math.sin(aim) * 8;
+      const gy = this.y + 4 + Math.sin(aim) * 8;
       this.gun.setPosition(gx, gy);
       this.gun.setRotation(aim);
       this.gun.setFlipY(cos < 0);
@@ -351,7 +351,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * delta / 1000);
+    const ringRegen = this.scene.hasRing && this.scene.hasRing('azure') ? 3 : 1;
+    this.energy = Math.min(this.maxEnergy, this.energy + BALANCE.energyRegen * ringRegen * delta / 1000);
     this.setDepth(this.y + 20);
     this.shadow.setPosition(this.x, this.y + (this.giant ? 30 : 19)).setDepth(this.y + 18);
   }
@@ -424,12 +425,15 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.scene.maybeSlimeStaffRing) {
       this.scene.maybeSlimeStaffRing(w, q, power);
     }
+    if (this.scene.maybeRingWealth) this.scene.maybeRingWealth();
     Sfx.shoot();
   }
 
   updateChargeWeapon(time, aim, firing, w) {
     const demon = this.isDemonActive();
-    const holding = this.scene.touchMode ? (this.scene.touch.aim.active && firing) : firing;
+    const holding = this.scene.touchMode
+      ? (Store.data.autoFire ? (this.scene.touch.aim.active && firing) : firing)
+      : firing;
     if (holding) {
       this.chargeAim = aim;
       if (!this.charging) {
@@ -465,7 +469,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       const q = QUALITIES[w.quality] || QUALITIES.white;
       const power = 3 + Math.round(ratio * 3);
       const px = this.x + Math.cos(aimAngle) * 24;
-      const py = this.y - 5 + Math.sin(aimAngle) * 24;
+      const py = this.y + 2 + Math.sin(aimAngle) * 24;
       if (w.boomerang) {
         this.scene.throwBoomerang(w, aimAngle, ratio, dmg, q, power);
         this.scene.fx.muzzle(px, py, aimAngle, q.color, power);
@@ -487,6 +491,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.fx.muzzle(px, py, aimAngle, q.color, power);
       this.scene.fx.shotBurst(px, py, q.color, power);
       this.scene.cameras.main.shake(80, 0.002 + ratio * 0.004);
+      if (this.scene.maybeRingWealth) this.scene.maybeRingWealth();
       Sfx.bowRelease();
     }
   }
@@ -571,6 +576,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.meleeAttack(this, aim, mw);
       this.body.velocity.x -= Math.cos(aim) * 45;
       this.body.velocity.y -= Math.sin(aim) * 45;
+      if (this.scene.maybeRingWealth) this.scene.maybeRingWealth();
       Sfx.slash();
       return;
     }
@@ -588,14 +594,15 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.fx.ring(this.x, this.y - 2, q.color, 0.2, 1.3, 320, 0.8, 720);
       this.scene.fx.shotBurst(this.x, this.y - 2, q.color, power);
       this.scene.cameras.main.shake(60, 0.002);
+      if (this.scene.maybeRingWealth) this.scene.maybeRingWealth();
       Sfx.shoot();
       return;
     }
     const px = this.x + Math.cos(aim) * 2;
-    const py = this.y - 2 + Math.sin(aim) * 2;
+    const py = this.y + 2 + Math.sin(aim) * 2;
     const tip = this.gun.displayWidth * (1 - this.gun.originX);
     const fxX = this.x + Math.cos(aim) * (8 + tip);
-    const fxY = this.y - 5 + Math.sin(aim) * (8 + tip);
+    const fxY = this.y + 4 + Math.sin(aim) * (8 + tip);
     const spread = w.spread * (buffs.spreadMul || 1);
     const extra = buffs.twinChance && Math.random() < buffs.twinChance ? 1 : 0;
     for (let i = 0; i < w.pellets + extra; i++) {
@@ -610,7 +617,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       });
     }
     this.scene.fx.muzzle(fxX, fxY, aim, q.color, power);
-    this.scene.fx.shell(this.x + Math.cos(aim) * 8, this.y - 5 + Math.sin(aim) * 8, aim);
+    this.scene.fx.shell(this.x + Math.cos(aim) * 8, this.y + 4 + Math.sin(aim) * 8, aim);
     this.body.velocity.x -= Math.cos(aim) * (w.pellets > 1 ? 40 : 10);
     this.body.velocity.y -= Math.sin(aim) * (w.pellets > 1 ? 40 : 10);
     this.scene.cameras.main.shake(45, w.pellets > 1 ? 0.0022 : 0.0009);
@@ -652,6 +659,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount, srcX, srcY, time) {
     if (this.isDead || time < this.invulnUntil) return false;
+    const dodge = this.scene.ringDodgeChance ? this.scene.ringDodgeChance() : 0;
+    if (dodge > 0 && Math.random() < dodge) {
+      this.scene.onRingDodge();
+      return false;
+    }
     this.hp = Math.max(0, this.hp - amount);
     this.invulnUntil = time + BALANCE.hurtInvuln;
     const ang = Math.atan2(this.y - srcY, this.x - srcX);
@@ -666,6 +678,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     Sfx.hurt();
     this.scene.onPlayerHurt();
     if (this.hp <= 0) {
+      if (this.scene.tryRingUndying && this.scene.tryRingUndying()) {
+        return true;
+      }
       if (this.scene.tryGhostSave && this.scene.tryGhostSave()) {
         return true;
       }
@@ -754,6 +769,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.goatBeam = null;
     this.ghostRevealUntil = 0;
     this.ghostVisible = false;
+    this.ghostCd = rand(700, 1400);
+    this.ghostBurst = 0;
     this.guardAttackAt = 0;
     this.dragonCd = rand(900, 1600);
 
@@ -1020,8 +1037,30 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setAlpha(Phaser.Math.Linear(this.alpha, target, 0.16));
     if (this.shadow) this.shadow.setAlpha(visible ? 0.2 : 0);
     const sp = 32;
-    this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+    if (!visible) {
+      this.ghostBurst = 0;
+      this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+      this.setFlipX(p.x < this.x);
+      return;
+    }
     this.setFlipX(p.x < this.x);
+    if (this.ghostBurst > 0) {
+      this.setVelocity(0, 0);
+      if (time >= this.ghostCd) {
+        this.ghostBurst--;
+        this.ghostCd = this.ghostBurst > 0 ? time + 140 : time + rand(1400, 2200);
+        this.scene.spawnEnemyOrb(this.x, this.y - 4, angTo, Math.round(this.damage * 0.75), { speed: 315, tint: 0xbfe8e0 });
+        this.scene.fx.muzzle(this.x, this.y - 4, angTo, 0xbfe8e0, 1);
+      }
+      return;
+    }
+    if (dist > 170) this.setVelocity(Math.cos(angTo) * sp, Math.sin(angTo) * sp);
+    else this.setVelocity(0, 0);
+    if (time >= this.ghostCd && dist < 480) {
+      this.ghostBurst = 3;
+      this.ghostCd = time + 140;
+      this.scene.hud.toastQueue.push('亡灵的连射！');
+    }
   }
 
   updateGoat(delta, dist, angTo, p) {
@@ -1307,9 +1346,9 @@ class Boss extends Enemy {
     this.isBoss = true;
     this.bossName = elite ? '精英史莱姆王' : '史莱姆王';
     this.bossWeapon = 'slime_staff';
-    this.maxHp = Math.round(560 * (1 + 0.65 * (round - 1)) * (elite ? 1.6 : 1));
+    this.maxHp = Math.round(560 * (1 + 0.65 * (round - 1)) * (elite ? 1.6 : 1) * BOSS_BALANCE.hp);
     this.hp = this.maxHp;
-    this.damage = Math.round(18 * (1 + 0.32 * (round - 1)) * (elite ? 1.3 : 1));
+    this.damage = Math.round(18 * (1 + 0.32 * (round - 1)) * (elite ? 1.3 : 1) * BOSS_BALANCE.damage);
     this.moveSpeed = 52;
     this.mode = 'idle';
     this.modeTimer = 1500;

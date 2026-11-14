@@ -54,6 +54,18 @@ const GIANT = {
 // 火焰喷射器：命中后 2 秒灼烧
 const FLAMER_BURN = { duration: 2000, dps: 8 };
 
+// 角色升级：线性金币、较小的单级属性提升
+const CHAR_UPGRADE = {
+  hpPerLevel: 5,
+  energyPerLevel: 5,
+  damagePerLevel: 0.02,
+  speedPerLevel: 0.01,
+  maxSpeedBonus: 0.30,
+};
+
+// Boss 平衡：血量提高、伤害降低
+const BOSS_BALANCE = { hp: 1.2, damage: 0.8 };
+
 // 野猪王之斧：长按蓄力召唤石头雨，期间大幅减速
 const BOAR_AXE = {
   channelMs: 650,
@@ -251,7 +263,19 @@ const UPGRADES = [
   { id: 'death_blast', name: '死亡爆破', icon: '爆', color: 0xff7a4a, rarity: 'epic', desc: '击杀敌人时有 30% 概率引发爆炸，对周围敌人造成伤害。' },
   { id: 'twin_barrage', name: '双生弹幕', icon: '双', color: 0xffa8e8, rarity: 'epic', desc: '每次射击有 35% 概率额外发射一颗子弹。' },
   { id: 'dual_wield', name: '双持大师', icon: '双', color: 0xffa8e8, rarity: 'epic', desc: '同时持有两把不同的已拥有武器，自动装备品质最高的另一把，两把武器同时开火。' },
+  { id: 'treasure', name: '无限财宝', icon: '财', color: 0xe8b54a, rarity: 'epic', desc: '每活过一轮存下 200 金币，可随时点击「取财」取出；死亡则全部失去。' },
+  { id: 'no_scratch', name: '不掉一根毛', icon: '净', color: 0x9fe8ff, rarity: 'epic', desc: '本轮全程无伤时，通关 Boss 获得紫色以上武器碎片和戒指碎片大礼。' },
 ];
+
+const RINGS = {
+  undying: { id: 'undying', name: '不死戒指', quality: 'gold', fragReq: 30, color: 0xffd76a, desc: '抵挡一次致命伤害。' },
+  blood: { id: 'blood', name: '血红戒指', quality: 'purple', fragReq: 20, color: 0xff6a5a, desc: '每击杀一个单位，本局生命上限提高。' },
+  azure: { id: 'azure', name: '蔚蓝戒指', quality: 'blue', fragReq: 15, color: 0x5ab0ff, desc: '大幅提高能量回复速度。' },
+  teleport: { id: 'teleport', name: '传送戒指', quality: 'purple', fragReq: 25, color: 0xb07bff, desc: '进入传送门时随机传送到一个关卡（每局一次）。' },
+  execute: { id: 'execute', name: '秒杀戒指', quality: 'gold', fragReq: 35, color: 0xff4a4a, desc: '第一次攻击直接秒杀一个单位（每局一次）。' },
+  phantom: { id: 'phantom', name: '幻影戒指', quality: 'purple', fragReq: 25, color: 0x9fe8ff, desc: '获得闪避伤害的几率；移动越快，几率越高。' },
+  wealth: { id: 'wealth', name: '财富戒指', quality: 'green', fragReq: 10, color: 0xffd76a, desc: '每次攻击有几率掉落金币。' },
+};
 
 const UPGRADE_REFRESH_COST = 30;
 

@@ -59,10 +59,10 @@ class CharUpgradeScene extends Phaser.Scene {
   refresh() {
     const lvl = Store.getCharLevel(this.characterId);
     const upgradeCost = Store.charUpgradeCost(this.characterId);
-    const hp = BALANCE.playerHP + lvl * 10;
-    const energy = BALANCE.playerEnergy + lvl * 10;
-    const dmg = lvl * 4;
-    const aspd = Math.min(55, lvl * 2);
+    const hp = BALANCE.playerHP + lvl * CHAR_UPGRADE.hpPerLevel;
+    const energy = BALANCE.playerEnergy + lvl * CHAR_UPGRADE.energyPerLevel;
+    const dmg = Math.round(lvl * CHAR_UPGRADE.damagePerLevel * 100);
+    const aspd = Math.min(Math.round(CHAR_UPGRADE.maxSpeedBonus * 100), Math.round(lvl * CHAR_UPGRADE.speedPerLevel * 100));
     this.stats.setText(
       `等级        Lv.${lvl}\n` +
       `生命上限    ${hp}\n` +

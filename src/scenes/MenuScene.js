@@ -87,6 +87,10 @@ class MenuScene extends Phaser.Scene {
       this.scene.launch('Forge', { from: 'menu' });
     }, { variant: 'ghost', fontSize: 14 }).setDepth(20);
 
+    UI.button(this, 872, 222, 148, 36, '戒指锻造', () => {
+      this.scene.launch('Ring', { from: 'menu' });
+    }, { variant: 'ghost', fontSize: 14 }).setDepth(20);
+
     UI.button(this, 110, 144, 148, 36, '全屏模式', () => this.tryFullscreen(), {
       variant: 'ghost', fontSize: 14,
     }).setDepth(20);

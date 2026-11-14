@@ -70,8 +70,8 @@ class GameScene extends Phaser.Scene {
     }
     this.charLevel = Store.getCharLevel(this.characterId);
     if (!cp) {
-      this.buffs.damage *= 1 + this.charLevel * 0.04;
-      this.buffs.fireRate *= Math.max(0.45, 1 - this.charLevel * 0.02);
+      this.buffs.damage *= 1 + this.charLevel * CHAR_UPGRADE.damagePerLevel;
+      this.buffs.fireRate *= Math.max(1 - CHAR_UPGRADE.maxSpeedBonus, 1 - this.charLevel * CHAR_UPGRADE.speedPerLevel);
     }
     this.lastEnergyWarn = 0;
     this.ghost = null;
@@ -79,6 +79,9 @@ class GameScene extends Phaser.Scene {
     this.mercPrompt = null;
     this.merchant = null;
     this.merchantPrompt = null;
+    this.spawnRound = -1;
+    this.mercSpawnsThisRound = 0;
+    this.merchantSpawnsThisRound = 0;
     this.giantAura = null;
     this.guitarAura = null;
     this.guitarNextTick = 0;
@@ -104,6 +107,16 @@ class GameScene extends Phaser.Scene {
     this.startUpgradeShown = false;
     this.fragmentPity = 0;
     this.slimeStaffShots = 0;
+    this.ringUndyingUsed = false;
+    this.ringTeleportUsed = false;
+    this.ringExecuteUsed = false;
+    this.ringBloodBonus = 0;
+    this.treasurePot = 0;
+    this.treasureEnabled = false;
+    this.noScratchEnabled = false;
+    this.roundNoDamage = true;
+    this.noScratchTrackRound = -1;
+    this.noScratchRound = -1;
 
     this.portal = null;
     this.demonPortal = null;
@@ -658,6 +671,15 @@ class GameScene extends Phaser.Scene {
     this.destroySatanReturnPortal();
     this.round = round;
     this.stage = stage;
+    if (this.noScratchTrackRound !== round) {
+      this.noScratchTrackRound = round;
+      this.roundNoDamage = true;
+    }
+    if (this.spawnRound !== round) {
+      this.spawnRound = round;
+      this.mercSpawnsThisRound = 0;
+      this.merchantSpawnsThisRound = 0;
+    }
     this.enemyLevel = levelIndex(round, stage);
     this.transitioning = false;
     this.locked = true;
@@ -866,7 +888,8 @@ class GameScene extends Phaser.Scene {
   }
 
   maybeSpawnMercenary() {
-    if (this.mercenary || Math.random() > 0.07) return;
+    if (this.mercenary || this.mercSpawnsThisRound >= 2 || Math.random() > 0.07) return;
+    this.mercSpawnsThisRound++;
     this.spawnMercenary(Math.random() < 0.5 ? 'xuan' : 'liang');
   }
 
@@ -1037,6 +1060,14 @@ class GameScene extends Phaser.Scene {
       this.player.heal(heal);
       this.fx.healBurst(this.player.x, this.player.y, heal);
       Sfx.heal();
+    }
+    if (isBoss && this.treasureEnabled) {
+      this.treasurePot += 200;
+      this.hud.toastQueue.push(`无限财宝：本轮存下 200 金币（累计 ${this.treasurePot}）`);
+    }
+    if (isBoss && this.noScratchEnabled && this.roundNoDamage && this.noScratchRound !== this.round) {
+      this.noScratchRound = this.round;
+      this.grantNoScratchReward();
     }
     Store.flush();
     this.saveCheckpoint();
@@ -1226,6 +1257,7 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.fadeIn(420, 25, 4, 8);
     this.time.delayedCall(1000, () => {
       if (!this.scene.isActive() || !this.demonRealm) return;
+      this.transitioning = false;
       this.locked = false;
       this.roomState = 'fighting';
       this.spawnSatan();
@@ -1360,6 +1392,9 @@ class GameScene extends Phaser.Scene {
     this.energyPacks.getChildren().slice().forEach((e) => {
       if (e.active) this.collectEnergyPack(e);
     });
+    this.healthPacks.getChildren().slice().forEach((h) => {
+      if (h.active) this.collectHealthPack(h);
+    });
     Sfx.portal();
     this.cameras.main.flash(220, 170, 235, 255);
     this.cameras.main.fadeOut(340, 6, 12, 6);
@@ -1367,6 +1402,16 @@ class GameScene extends Phaser.Scene {
     let nr = this.round;
     let ns = this.stage + 1;
     if (ns > ROUND_LEN) { ns = 1; nr += 1; }
+    if (this.hasRing('teleport') && !this.ringTeleportUsed) {
+      this.ringTeleportUsed = true;
+      nr = randInt(1, Math.max(1, this.round + 1));
+      ns = randInt(1, ROUND_LEN);
+      this.hud.bannerQueue.push({
+        title: '传送戒指',
+        sub: `随机传送到 ${nr}-${ns}`,
+        color: '#b07bff',
+      });
+    }
     Store.updateBest(this.round, this.stage, this.kills);
     Store.flush();
 
@@ -1572,6 +1617,11 @@ class GameScene extends Phaser.Scene {
       if (dist2(px, py, e.x, e.y) > range * range) return;
       const diff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - py, e.x - px) - aim));
       if (diff > arc / 2) return;
+      if (player === this.player && this.tryRingExecute(e, aim)) {
+        this.fx.weaponHit(e.x, e.y, q.color, power);
+        hits++;
+        return;
+      }
       e.takeDamage(dmg, aim);
       this.fx.weaponHit(e.x, e.y, q.color, power);
       hits++;
@@ -1709,7 +1759,8 @@ class GameScene extends Phaser.Scene {
   }
 
   maybeSpawnMerchant() {
-    if (this.merchant || Math.random() > 0.06) return;
+    if (this.merchant || this.merchantSpawnsThisRound >= 2 || Math.random() > 0.06) return;
+    this.merchantSpawnsThisRound++;
     this.spawnMerchant();
   }
 
@@ -1809,6 +1860,95 @@ class GameScene extends Phaser.Scene {
     if (m.label && m.label.active) m.label.destroy();
     this.merchant = null;
     if (this.merchantPrompt) this.merchantPrompt.setVisible(false);
+  }
+
+  collectTreasure() {
+    if (this.treasurePot <= 0) return;
+    const amount = this.treasurePot;
+    this.treasurePot = 0;
+    Store.addCoins(amount);
+    Store.save();
+    this.hud.coinDirty = true;
+    this.hud.toastQueue.push(`取出了 ${amount} 金币！`);
+    Sfx.coin();
+  }
+
+  grantNoScratchReward() {
+    const weaponPool = Object.values(WEAPONS).filter((w) => ['purple', 'red', 'gold'].includes(w.quality));
+    const rings = Object.keys(RINGS);
+    const picks = [];
+    for (let i = 0; i < 2 && weaponPool.length > 0; i++) {
+      const w = weaponPool[randInt(0, weaponPool.length - 1)];
+      const amount = randInt(6, 12);
+      Store.addFragment(w.id, amount);
+      picks.push(`${w.name}碎片×${amount}`);
+    }
+    for (let i = 0; i < 2 && rings.length > 0; i++) {
+      const id = rings[randInt(0, rings.length - 1)];
+      const amount = randInt(3, 6);
+      Store.addRingFragment(id, amount);
+      picks.push(`${RINGS[id].name}碎片×${amount}`);
+    }
+    Store.save();
+    this.hud.bannerQueue.push({
+      title: '不掉一根毛',
+      sub: picks.join('  '),
+      color: '#9fe8ff',
+    });
+    Sfx.unlock();
+  }
+
+  hasRing(id) {
+    return Store.data.equippedRing === id;
+  }
+
+  tryRingUndying() {
+    if (!this.hasRing('undying') || this.ringUndyingUsed) return false;
+    this.ringUndyingUsed = true;
+    this.player.hp = 1;
+    this.player.invulnUntil = this.time.now + 2500;
+    this.hud.hpDirty = true;
+    this.hud.bannerQueue.push({ title: '不死戒指', sub: '抵挡了这次致命伤害', color: '#ffd76a' });
+    this.fx.ring(this.player.x, this.player.y, 0xffd76a, 0.2, 2.2, 600, 0.9, 740);
+    this.cameras.main.flash(260, 255, 220, 120);
+    Sfx.energy();
+    return true;
+  }
+
+  ringDodgeChance() {
+    if (!this.hasRing('phantom') || !this.player) return 0;
+    const sp = Math.hypot(this.player.body.velocity.x, this.player.body.velocity.y);
+    const ratio = sp / Math.max(1, BALANCE.playerSpeed);
+    return Math.min(0.30, 0.01 + Math.max(0, ratio) * 0.04);
+  }
+
+  onRingDodge() {
+    this.player.invulnUntil = Math.max(this.player.invulnUntil, this.time.now + 300);
+    this.fx.floatingText(this.player.x, this.player.y - 34, '闪避', '#9fe8ff');
+    this.fx.ring(this.player.x, this.player.y, 0x9fe8ff, 0.12, 0.9, 260, 0.7, 735);
+  }
+
+  tryRingExecute(enemy, angle) {
+    if (!this.hasRing('execute') || this.ringExecuteUsed || !enemy || enemy.dying) return false;
+    this.ringExecuteUsed = true;
+    this.hud.bannerQueue.push({ title: '秒杀戒指', sub: `${enemy.def ? enemy.def.name : '目标'} 被秒杀`, color: '#ff6a5a' });
+    this.fx.ring(enemy.x, enemy.y, 0xff3a2a, 0.2, 2.2, 500, 0.9, 746);
+    Sfx.explosion();
+    enemy.takeDamage(enemy.hp + 999999, angle);
+    return true;
+  }
+
+  maybeRingWealth() {
+    if (!this.hasRing('wealth') || this.player.isDead) return;
+    if (Math.random() < 0.2) this.dropCoins(this.player.x, this.player.y, 1);
+  }
+
+  ringBloodOnKill() {
+    if (!this.hasRing('blood') || !this.player || this.player.isDead) return;
+    if (this.ringBloodBonus >= 100) return;
+    this.ringBloodBonus += 2;
+    this.player.addMaxHp(2);
+    this.hud.hpDirty = true;
   }
 
   tryGhostSave() {
@@ -1946,6 +2086,11 @@ class GameScene extends Phaser.Scene {
       bullet.destroy();
     }
     const wasBoss = enemy.isBoss;
+    if (this.tryRingExecute(enemy, ang)) {
+      this.fx.weaponHit(bx, by, bullet.qualityColor, bullet.qualityPower);
+      if (enemy.dying) this.cameras.main.shake(wasBoss ? 140 : 80, wasBoss ? 0.006 : 0.0028);
+      return;
+    }
     enemy.takeDamage(dmg, ang);
     if (!enemy.dying && bullet.burn && enemy.applyBurn) {
       enemy.applyBurn(bullet.burn.duration, bullet.burn.dps);
@@ -1970,6 +2115,16 @@ class GameScene extends Phaser.Scene {
     this.weaponId = id;
     this.weapon = w;
     this.slimeStaffShots = 0;
+    this.ringUndyingUsed = false;
+    this.ringTeleportUsed = false;
+    this.ringExecuteUsed = false;
+    this.ringBloodBonus = 0;
+    this.treasurePot = 0;
+    this.treasureEnabled = false;
+    this.noScratchEnabled = false;
+    this.roundNoDamage = true;
+    this.noScratchTrackRound = -1;
+    this.noScratchRound = -1;
     if (this.dualWield) this.pickSecondaryWeapon();
     this.hud.toastQueue.push(`已装备：${w.name}`);
     this.saveCheckpoint();
@@ -1994,13 +2149,13 @@ class GameScene extends Phaser.Scene {
 
   applyCharLevelUp() {
     this.charLevel = (this.charLevel || 0) + 1;
-    this.buffs.damage *= 1.04;
-    this.buffs.fireRate = Math.max(0.45, this.buffs.fireRate * 0.98);
+    this.buffs.damage *= 1 + CHAR_UPGRADE.damagePerLevel;
+    this.buffs.fireRate = Math.max(1 - CHAR_UPGRADE.maxSpeedBonus, this.buffs.fireRate * (1 - CHAR_UPGRADE.speedPerLevel));
     if (this.player) {
-      this.player.maxHp += 10;
-      this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10);
-      this.player.maxEnergy += 10;
-      this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 10);
+      this.player.maxHp += CHAR_UPGRADE.hpPerLevel;
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + CHAR_UPGRADE.hpPerLevel);
+      this.player.maxEnergy += CHAR_UPGRADE.energyPerLevel;
+      this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + CHAR_UPGRADE.energyPerLevel);
     }
     this.hud.hpDirty = true;
     this.hud.toastQueue.push('角色升级成功！');
@@ -2079,6 +2234,15 @@ class GameScene extends Phaser.Scene {
       case 'dual_wield':
         this.enableDualWield();
         break;
+      case 'treasure':
+        this.treasureEnabled = true;
+        this.treasurePot = 0;
+        break;
+      case 'no_scratch':
+        this.noScratchEnabled = true;
+        this.roundNoDamage = true;
+        this.noScratchTrackRound = this.round;
+        break;
       default:
         break;
     }
@@ -2121,6 +2285,8 @@ class GameScene extends Phaser.Scene {
     if (Math.random() < energyChance) this.dropEnergyPack(enemy.x, enemy.y);
     if (this.buffs.lifesteal > 0 && !this.player.isDead) this.player.heal(this.buffs.lifesteal);
     this.maybeDropFragment(enemy);
+    this.maybeDropRingFragment(enemy);
+    this.ringBloodOnKill();
     if (this.buffs.deathBlast > 0 && !enemy.isBoss && Math.random() < 0.3) {
       this.deathBlast(enemy.x, enemy.y);
     }
@@ -2143,6 +2309,7 @@ class GameScene extends Phaser.Scene {
 
   onPlayerHurt() {
     this.hud.hurtAt = this.time.now;
+    this.roundNoDamage = false;
   }
 
   onEnergyDenied() {
@@ -2157,6 +2324,8 @@ class GameScene extends Phaser.Scene {
     if (this.gameOverStarted) return;
     this.gameOverStarted = true;
     this.clearVision();
+    Store.loseRingOnDeath();
+    this.treasurePot = 0;
     this.stopSulfurBeam();
     Store.data.runCheckpoint = null;
     Store.save();
@@ -2657,14 +2826,16 @@ class GameScene extends Phaser.Scene {
     if (s.targets.length > 0 && time >= s.nextShotAt) {
       const weapon = this.weapon || WEAPONS[this.weaponId] || WEAPONS.pistol;
       s.nextShotAt = time + this.gunnerSkillInterval(weapon);
-      const target = s.targets[s.shotIndex % s.targets.length];
       s.shotIndex++;
-      s.aimTarget = target;
-      const angle = Math.atan2(
-        target.y - this.player.y,
-        target.x - this.player.x
-      );
-      this.gunnerSkillFire(angle, weapon, time);
+      s.aimTarget = s.targets[0];
+      // 同时向锁定的最多 3 个敌人开火，而不是轮流一个个打
+      s.targets.forEach((target) => {
+        const angle = Math.atan2(
+          target.y - this.player.y,
+          target.x - this.player.x
+        );
+        this.gunnerSkillFire(angle, weapon, time);
+      });
     }
 
     // 身上冒火
@@ -2698,7 +2869,7 @@ class GameScene extends Phaser.Scene {
     if (weapon.charge) {
       const dmg = Math.round((weapon.baseDamage + weapon.maxBonus) * (buffs.damage || 1));
       const px = p.x + Math.cos(angle) * 24;
-      const py = p.y - 5 + Math.sin(angle) * 24;
+      const py = p.y + 2 + Math.sin(angle) * 24;
       this.spawnPlayerBullet(px, py, angle, dmg, {
         speed: weapon.bulletSpeed * (buffs.bulletSpeed || 1),
         tint: null,
@@ -2755,10 +2926,10 @@ class GameScene extends Phaser.Scene {
     this.maybeSlimeStaffRing(weapon, q, power);
     const tip = p.gun.displayWidth * (1 - p.gun.originX);
     const fxX = p.x + Math.cos(angle) * (8 + tip);
-    const fxY = p.y - 5 + Math.sin(angle) * (8 + tip);
+    const fxY = p.y + 4 + Math.sin(angle) * (8 + tip);
     this.fx.muzzle(fxX, fxY, angle, q.color, power);
     if (s.shotIndex % 2 === 0) {
-      this.fx.shell(p.x + Math.cos(angle) * 8, p.y - 5 + Math.sin(angle) * 8, angle);
+      this.fx.shell(p.x + Math.cos(angle) * 8, p.y + 4 + Math.sin(angle) * 8, angle);
     }
     this.cameras.main.shake(
       weapon.pellets > 1 ? 50 : 28,
@@ -3201,6 +3372,43 @@ class GameScene extends Phaser.Scene {
     this.fragmentPity = 0;
   }
 
+  maybeDropRingFragment(enemy) {
+    const chance = enemy.isBoss ? 1 : (enemy.isElite ? 0.4 : 0.18);
+    if (Math.random() > chance) return;
+    const ids = Object.keys(RINGS);
+    if (ids.length === 0) return;
+    const id = choice(ids);
+    const amount = enemy.isBoss ? randInt(2, 4) : 1;
+    this.dropRingFragment(id, enemy.x, enemy.y, amount);
+  }
+
+  dropRingFragment(id, x, y, amount) {
+    const ring = RINGS[id];
+    if (!ring) return;
+    const f = this.physics.add.sprite(x + rand(-8, 8), y + rand(-6, 6), 'fragment');
+    this.fragments.add(f);
+    f.setTint(ring.color).setDepth(11);
+    f.body.setCircle(10, 1, 2);
+    f.body.setAllowGravity(true);
+    f.body.setGravityY(650);
+    f.setCollideWorldBounds(true);
+    f.setBounce(0.4);
+    f.setDrag(140);
+    const a = rand(0, Math.PI * 2);
+    const sp = rand(50, 160);
+    f.setVelocity(Math.cos(a) * sp, Math.sin(a) * sp - 70);
+    f.isRing = true;
+    f.ringId = id;
+    f.amount = amount;
+    f.collectReadyAt = this.time.now + 300;
+    f.glow = this.add.image(f.x, f.y, 'glow')
+      .setTint(ring.color)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(0.4).setScale(0.35).setDepth(10);
+    f.setScale(0);
+    this.tweens.add({ targets: f, scale: 0.9, duration: 200, ease: 'Back.Out' });
+  }
+
   dropFragment(id, x, y, amount, special) {
     const w = WEAPONS[id];
     if (!w) return;
@@ -3238,6 +3446,18 @@ class GameScene extends Phaser.Scene {
 
   collectFragment(f, silent) {
     if (!f.active) return;
+    if (f.isRing) {
+      const ring = RINGS[f.ringId];
+      const x = f.x, y = f.y;
+      const amount = f.amount || 1;
+      if (f.glow && f.glow.active) f.glow.destroy();
+      f.destroy();
+      if (!ring) return;
+      Store.addRingFragment(ring.id, amount);
+      this.fx.floatingText(x, y - 10, `${ring.name}碎片 +${amount}`, '#ffd76a');
+      if (!silent) Sfx.shard();
+      return;
+    }
     const w = WEAPONS[f.weaponId];
     const x = f.x, y = f.y;
     const amount = f.amount || 1;

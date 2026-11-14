@@ -8,6 +8,13 @@ class GameOverScene extends Phaser.Scene {
   }
 
   create() {
+    this.leaving = false;
+    this.input.enabled = true;
+    this.scene.bringToTop();
+    ['UI', 'Pause', 'Forge', 'Inventory', 'CharUpgrade', 'Bestiary', 'Upgrade', 'Merchant', 'Ring'].forEach((key) => {
+      const sc = this.scene.get(key);
+      if (sc && sc.scene && sc.scene.isActive()) sc.scene.stop();
+    });
     const d = this.data_;
     this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x040804, 0.72).setOrigin(0).setDepth(1);
@@ -71,6 +78,17 @@ class GameOverScene extends Phaser.Scene {
       variant: 'ghost', fontSize: 15, once: true,
     }).setDepth(5);
 
+    this.retryRect = { x: 480, y: 408, w: 250, h: 50 };
+    this.selectRect = { x: 352, y: 466, w: 178, h: 40 };
+    this.menuRect = { x: 608, y: 466, w: 178, h: 40 };
+    this.input.on('pointerup', (pointer) => {
+      if (this.leaving) return;
+      const inside = (r) => pointer.x >= r.x - r.w / 2 && pointer.x <= r.x + r.w / 2
+        && pointer.y >= r.y - r.h / 2 && pointer.y <= r.y + r.h / 2;
+      if (inside(this.retryRect)) this.retry();
+      else if (inside(this.selectRect)) this.toSelect();
+      else if (inside(this.menuRect)) this.toMenu();
+    });
     this.cameras.main.fadeIn(380, 6, 10, 6);
     this.input.keyboard.on('keydown-ENTER', () => this.retry());
     this.input.keyboard.on('keydown-ESC', () => this.toMenu());
