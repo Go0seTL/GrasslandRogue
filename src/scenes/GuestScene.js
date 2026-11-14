@@ -553,9 +553,13 @@ class GuestScene extends Phaser.Scene {
         .setOrigin(0, 0.5).setRotation(aim).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
       const core = this.add.rectangle(x, y - 6, 560, 8, 0xffffff, 0.95)
         .setOrigin(0, 0.5).setRotation(aim).setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
+      this.localBeam = { glow, core };
       this.tweens.add({
         targets: [glow, core], alpha: 0, duration: 1700, ease: 'Sine.In',
-        onComplete: () => { glow.destroy(); core.destroy(); },
+        onComplete: () => {
+          if (this.localBeam && this.localBeam.glow === glow) this.localBeam = null;
+          glow.destroy(); core.destroy();
+        },
       });
     } else if (char === 'guitarist' || char === 'vampire' || char === 'knight' || char === 'demon') {
       const aura = this.add.image(x, y, 'ring').setTint(color)
@@ -942,6 +946,11 @@ class GuestScene extends Phaser.Scene {
     }
     if (this.localAura && this.localAura.active) {
       this.localAura.setPosition(this.guestSprite.x, this.guestSprite.y);
+    }
+    if (this.localBeam && this.localBeam.glow.active) {
+      const aim = this.state && this.state.g ? (this.state.g.aim || 0) : 0;
+      this.localBeam.glow.setPosition(this.guestSprite.x, this.guestSprite.y - 6).setRotation(aim);
+      this.localBeam.core.setPosition(this.guestSprite.x, this.guestSprite.y - 6).setRotation(aim);
     }
     if (this.guestShieldAura && this.guestShieldAura.visible) {
       this.guestShieldAura.setPosition(this.guestSprite.x, this.guestSprite.y)
