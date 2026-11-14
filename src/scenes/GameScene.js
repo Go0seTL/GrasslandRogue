@@ -2628,15 +2628,16 @@ class GameScene extends Phaser.Scene {
       this.hud.toastQueue.push('玩家2：影袭');
     } else if (type === 'alchemist') {
       const dps = this.guestSkillDamage(5);
+      const hitDmg = this.guestSkillDamage(6);
       const targets = this.guestSkillTargets(5);
       if (targets.length) {
-        targets.forEach((e) => this.throwPoisonFlask(g.x, g.y - 2, e.x, e.y, dps));
+        targets.forEach((e) => this.throwPoisonFlask(g.x, g.y - 2, e.x, e.y, dps, hitDmg));
       } else {
         for (let i = 0; i < 5; i++) {
           const a = (i / 5) * Math.PI * 2;
           this.throwPoisonFlask(g.x, g.y - 2,
             clamp(g.x + Math.cos(a) * 130, ARENA.left + 30, ARENA.right - 30),
-            clamp(g.y + Math.sin(a) * 110, ARENA.top + 30, ARENA.bottom - 30), dps);
+            clamp(g.y + Math.sin(a) * 110, ARENA.top + 30, ARENA.bottom - 30), dps, hitDmg);
         }
       }
       skill.activeUntil = now + 700;
@@ -3615,8 +3616,8 @@ class GameScene extends Phaser.Scene {
 
     const dropBonus = 1 + (this.buffs.dropRate || 0);
     const hpChance = enemy.isBoss
-      ? 1
-      : Math.min(0.55, (this.player.hp < this.player.maxHp * 0.4 ? 0.16 : 0.09) * dropBonus);
+      ? 0.65
+      : Math.min(0.50, (this.player.hp < this.player.maxHp * 0.4 ? 0.13 : 0.07) * dropBonus);
     if (Math.random() < hpChance) this.dropHealthPack(enemy.x, enemy.y);
     const energyChance = enemy.isBoss
       ? 1
@@ -4093,8 +4094,9 @@ class GameScene extends Phaser.Scene {
     s.locks = [];
     s.swords = [];
     const dps = Math.round(ALCHEMIST_FLASK.dps * this.skillDamageMul());
+    const hitDmg = Math.round(ALCHEMIST_FLASK.damage * this.skillDamageMul());
     const throwAt = (tx, ty) => {
-      this.throwPoisonFlask(this.player.x, this.player.y - 2, tx, ty, dps);
+      this.throwPoisonFlask(this.player.x, this.player.y - 2, tx, ty, dps, hitDmg);
     };
     if (s.targets.length > 0) {
       s.targets.forEach((e) => throwAt(e.x, e.y));
@@ -4112,7 +4114,7 @@ class GameScene extends Phaser.Scene {
     this.hud.toastQueue.push('炼金术士：毒瓶落地形成毒圈，友军站进去回血');
   }
 
-  throwPoisonFlask(fromX, fromY, tx, ty, dps) {
+  throwPoisonFlask(fromX, fromY, tx, ty, dps, hitDamage) {
     const flask = this.add.image(fromX, fromY, 'orb').setTint(0x7ad9a0)
       .setScale(1.05).setDepth(818).setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({
@@ -4123,6 +4125,18 @@ class GameScene extends Phaser.Scene {
         const lx = flask.x;
         const ly = flask.y;
         flask.destroy();
+        const direct = Math.max(0, Math.round(hitDamage || 0));
+        if (direct > 0) {
+          this.enemies.getChildren().forEach((e) => {
+            if (!e.active || e.dying) return;
+            if (dist2(e.x, e.y, lx, ly) < 52 * 52) {
+              e.takeDamage(direct, Math.atan2(e.y - ly, e.x - lx));
+              if (e.applyPoison) e.applyPoison(1200, dps);
+              this.markGuestHit(e.x, e.y, 0x7ad9a0);
+            }
+          });
+          this.fx.ring(lx, ly, 0x7ad9a0, 0.12, 1.0, 240, 0.8, 739);
+        }
         this.createPoisonPool(lx, ly, dps);
       },
     });
