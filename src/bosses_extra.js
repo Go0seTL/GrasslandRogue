@@ -65,7 +65,7 @@ class BoarKingBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -155,7 +155,7 @@ class BoarKingBoss extends Enemy {
     Sfx.bossRoar();
     this.scene.cameras.main.shake(250, 0.007);
     this.scene.hud.toastQueue.push(`${this.bossName} 进入狂暴！`);
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     const a = p
       ? Math.atan2(p.y - this.y, p.x - this.x) + rand(-0.3, 0.3)
       : rand(0, Math.PI * 2);
@@ -222,7 +222,7 @@ class MushroomFiendBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -351,7 +351,7 @@ class BatKingBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -403,7 +403,7 @@ class BatKingBoss extends Enemy {
     this.mode = 'teleport';
     this.modeTimer = 1200;
     this.setVelocity(0, 0);
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) return;
     this.scene.fx.ring(this.x, this.y, 0x8a4fb0, 0.2, 1.8, 300, 0.8, 745);
     Sfx.portal();
@@ -483,7 +483,7 @@ class GoatKingBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -656,7 +656,7 @@ class SatanBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       this.clearSatanBeam();
@@ -985,7 +985,7 @@ class DragonBabyBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       this.clearBreath();
@@ -1192,7 +1192,7 @@ class AngelBoss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;

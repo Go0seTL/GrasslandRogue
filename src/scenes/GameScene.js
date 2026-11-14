@@ -2109,10 +2109,18 @@ class GameScene extends Phaser.Scene {
     return map[this.guestCharacter] || 'flame_icon';
   }
 
-  targetPlayer() {
-    if (this.player && !this.player.isDead) return this.player;
-    if (this.player2 && !this.player2.isDead) return this.player2;
-    return this.player;
+  targetPlayer(enemy) {
+    const p1 = this.player;
+    const p2 = this.player2;
+    const a1 = p1 && !p1.isDead;
+    const a2 = p2 && !p2.isDead;
+    if (a1 && a2 && enemy) {
+      return dist2(enemy.x, enemy.y, p1.x, p1.y) <= dist2(enemy.x, enemy.y, p2.x, p2.y)
+        ? p1 : p2;
+    }
+    if (a1) return p1;
+    if (a2) return p2;
+    return p1;
   }
 
   updateGuestPlayer(time, delta) {

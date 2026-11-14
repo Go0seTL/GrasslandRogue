@@ -723,6 +723,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount, srcX, srcY, time) {
+    if (this.networkGuest && this.scene.damageGuest) {
+      this.scene.damageGuest(amount);
+      return true;
+    }
     if (this.isDead || time < this.invulnUntil) return false;
     if (this.scene.isKnightShieldActive && this.scene.isKnightShieldActive()) {
       this.scene.fx.ring(this.x, this.y, 0xfff2c8, 0.2, 0.9, 220, 0.75, 736);
@@ -1144,7 +1148,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -1399,7 +1403,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       },
     });
 
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (p && !p.isDead) {
       const dx = p.x - this.x;
       const dy = p.y - this.y;
@@ -1618,7 +1622,7 @@ class Boss extends Enemy {
   updateAI(time, delta) {
     if (!this.active || this.dying) return;
     this._visualTick();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     if (!p || p.isDead) {
       this.setVelocity(0, 0);
       return;
@@ -1652,7 +1656,7 @@ class Boss extends Enemy {
 
   pickAttack() {
     this.actionCount++;
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     const dist = Math.hypot(p.x - this.x, p.y - this.y);
     const r = Math.random();
     if (this.phase2 && this.actionCount % 4 === 0) {
@@ -1677,14 +1681,14 @@ class Boss extends Enemy {
     this.setVelocity(0, 0);
     this.setTint(0xffb08a);
     if (type === 'leap') {
-      const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+      const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
       this.scene.fx.telegraph(p.x, p.y, 46, 0xff9a5a, this.modeTimer);
     }
   }
 
   executeAttack() {
     this.clearTint();
-    const p = this.scene.targetPlayer ? this.scene.targetPlayer() : this.scene.player;
+    const p = this.scene.targetPlayer ? this.scene.targetPlayer(this) : this.scene.player;
     const ang = Math.atan2(p.y - this.y, p.x - this.x);
     if (this.nextMode === 'leap') {
       this.setVelocity(Math.cos(ang) * 450, Math.sin(ang) * 450);

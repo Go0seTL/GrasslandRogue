@@ -42,6 +42,7 @@ class GuestScene extends Phaser.Scene {
       blendMode: 'ADD', emitting: false,
     }).setDepth(820);
     this.poisonG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    this.stickG = this.add.graphics().setDepth(840).setScrollFactor(0);
     this.goo = this.add.particles(0, 0, 'spark', {
       lifespan: { min: 220, max: 520 }, speed: { min: 50, max: 190 },
       gravityY: 360, scale: { start: 0.9, end: 0 }, alpha: { start: 1, end: 0 },
@@ -133,8 +134,8 @@ class GuestScene extends Phaser.Scene {
     this.hudStatus.textContent = '联机中';
     const hpRow = this.makeEl('div', 'display:flex;align-items:center;gap:5px;margin-bottom:3px;', statusCol);
     this.makeEl('div', 'font-size:9px;color:#dfe8c8;width:24px;text-align:right;', hpRow).textContent = '生命';
-    this.hpBar = this.makeEl('div', 'position:relative;flex:1;height:14px;background:#3a1616;border:1px solid #7a3a2a;border-radius:2px;overflow:hidden;', hpRow);
-    this.hpFill = this.makeEl('div', 'height:100%;width:100%;background:linear-gradient(90deg,#c83a2a,#ff7a5a);', this.hpBar);
+    this.hpBar = this.makeEl('div', 'position:relative;flex:1;height:14px;background:#1e2e18;border:1px solid #5d7048;border-radius:2px;overflow:hidden;', hpRow);
+    this.hpFill = this.makeEl('div', 'height:100%;width:100%;background:linear-gradient(180deg,#8fe06a,#4a9a3a);box-shadow:inset 0 1px 0 rgba(255,255,255,.25);', this.hpBar);
     this.hpText = this.makeEl('div', 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 0 #000;', this.hpBar);
     const enRow = this.makeEl('div', 'display:flex;align-items:center;gap:5px;', statusCol);
     this.makeEl('div', 'font-size:9px;color:#dfe8c8;width:24px;text-align:right;', enRow).textContent = '能量';
@@ -180,6 +181,12 @@ class GuestScene extends Phaser.Scene {
     this.btnFire.style.borderRadius = '50%';
     this.btnSkill.style.boxShadow = 'inset 0 0 0 3px rgba(75,107,62,.55),0 2px 0 #0a1208';
     this.btnFire.style.boxShadow = 'inset 0 0 0 3px rgba(75,107,62,.55),0 2px 0 #0a1208';
+
+    this.btnPause = this.makeButton('暂停', () => this.showGuestMenu());
+    this.btnBestiary = this.makeButton('图鉴', () => this.openGuestModal('Bestiary'));
+    this.btnWeapon = this.makeButton('武器', () => this.openGuestModal('Forge'));
+    this.btnUpgrade = this.makeButton('升级', () => this.showToast('联机中角色升级请回主菜单', '#ffd0a0'));
+    this.btnBag = this.makeButton('背包', () => this.openGuestModal('Inventory'));
 
     this.connection = this.makeEl('div', [
       'position:absolute', 'font-size:10px;color:#9fe8ff',
@@ -293,6 +300,11 @@ class GuestScene extends Phaser.Scene {
     place(this.btnFire, 884, 410, 84, 84);
     place(this.btnDash, 884, 492, 64, 28);
     place(this.btnExit, 660, 492, 64, 28);
+    place(this.btnPause, 895, 76, 54, 32);
+    place(this.btnBestiary, 895, 124, 54, 32);
+    place(this.btnWeapon, 895, 172, 54, 32);
+    place(this.btnUpgrade, 895, 220, 54, 32);
+    place(this.btnBag, 895, 268, 54, 32);
     place(this.connection, 400, 464, 200, 16);
     place(this.statusText, 400, 480, 200, 16);
     place(this.helpText, 290, 514, 380, 16);
@@ -329,9 +341,9 @@ class GuestScene extends Phaser.Scene {
       const pt = mapPoint(e.clientX, e.clientY);
       if (e.pointerType === 'touch') {
         if (pt.left < pt.width / 2) {
-          this.moveTouch = { id: e.pointerId, baseX: e.clientX, baseY: e.clientY, dx: 0, dy: 0 };
+          this.moveTouch = { id: e.pointerId, baseX: e.clientX, baseY: e.clientY, dx: 0, dy: 0, gx: pt.x, gy: pt.y };
         } else {
-          this.aimTouch = { id: e.pointerId, baseX: e.clientX, baseY: e.clientY, dx: 0, dy: 0 };
+          this.aimTouch = { id: e.pointerId, baseX: e.clientX, baseY: e.clientY, dx: 0, dy: 0, gx: pt.x, gy: pt.y };
           this.fire = true;
           this.aimX = pt.x;
           this.aimY = pt.y;
@@ -343,6 +355,7 @@ class GuestScene extends Phaser.Scene {
         this.aimY = pt.y;
         this.aimSet = true;
       }
+      this.drawSticks();
       e.preventDefault();
     });
     this.touchLayer.addEventListener('pointermove', (e) => {
@@ -363,6 +376,7 @@ class GuestScene extends Phaser.Scene {
         this.aimY = pt.y;
         this.aimSet = true;
       }
+      this.drawSticks();
     });
     const release = (e) => {
       if (this.moveTouch && this.moveTouch.id === e.pointerId) this.moveTouch = null;
@@ -372,6 +386,7 @@ class GuestScene extends Phaser.Scene {
       } else if (e.pointerType !== 'touch') {
         this.fire = false;
       }
+      this.drawSticks();
     };
     this.touchLayer.addEventListener('pointerup', release);
     this.touchLayer.addEventListener('pointercancel', release);
@@ -394,8 +409,104 @@ class GuestScene extends Phaser.Scene {
     window.addEventListener('keyup', this.onKeyUp = (e) => { this.keys[e.code] = false; });
   }
 
+  drawSticks() {
+    if (!this.stickG) return;
+    this.stickG.clear();
+    const draw = (touch, color) => {
+      if (!touch) return;
+      const dx = touch.dx || 0;
+      const dy = touch.dy || 0;
+      const max = 36;
+      const len = Math.hypot(dx, dy);
+      const k = len > max ? max / len : 1;
+      const kx = touch.gx + dx * k;
+      const ky = touch.gy + dy * k;
+      this.stickG.lineStyle(3, color, 0.55);
+      this.stickG.strokeCircle(touch.gx, touch.gy, 38);
+      this.stickG.fillStyle(color, 0.18);
+      this.stickG.fillCircle(touch.gx, touch.gy, 38);
+      this.stickG.fillStyle(color, 0.6);
+      this.stickG.fillCircle(kx, ky, 16);
+      this.stickG.lineStyle(2, 0xffffff, 0.5);
+      this.stickG.strokeCircle(kx, ky, 16);
+    };
+    draw(this.moveTouch, 0x9fe8ff);
+    draw(this.aimTouch, 0xffd76a);
+  }
+
+  showToast(text, color) {
+    if (!this.toastEl) {
+      this.toastEl = this.makeEl('div', [
+        'position:fixed', 'left:50%', 'bottom:20%', 'transform:translateX(-50%)',
+        'padding:8px 16px', 'border-radius:6px', 'background:rgba(15,23,12,.95)',
+        'border:2px solid #d9b45a', 'font-size:13px;font-weight:700;',
+        'color:#ffe9a8;pointer-events:none;z-index:970;white-space:nowrap;',
+        'font-family:"Microsoft YaHei","PingFang SC",sans-serif',
+      ].join(';'));
+      document.body.appendChild(this.toastEl);
+    }
+    this.toastEl.textContent = text;
+    this.toastEl.style.color = color || '#ffe9a8';
+    this.toastEl.style.opacity = '1';
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => {
+      if (this.toastEl) this.toastEl.style.opacity = '0';
+    }, 1600);
+  }
+
+  openGuestModal(key) {
+    if (this.uiModalOpen) return;
+    this.uiModalOpen = true;
+    this.fire = false;
+    if (this.hud) this.hud.style.display = 'none';
+    if (this.touchLayer) this.touchLayer.style.display = 'none';
+    this.scene.launch(key, { from: 'guest' });
+    this.modalCheck = setInterval(() => {
+      if (!this.scene.isActive(key)) {
+        clearInterval(this.modalCheck);
+        this.modalCheck = null;
+        this.uiModalOpen = false;
+        if (this.hud) this.hud.style.display = '';
+        if (this.touchLayer) this.touchLayer.style.display = '';
+        this.layoutHud();
+      }
+    }, 200);
+  }
+
+  showGuestMenu() {
+    if (this.menuEl) return;
+    this.fire = false;
+    const mask = this.makeEl('div', [
+      'position:fixed', 'inset:0', 'z-index:960', 'background:rgba(4,8,4,.72)',
+      'display:flex', 'flex-direction:column', 'align-items:center',
+      'justify-content:center', 'gap:14px', 'pointer-events:auto',
+      'font-family:"Microsoft YaHei","PingFang SC",sans-serif',
+    ].join(';'));
+    const title = this.makeEl('div', 'font-size:24px;color:#ffe9a8;font-weight:700;', mask);
+    title.textContent = '联机菜单';
+    const note = this.makeEl('div', 'font-size:11px;color:#a9bd8f;', mask);
+    note.textContent = '房主的游戏不会暂停';
+    const resume = this.makeEl('button', 'min-width:180px;height:44px;border:2px solid #d9b45a;background:#23301f;color:#ffe9a8;font-size:16px;font-weight:700;border-radius:4px;', mask);
+    resume.textContent = '继续游戏';
+    resume.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.closeGuestMenu(); });
+    const exit = this.makeEl('button', 'min-width:180px;height:44px;border:2px solid #a85a4a;background:#2a1712;color:#ffb09a;font-size:15px;border-radius:4px;', mask);
+    exit.textContent = '退出联机';
+    exit.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.exitToMenu(); });
+    document.body.appendChild(mask);
+    this.menuEl = mask;
+  }
+
+  closeGuestMenu() {
+    if (this.menuEl) this.menuEl.remove();
+    this.menuEl = null;
+  }
+
   sendInput() {
     if (this.ended) return;
+    if (this.uiModalOpen || this.menuEl) {
+      Net.send({ t: 'input', moveX: 0, moveY: 0, fire: false, aimX: null, aimY: null });
+      return;
+    }
     let mx = 0, my = 0;
     if (this.keys.KeyA || this.keys.ArrowLeft) mx -= 1;
     if (this.keys.KeyD || this.keys.ArrowRight) mx += 1;
@@ -449,8 +560,12 @@ class GuestScene extends Phaser.Scene {
     } else if (char === 'guitarist' || char === 'vampire' || char === 'knight' || char === 'demon') {
       const aura = this.add.image(x, y, 'ring').setTint(color)
         .setScale(0.4).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
+      this.localAura = aura;
       this.tweens.add({ targets: aura, scale: 1.8, alpha: 0.2, duration: 500, yoyo: true, repeat: 5 });
-      this.time.delayedCall(3200, () => { if (aura.active) aura.destroy(); });
+      this.time.delayedCall(3200, () => {
+        if (this.localAura === aura) this.localAura = null;
+        if (aura.active) aura.destroy();
+      });
     } else {
       const ring = this.add.image(x, y, 'ring').setTint(color)
         .setScale(0.2).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
@@ -825,6 +940,9 @@ class GuestScene extends Phaser.Scene {
       placeGun(this.hostGun, this.hostSprite, this.state.p);
       placeGun(this.guestGun, this.guestSprite, this.state.g);
     }
+    if (this.localAura && this.localAura.active) {
+      this.localAura.setPosition(this.guestSprite.x, this.guestSprite.y);
+    }
     if (this.guestShieldAura && this.guestShieldAura.visible) {
       this.guestShieldAura.setPosition(this.guestSprite.x, this.guestSprite.y)
         .setAlpha(0.35 + Math.sin(time * 0.01) * 0.15);
@@ -955,6 +1073,10 @@ class GuestScene extends Phaser.Scene {
     Net.onEnded = null;
     Net.onHud = null;
     Net.onStream = null;
+    if (this.modalCheck) clearInterval(this.modalCheck);
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    if (this.toastEl && this.toastEl.parentNode) this.toastEl.remove();
+    if (this.menuEl && this.menuEl.parentNode) this.menuEl.remove();
     if (this.endMask && this.endMask.parentNode) this.endMask.remove();
     if (this.hud && this.hud.parentNode) this.hud.remove();
     if (this.touchLayer && this.touchLayer.parentNode) this.touchLayer.remove();
