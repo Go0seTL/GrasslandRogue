@@ -164,7 +164,7 @@ class LobbyScene extends Phaser.Scene {
     Sfx.uiClick();
     this.hostBtn.setVisible(false);
     this.joinBtn.setVisible(false);
-    this.loadoutBtn.setVisible(true);
+    this.loadoutBtn.setVisible(false);
     this.refreshLoadout();
     this.statusText.setText('输入房主显示的 6 位房间码');
     const holder = document.getElementById('game') || document.body;
@@ -221,7 +221,10 @@ class LobbyScene extends Phaser.Scene {
     this.statusText.setText('正在连接房主…');
     Net.onStatus = (text) => {
       if (this.statusText) this.statusText.setText(text);
-      if (text && text.includes('已连接')) this.sendLoadout();
+      if (text && text.includes('已连接')) {
+        this.loadoutBtn.setVisible(true);
+        this.sendLoadout();
+      }
     };
     Net.onStarted = () => {
       if (this.started) return;

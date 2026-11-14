@@ -18,6 +18,10 @@ class GuestScene extends Phaser.Scene {
     this.aimY = null;
     this.aimSet = false;
     this.fire = false;
+    this.predX = 480;
+    this.predY = 405;
+    this.predReady = false;
+    this.nextLocalMuzzle = 0;
     this.inputTimer = null;
     this.hudRoots = [];
     this.enemyMap = new Map();
@@ -32,6 +36,16 @@ class GuestScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#0b120a');
     this.bg = this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
     this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(900).setScrollFactor(0);
+    this.sparks = this.add.particles(0, 0, 'spark', {
+      lifespan: { min: 120, max: 320 }, speed: { min: 60, max: 220 },
+      scale: { start: 1.0, end: 0 }, alpha: { start: 1, end: 0 },
+      blendMode: 'ADD', emitting: false,
+    }).setDepth(820);
+    this.goo = this.add.particles(0, 0, 'spark', {
+      lifespan: { min: 220, max: 520 }, speed: { min: 50, max: 190 },
+      gravityY: 360, scale: { start: 0.9, end: 0 }, alpha: { start: 1, end: 0 },
+      tint: [0x67b84a, 0x8fd463, 0xffd76a], emitting: false,
+    }).setDepth(819);
 
     this.portalA = this.add.image(0, 0, 'ring').setTint(0x7fe8ff).setAlpha(0.75)
       .setDepth(5).setVisible(false);
@@ -91,19 +105,30 @@ class GuestScene extends Phaser.Scene {
 
     // 左上生命/能量
     this.hpPanel = this.makeEl('div', [
-      'position:absolute', 'box-sizing:border-box', 'padding:8px 11px',
-      'background:rgba(15,23,12,.93)', 'border:2px solid #d9b45a',
+      'position:absolute', 'box-sizing:border-box', 'padding:7px 10px',
+      'display:flex', 'gap:8px', 'align-items:center',
+      'background:rgba(20,30,16,.95)', 'border:2px solid #d9b45a',
       'border-radius:6px', 'pointer-events:none', 'text-shadow:0 2px 0 #000',
+      'box-shadow:inset 0 0 0 2px rgba(75,107,62,.55)',
     ].join(';'), this.hud);
-    const head = this.makeEl('div', 'display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;', this.hpPanel);
-    this.hudName = this.makeEl('div', 'font-size:14px;font-weight:700;color:#9fe8ff;', head);
+    this.portraitImg = this.makeEl('img', [
+      'width:46px', 'height:56px', 'object-fit:contain', 'image-rendering:pixelated',
+      'background:rgba(8,14,6,.8)', 'border:1px solid #6f8a5a', 'border-radius:3px',
+    ].join(';'), this.hpPanel);
+    const statusCol = this.makeEl('div', 'flex:1;min-width:0;', this.hpPanel);
+    const head = this.makeEl('div', 'display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;', statusCol);
+    this.hudName = this.makeEl('div', 'font-size:13px;font-weight:700;color:#9fe8ff;white-space:nowrap;', head);
     this.hudName.textContent = '玩家2';
-    this.hudStatus = this.makeEl('div', 'font-size:10px;color:#9fe8ff;', head);
+    this.hudStatus = this.makeEl('div', 'font-size:9px;color:#9fe8ff;white-space:nowrap;', head);
     this.hudStatus.textContent = '联机中';
-    this.hpBar = this.makeEl('div', 'position:relative;height:14px;background:#3a1616;border:1px solid #7a3a2a;border-radius:3px;overflow:hidden;margin-bottom:3px;', this.hpPanel);
+    const hpRow = this.makeEl('div', 'display:flex;align-items:center;gap:5px;margin-bottom:3px;', statusCol);
+    this.makeEl('div', 'font-size:9px;color:#dfe8c8;width:24px;text-align:right;', hpRow).textContent = '生命';
+    this.hpBar = this.makeEl('div', 'position:relative;flex:1;height:14px;background:#3a1616;border:1px solid #7a3a2a;border-radius:2px;overflow:hidden;', hpRow);
     this.hpFill = this.makeEl('div', 'height:100%;width:100%;background:linear-gradient(90deg,#c83a2a,#ff7a5a);', this.hpBar);
     this.hpText = this.makeEl('div', 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 0 #000;', this.hpBar);
-    this.enBar = this.makeEl('div', 'position:relative;height:10px;background:#12283a;border:1px solid #2a5a7a;border-radius:3px;overflow:hidden;', this.hpPanel);
+    const enRow = this.makeEl('div', 'display:flex;align-items:center;gap:5px;', statusCol);
+    this.makeEl('div', 'font-size:9px;color:#dfe8c8;width:24px;text-align:right;', enRow).textContent = '能量';
+    this.enBar = this.makeEl('div', 'position:relative;flex:1;height:10px;background:#12283a;border:1px solid #2a5a7a;border-radius:2px;overflow:hidden;', enRow);
     this.enFill = this.makeEl('div', 'height:100%;width:100%;background:linear-gradient(90deg,#2a8ac8,#8ff0ff);', this.enBar);
     this.enText = this.makeEl('div', 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 0 #000;', this.enBar);
 
@@ -114,12 +139,17 @@ class GuestScene extends Phaser.Scene {
 
     // 左下武器
     this.weaponPanel = this.makeEl('div', [
-      'position:absolute', 'box-sizing:border-box', 'padding:7px 11px',
-      'background:rgba(15,23,12,.93)', 'border:2px solid #6f8a5a',
-      'border-radius:6px', 'font-size:12px;color:#dfe8c8;pointer-events:none',
+      'position:absolute', 'box-sizing:border-box', 'padding:6px 10px',
+      'display:flex', 'align-items:center', 'gap:8px',
+      'background:rgba(20,30,16,.95)', 'border:2px solid #6f8a5a',
+      'border-radius:6px', 'pointer-events:none',
+      'box-shadow:inset 0 0 0 2px rgba(75,107,62,.4)',
     ].join(';'), this.hud);
-    this.weaponText = this.makeEl('div', '', this.weaponPanel);
-    this.weaponText.textContent = '武器：手枪';
+    this.weaponIcon = this.makeEl('img', [
+      'width:34px', 'height:24px', 'object-fit:contain', 'image-rendering:pixelated',
+    ].join(';'), this.weaponPanel);
+    this.weaponText = this.makeEl('div', 'font-size:12px;color:#dfe8c8;white-space:nowrap;', this.weaponPanel);
+    this.weaponText.textContent = '手枪';
 
     // 右下操作区
     this.ctrlPanel = this.makeEl('div', [
@@ -128,8 +158,8 @@ class GuestScene extends Phaser.Scene {
       'pointer-events:none',
     ].join(';'), this.hud);
     this.btnSwitch = this.makeButton('切枪', () => this.sendAction('switch'));
-    this.btnSkill = this.makeButton('技能', () => this.sendAction('skill'));
-    this.btnFire = this.makeButton('开火', null);
+    this.btnSkill = this.makeButton('技能', () => this.sendAction('skill'), 'flame_icon', true);
+    this.btnFire = this.makeButton('开火', null, 'gun', true);
     this.btnDash = this.makeButton('翻滚', () => this.sendAction('dash'));
     this.btnExit = this.makeButton('退出', () => this.exitToMenu());
     this.bindFireButton(this.btnFire);
@@ -152,16 +182,31 @@ class GuestScene extends Phaser.Scene {
     this.helpText.textContent = '左半屏移动 · 右半屏瞄准开火 · E 技能 · 空格翻滚 · Q 切枪';
   }
 
-  makeButton(label, action) {
+  makeButton(label, action, iconKey, big) {
     const b = document.createElement('button');
-    b.textContent = label;
     b.style.cssText = [
-      'position:absolute', 'display:flex', 'align-items:center', 'justify-content:center',
+      'position:absolute', 'display:flex', 'flex-direction:column',
+      'align-items:center', 'justify-content:center', 'gap:1px',
       'box-sizing:border-box', 'border:2px solid #d9b45a',
-      'background:rgba(35,52,28,.96)', 'color:#ffe9a8', 'font-size:13px',
-      'font-weight:700', 'border-radius:6px', 'padding:0 6px',
+      'background:radial-gradient(circle at 50% 35%,#3d5a30,#1a2a15 75%)',
+      'color:#ffe9a8', big ? 'font-size:11px' : 'font-size:12px',
+      'font-weight:700', 'border-radius:8px', 'padding:2px 4px',
       'touch-action:none', 'pointer-events:auto', 'white-space:nowrap',
+      'box-shadow:inset 0 0 0 2px rgba(75,107,62,.55),0 2px 0 #0a1208',
     ].join(';');
+    let icon = null;
+    if (iconKey) {
+      icon = this.makeEl('img', [
+        'width:26px', 'height:26px', 'object-fit:contain',
+        'image-rendering:pixelated', 'pointer-events:none',
+      ].join(';'), b);
+      const url = this.textureURL(iconKey);
+      if (url) icon.src = url;
+    }
+    const labelEl = this.makeEl('span', 'pointer-events:none;line-height:1;', b);
+    labelEl.textContent = label;
+    b.labelEl = labelEl;
+    b.iconEl = icon;
     if (action) {
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
@@ -171,6 +216,22 @@ class GuestScene extends Phaser.Scene {
     }
     this.hud.appendChild(b);
     return b;
+  }
+
+  textureURL(key) {
+    if (!key) return null;
+    if (!this.iconUrls) this.iconUrls = {};
+    if (this.iconUrls[key] !== undefined) return this.iconUrls[key];
+    try {
+      const tex = this.textures.get(key);
+      const src = tex && tex.getSourceImage && tex.getSourceImage();
+      const url = src && src.toDataURL ? src.toDataURL() : null;
+      this.iconUrls[key] = url;
+      return url;
+    } catch (e) {
+      this.iconUrls[key] = null;
+      return null;
+    }
   }
 
   bindFireButton(b) {
@@ -204,17 +265,17 @@ class GuestScene extends Phaser.Scene {
       if (w != null) el.style.width = `${w * sx}px`;
       if (h != null) el.style.height = `${h * sy}px`;
     };
-    place(this.hpPanel, 10, 10, 332, 78);
-    place(this.levelText, 370, 14, 220, 24);
-    place(this.levelSub, 370, 38, 220, 16);
+    place(this.hpPanel, 10, 10, 360, 84);
+    place(this.levelText, 380, 14, 200, 24);
+    place(this.levelSub, 380, 38, 200, 16);
     place(this.bossText, 360, 58, 240, 18);
-    place(this.weaponPanel, 10, 486, 260, 42);
-    place(this.ctrlPanel, 686, 374, 268, 126);
-    place(this.btnSwitch, 696, 410, 62, 32);
-    place(this.btnSkill, 766, 386, 82, 60);
-    place(this.btnFire, 856, 382, 88, 68);
-    place(this.btnDash, 856, 458, 88, 34);
-    place(this.btnExit, 696, 452, 62, 34);
+    place(this.weaponPanel, 10, 482, 260, 46);
+    place(this.ctrlPanel, 686, 366, 270, 134);
+    place(this.btnSwitch, 696, 404, 64, 34);
+    place(this.btnSkill, 766, 380, 86, 64);
+    place(this.btnFire, 856, 376, 90, 70);
+    place(this.btnDash, 856, 452, 90, 38);
+    place(this.btnExit, 696, 446, 64, 32);
     place(this.connection, 400, 464, 200, 16);
     place(this.statusText, 400, 480, 200, 16);
     place(this.helpText, 290, 514, 380, 16);
@@ -342,6 +403,15 @@ class GuestScene extends Phaser.Scene {
   sendAction(key) {
     if (this.ended) return;
     Net.send({ t: 'action', key });
+    if (key === 'skill' && (!this.state || !this.state.gs || !this.state.gs.cd)) {
+      const ring = this.add.image(this.predX, this.predY, 'ring')
+        .setTint(0x9fe8ff).setScale(0.2).setAlpha(0.9)
+        .setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
+      this.tweens.add({
+        targets: ring, scale: 1.8, alpha: 0, duration: 360,
+        onComplete: () => ring.destroy(),
+      });
+    }
   }
 
   // ------------------------------------------------------------ 状态渲染
@@ -371,6 +441,34 @@ class GuestScene extends Phaser.Scene {
       this.portalB.setVisible(false);
     }
     this.updateHud(d);
+    if (d.fx && d.fx.length) this.playFx(d.fx);
+  }
+
+  playFx(list) {
+    list.forEach((fx) => {
+      if (fx.k === 'hit') {
+        const p = Math.min(5, fx.p || 0);
+        const color = fx.c == null ? 0xffe066 : fx.c;
+        this.sparks.explode(3 + p, fx.x, fx.y);
+        const ring = this.add.image(fx.x, fx.y, 'ring').setTint(color)
+          .setScale(0.12 + p * 0.02).setAlpha(0.8)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(821);
+        this.tweens.add({
+          targets: ring, scale: 0.4 + p * 0.08, alpha: 0,
+          duration: 200, onComplete: () => ring.destroy(),
+        });
+      } else if (fx.k === 'kill') {
+        this.goo.explode(fx.boss ? 24 : 12, fx.x, fx.y);
+        this.sparks.explode(fx.boss ? 16 : 6, fx.x, fx.y);
+        const ring = this.add.image(fx.x, fx.y, 'ring').setTint(0xffd76a)
+          .setScale(0.15).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(821);
+        this.tweens.add({
+          targets: ring, scale: 1.4, alpha: 0, duration: 300,
+          onComplete: () => ring.destroy(),
+        });
+        this.cameras.main.shake(fx.boss ? 120 : 45, fx.boss ? 0.003 : 0.001);
+      }
+    });
   }
 
   applyPlayer(sprite, tag, p, isGuest) {
@@ -391,6 +489,19 @@ class GuestScene extends Phaser.Scene {
     tag.setPosition(p.x, p.y - 34);
     tag.setText(isGuest ? (p.dead ? '玩家2 · 倒地' : '玩家2') : (p.dead ? '房主 · 倒地' : '房主'));
     tag.setAlpha(1);
+    if (isGuest) {
+      const dx = p.x - this.predX;
+      const dy = p.y - this.predY;
+      if (!this.predReady || p.dead || dx * dx + dy * dy > 140 * 140) {
+        this.predX = p.x;
+        this.predY = p.y;
+        this.predReady = true;
+      } else {
+        // 轻微向权威位置修正，避免长期偏离
+        this.predX += dx * 0.08;
+        this.predY += dy * 0.08;
+      }
+    }
   }
 
   applyEnemies(list) {
@@ -439,6 +550,8 @@ class GuestScene extends Phaser.Scene {
       img.setVisible(true);
       img.setTexture(this.textures.exists(d.tex) ? d.tex : defaultTex);
       img.setPosition(d.x, d.y);
+      img.vx = d.vx || 0;
+      img.vy = d.vy || 0;
       img.setRotation(d.r || 0);
       img.setScale(d.s || 1);
       if (d.tint != null) img.setTint(d.tint);
@@ -465,6 +578,8 @@ class GuestScene extends Phaser.Scene {
       }
       const d = data[i];
       img.setVisible(true).setPosition(d.x, d.y);
+      img.vx = d.vx || 0;
+      img.vy = d.vy || 0;
       if (tintFn) img.setTint(tintFn(d));
       else img.clearTint();
     }
@@ -486,13 +601,33 @@ class GuestScene extends Phaser.Scene {
     if (this.statusText) {
       this.statusText.textContent = d.paused ? '房主暂停 / 选择强化中' : '已连接';
     }
-    this.weaponText.textContent = `武器：${(d.gs && d.gs.weapon) || '手枪'}`;
+    this.weaponText.textContent = (d.gs && d.gs.weapon) || '手枪';
+    if (this.weaponIcon && d.gs && d.gs.weaponTex && this.weaponIcon.dataset.tex !== d.gs.weaponTex) {
+      this.weaponIcon.dataset.tex = d.gs.weaponTex;
+      const url = this.textureURL(d.gs.weaponTex);
+      if (url) this.weaponIcon.src = url;
+    }
+    if (this.portraitImg && d.g && d.g.tex && this.portraitImg.dataset.tex !== d.g.tex) {
+      this.portraitImg.dataset.tex = d.g.tex;
+      const url = this.textureURL(d.g.tex);
+      if (url) this.portraitImg.src = url;
+    }
+    if (this.btnSkill && d.gs && d.gs.skillTex && this.btnSkill.dataset.tex !== d.gs.skillTex) {
+      this.btnSkill.dataset.tex = d.gs.skillTex;
+      const url = this.textureURL(d.gs.skillTex);
+      if (url && this.btnSkill.iconEl) this.btnSkill.iconEl.src = url;
+    }
+    if (this.hudName && d.g && d.g.character) {
+      const def = CHAR_DEFS.find((x) => x.id === d.g.character);
+      const lv = (d.gs && d.gs.level) || 0;
+      this.hudName.textContent = `玩家2 · ${def ? def.name : ''} Lv.${lv}`;
+    }
     if (g.dead) {
-      this.helpText.textContent = '你倒下了 · 房主靠近并站立 5 秒可以救你';
+      this.helpText.textContent = '你倒下了 · 房主靠近并站立 4 秒可以救你';
     } else if (d.hostDowned) {
       this.helpText.textContent = d.reviveWho === 'p' && d.reviveProgress > 0
         ? `救援房主 ${d.reviveProgress}% · 继续站在房主身边`
-        : '房主倒地 · 靠近房主站立 5 秒救援';
+        : '房主倒地 · 靠近房主站立 4 秒救援';
     } else {
       this.helpText.textContent = '左半屏移动 · 右半屏瞄准开火 · E 技能 · 空格翻滚 · Q 切枪';
     }
@@ -501,8 +636,25 @@ class GuestScene extends Phaser.Scene {
     const boss = (d.enemies || []).find((e) => e.boss);
     this.bossText.textContent = boss ? boss.name : '';
     const cd = (d.gs && d.gs.cd) || 0;
-    this.btnSkill.textContent = cd > 0 ? `技能 ${cd}s` : '技能';
-    this.btnSkill.style.opacity = cd > 0 ? '0.55' : '1';
+    if (this.btnSkill) {
+      if (this.btnSkill.labelEl) this.btnSkill.labelEl.textContent = cd > 0 ? `${cd}s` : '技能';
+      this.btnSkill.style.opacity = cd > 0 ? '0.5' : '1';
+    }
+  }
+
+  readMove() {
+    let mx = 0, my = 0;
+    if (this.keys.KeyA || this.keys.ArrowLeft) mx -= 1;
+    if (this.keys.KeyD || this.keys.ArrowRight) mx += 1;
+    if (this.keys.KeyW || this.keys.ArrowUp) my -= 1;
+    if (this.keys.KeyS || this.keys.ArrowDown) my += 1;
+    if (this.moveTouch) {
+      mx = this.moveTouch.dx / 60;
+      my = this.moveTouch.dy / 60;
+    }
+    const len = Math.hypot(mx, my);
+    if (len > 1) { mx /= len; my /= len; }
+    return { mx, my, len };
   }
 
   update(time, delta) {
@@ -511,14 +663,50 @@ class GuestScene extends Phaser.Scene {
       obj.x += (tx - obj.x) * k;
       obj.y += (ty - obj.y) * k;
     };
+    const dt = Math.min(0.05, delta / 1000);
+    const g = this.state && this.state.g;
+    if (g && !g.dead && !this.ended) {
+      const mv = this.readMove();
+      const predSpeed = (this.state.gs && this.state.gs.speed) || BALANCE.playerSpeed;
+      this.predX = Math.max(62, Math.min(898, this.predX + mv.mx * predSpeed * dt));
+      this.predY = Math.max(78, Math.min(470, this.predY + mv.my * predSpeed * dt));
+      this.guestSprite.setPosition(this.predX, this.predY);
+      if (this.fire && time >= this.nextLocalMuzzle) {
+        this.nextLocalMuzzle = time + 85;
+        const aim = this.aimSet ? Math.atan2((this.aimY || 0) - this.predY, (this.aimX || 0) - this.predX) : (g.aim || 0);
+        const mx = this.predX + Math.cos(aim) * 18;
+        const my = this.predY + 4 + Math.sin(aim) * 12;
+        const m = this.add.image(mx, my, 'muzzle').setRotation(aim).setTint(0xffe066)
+          .setScale(0.6).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(831);
+        this.tweens.add({
+          targets: m, alpha: 0, scaleX: 1.05, scaleY: 1.05, duration: 90,
+          onComplete: () => m.destroy(),
+        });
+      }
+    } else {
+      lerp(this.guestSprite, this.guestSprite.tx, this.guestSprite.ty, 0.35);
+    }
     lerp(this.hostSprite, this.hostSprite.tx, this.hostSprite.ty, 0.35);
-    lerp(this.guestSprite, this.guestSprite.tx, this.guestSprite.ty, 0.35);
     this.hostTag.setPosition(this.hostSprite.x, this.hostSprite.y - 34);
     this.guestTag.setPosition(this.guestSprite.x, this.guestSprite.y - 34);
     this.enemyMap.forEach((entry) => {
       lerp(entry.sprite, entry.sprite.tx, entry.sprite.ty, 0.4);
       entry.sprite.setDepth(500 + Math.floor(entry.sprite.y));
     });
+    // 子弹/掉落物按速度在两次快照之间平滑移动，避免 30Hz 的跳格感
+    const advance = (pool) => {
+      pool.forEach((img) => {
+        if (!img.visible) return;
+        if (img.vx) img.x += img.vx * dt;
+        if (img.vy) img.y += img.vy * dt;
+      });
+    };
+    advance(this.pbSprites);
+    advance(this.ebSprites);
+    advance(this.coinSprites);
+    advance(this.hpSprites);
+    advance(this.epSprites);
+    advance(this.fragSprites);
     if (this.portalA.visible) {
       this.portalA.rotation += 0.04;
       this.portalB.rotation -= 0.03;

@@ -363,7 +363,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   fireSecondary(time, aim, w) {
     if (time < this.secondaryNextShotAt) return;
-    const demon = this.isDemonActive();
+    const demon = this.isDemonActive()
+      || (this.networkGuest && this.scene.time.now < (this.guestDemonUntil || 0));
     const dmgMul = demon ? 1.4 : 1;
     const cost = w.energyCost || 0;
     if (cost > 0 && !demon && this.energy < cost) return;
@@ -434,7 +435,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   updateChargeWeapon(time, aim, firing, w) {
-    const demon = this.isDemonActive();
+    const demon = this.isDemonActive()
+      || (this.networkGuest && this.scene.time.now < (this.guestDemonUntil || 0));
     const holding = this.networkGuest
       ? firing
       : (this.scene.touchMode
@@ -566,7 +568,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   fire(time, aim) {
     const w = this.networkWeapon || this.scene.weapon || WEAPONS.pistol;
     const buffs = this.scene.buffs || {};
-    const demon = this.isDemonActive();
+    const demon = this.isDemonActive()
+      || (this.networkGuest && this.scene.time.now < (this.guestDemonUntil || 0));
     const dmgMul = demon ? 1.4 : 1;
     const cost = w.energyCost || 0;
     if (cost > 0 && !demon && this.energy < cost) {

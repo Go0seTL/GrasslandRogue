@@ -57,7 +57,7 @@ class InventoryScene extends Phaser.Scene {
       weaponItems.forEach((w, i) => {
         const col = i % 4;
         const row = Math.floor(i / 4);
-        this.createWeaponItem(w, 196 + col * 176, 168 + row * 32, fragments[w.id] || 0);
+        this.createWeaponItem(w, 190 + col * 162, 168 + row * 32, fragments[w.id] || 0);
       });
     }
 
@@ -73,7 +73,7 @@ class InventoryScene extends Phaser.Scene {
       ringItems.forEach((r, i) => {
         const col = i % 4;
         const row = Math.floor(i / 4);
-        this.createRingItem(r, 196 + col * 176, 378 + row * 30, ringFragments[r.id] || 0);
+        this.createRingItem(r, 190 + col * 162, 378 + row * 30, ringFragments[r.id] || 0);
       });
     }
 
@@ -85,16 +85,16 @@ class InventoryScene extends Phaser.Scene {
       variant: 'ghost', fontSize: 13,
     }).setDepth(3);
 
-    const xg = this.add.rectangle(820, 62, 64, 28, 0x1b2817, 0.94)
+    const xg = this.add.rectangle(812, 62, 56, 28, 0x1b2817, 0.94)
       .setStrokeStyle(2, 0xd9b45a, 0.9).setDepth(30)
       .setInteractive({ useHandCursor: true });
-    this.add.text(820, 62, '关 闭', UI.textStyle(11, {
+    this.add.text(812, 62, '关 闭', UI.textStyle(11, {
       color: '#ffe9a8', strokeThickness: 3, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(31);
     xg.on('pointerup', () => this.close());
 
     this.closeRect = { x: 480, y: 482, w: 190, h: 36 };
-    this.cornerRect = { x: 820, y: 62, w: 70, h: 34 };
+    this.cornerRect = { x: 812, y: 62, w: 62, h: 34 };
     this.input.on('pointerup', (pointer) => this.handlePointer(pointer));
     this.input.keyboard.on('keydown-ESC', () => this.close());
     this.cameras.main.fadeIn(150, 6, 10, 6);
@@ -102,7 +102,7 @@ class InventoryScene extends Phaser.Scene {
 
   createWeaponItem(w, x, y, count) {
     const q = QUALITIES[w.quality] || QUALITIES.white;
-    const cw = 166, ch = 27;
+    const cw = 150, ch = 27;
     const c = this.add.container(x, y).setDepth(2);
     const g = this.add.graphics();
     c.add(g);
@@ -126,7 +126,7 @@ class InventoryScene extends Phaser.Scene {
   }
 
   createRingItem(r, x, y, count) {
-    const cw = 166, ch = 26;
+    const cw = 150, ch = 26;
     const c = this.add.container(x, y).setDepth(2);
     const g = this.add.graphics();
     c.add(g);

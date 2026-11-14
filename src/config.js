@@ -76,7 +76,7 @@ const SKILL_UPGRADE = {
 };
 
 // Boss 平衡：血量提高、伤害降低
-const BOSS_BALANCE = { hp: 1.2, damage: 0.8 };
+const BOSS_BALANCE = { hp: 1.5, damage: 0.8 };
 
 // 野猪王之斧：长按蓄力召唤石头雨，期间大幅减速
 const BOAR_AXE = {
@@ -254,7 +254,11 @@ const WEAPONS = {
   },
   demon_sulfur: {
     id: 'demon_sulfur', name: '恶魔硫磺火', quality: 'rainbow', fragReq: 5, energyCost: 8,
-    sulfur: true, damage: 7, fireRate: 0.12, tint: 0xff3a1a, texture: 'weapon_sulfur',
+    sulfur: true, beam: true, beamKind: 'sulfur', damage: 7, fireRate: 0.12,
+    beamColor: 0xff1a08, beamMid: 0xff6a1a, beamCore: 0xffd08a,
+    beamLength: 430, beamWidth: 520, beamThickness: 58, beamCoreThickness: 16,
+    beamRadius: 34, beamTick: 110, beamEnergy: 1,
+    tint: 0xff3a1a, texture: 'weapon_sulfur',
     desc: '撒旦的硫磺火。长按喷射粗大的红色激光，持续烧穿前方敌人。', iconScale: 1.15,
   },
   fire_staff: {
@@ -279,9 +283,10 @@ const WEAPONS = {
   },
   goat_eye: {
     id: 'goat_eye', name: '山羊之眼', quality: 'rainbow', fragReq: 5, energyCost: 0,
-    sulfur: true, beam: true, damage: 12, fireRate: 0.1, tint: 0xffd76a,
-    beamColor: 0xffb02a, beamCore: 0xfff2a8, beamLength: 620, beamWidth: 640,
-    beamThickness: 34, beamCoreThickness: 12, beamRadius: 30, beamTick: 90, beamEnergy: 2,
+    sulfur: true, beam: true, beamKind: 'goat', damage: 12, fireRate: 0.1, tint: 0xffd76a,
+    beamColor: 0xffb02a, beamMid: 0xffe066, beamCore: 0xfff8d8,
+    beamLength: 620, beamWidth: 640,
+    beamThickness: 24, beamCoreThickness: 8, beamRadius: 30, beamTick: 90, beamEnergy: 2,
     texture: 'weapon_goat_eye',
     desc: '山羊王的眼睛。长按发射贯穿全场的金色激光，像激光鱼一样持续灼烧前方。', iconScale: 1.05,
   },

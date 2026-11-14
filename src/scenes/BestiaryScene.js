@@ -6,7 +6,9 @@ class BestiaryScene extends Phaser.Scene {
   create() {
     this.modalState = UI.beginModalScene(this);
     this.page = 0;
+    this.mode = 'enemy';
     this.cardObjects = [];
+    this.tabs = [];
 
     this.add.rectangle(0, 0, GAME_W, GAME_H, 0x040a04, 0.82)
       .setOrigin(0).setDepth(0)
@@ -15,12 +17,23 @@ class BestiaryScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(1);
     UI.drawPanel(g, 24, 44, 912, 456, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.98 });
 
-    this.add.text(480, 80, '怪物图鉴', UI.textStyle(32, {
+    this.titleText = this.add.text(480, 80, '怪物图鉴', UI.textStyle(32, {
       color: '#ffe9a8', strokeThickness: 7,
     })).setOrigin(0.5).setDepth(2);
-    this.add.text(480, 108, '草原上会遇到的所有敌人 · 名字、行为与数值', UI.textStyle(12, {
+    this.subText = this.add.text(480, 108, '草原上会遇到的所有敌人 · 名字、行为与数值', UI.textStyle(12, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(2);
+
+    [
+      ['enemy', '怪物', 710],
+      ['weapon', '武器', 790],
+      ['ring', '戒指', 870],
+    ].forEach(([mode, label, x]) => {
+      const b = UI.button(this, x, 86, 68, 24, label, () => this.setMode(mode), {
+        variant: 'ghost', fontSize: 11,
+      }).setDepth(4);
+      this.tabs.push({ mode, b });
+    });
 
     this.pageText = this.add.text(480, 452, '', UI.textStyle(10, {
       color: '#93a97d', strokeThickness: 2, bold: false,
@@ -71,6 +84,13 @@ class BestiaryScene extends Phaser.Scene {
       ],
     ];
 
+    this.weaponList = Object.values(WEAPONS);
+    this.weaponPages = [];
+    for (let i = 0; i < this.weaponList.length; i += 8) {
+      this.weaponPages.push(this.weaponList.slice(i, i + 8));
+    }
+    this.ringList = Object.values(RINGS);
+
     UI.button(this, 400, 482, 150, 30, '关 闭', () => this.close(), {
       variant: 'ghost', fontSize: 13,
     }).setDepth(3);
@@ -79,12 +99,42 @@ class BestiaryScene extends Phaser.Scene {
     }).setDepth(3);
 
     this.input.keyboard.on('keydown-ESC', () => this.close());
+    this.tabs.forEach((t) => {
+      if (t.b && t.b.list[1]) t.b.list[1].setColor(t.mode === 'enemy' ? '#ffd76a' : '#dfe8c8');
+    });
     this.renderPage();
     this.cameras.main.fadeIn(180, 6, 10, 6);
   }
 
+  setMode(mode) {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.page = 0;
+    Sfx.uiClick();
+    if (mode === 'enemy') {
+      this.titleText.setText('怪物图鉴');
+      this.subText.setText('草原上会遇到的所有敌人 · 名字、行为与数值');
+    } else if (mode === 'weapon') {
+      this.titleText.setText('武器图鉴');
+      this.subText.setText(`共 ${this.weaponList.length} 把武器 · 品质、碎片需求与武器特性`);
+    } else {
+      this.titleText.setText('戒指图鉴');
+      this.subText.setText('七种戒指 · 碎片需求与效果 · 一局只能装备 1 枚');
+    }
+    this.tabs.forEach((t) => {
+      if (t.b && t.b.list[1]) t.b.list[1].setColor(t.mode === mode ? '#ffd76a' : '#dfe8c8');
+    });
+    this.renderPage();
+  }
+
+  pageCount() {
+    if (this.mode === 'weapon') return this.weaponPages.length;
+    if (this.mode === 'ring') return 1;
+    return this.pageEntries.length;
+  }
+
   togglePage() {
-    this.page = (this.page + 1) % this.pageEntries.length;
+    this.page = (this.page + 1) % this.pageCount();
     this.renderPage();
     Sfx.uiClick();
   }
@@ -92,20 +142,121 @@ class BestiaryScene extends Phaser.Scene {
   renderPage() {
     this.cardObjects.forEach((c) => c.destroy());
     this.cardObjects = [];
-    const entries = this.pageEntries[this.page];
     const xs = [133, 364, 595, 826];
     const ys = [196, 362];
-    entries.forEach((entry, i) => {
-      const x = xs[i % 4];
-      const y = ys[Math.floor(i / 4)];
-      this.cardObjects.push(this.createCard(entry, x, y));
-    });
-    this.pageText.setText(`第 ${this.page + 1} / ${this.pageEntries.length} 页`);
-    if (this.pageBtn && this.pageBtn.list[1]) {
-      this.pageBtn.list[1].setText(
-        this.page === this.pageEntries.length - 1 ? '下一页（回到首页）' : '下一页'
-      );
+    if (this.mode === 'weapon') {
+      const entries = this.weaponPages[this.page] || [];
+      entries.forEach((w, i) => {
+        this.cardObjects.push(this.createWeaponCard(w, xs[i % 4], ys[Math.floor(i / 4)]));
+      });
+    } else if (this.mode === 'ring') {
+      this.ringList.forEach((r, i) => {
+        this.cardObjects.push(this.createRingCard(r, xs[i % 4], ys[Math.floor(i / 4)]));
+      });
+    } else {
+      const entries = this.pageEntries[this.page];
+      entries.forEach((entry, i) => {
+        this.cardObjects.push(this.createCard(entry, xs[i % 4], ys[Math.floor(i / 4)]));
+      });
     }
+    this.pageText.setText(`第 ${this.page + 1} / ${this.pageCount()} 页`);
+    if (this.pageBtn) {
+      if (this.pageBtn.list[1]) {
+        this.pageBtn.list[1].setText(
+          this.page === this.pageCount() - 1 ? '下一页（回到首页）' : '下一页'
+        );
+      }
+      this.pageBtn.setVisible(this.pageCount() > 1);
+    }
+  }
+
+  createWeaponCard(w, x, y) {
+    const wd = 206, ht = 144;
+    const q = QUALITIES[w.quality] || QUALITIES.white;
+    const c = this.add.container(x, y).setDepth(2);
+    const g = this.add.graphics();
+    g.fillStyle(0x000000, 0.3);
+    g.fillRect(-wd / 2 + 4, -ht / 2 + 4, wd, ht);
+    g.fillStyle(0x111a0d, 0.96);
+    g.fillRect(-wd / 2, -ht / 2, wd, ht);
+    g.lineStyle(2, q.color, 0.9);
+    g.strokeRect(-wd / 2, -ht / 2, wd, ht);
+    g.fillStyle(q.color, 0.85);
+    g.fillRect(-wd / 2, -ht / 2, wd, 3);
+    g.fillStyle(0x0b1208, 0.95);
+    g.fillRect(-wd / 2 + 12, -ht / 2 + 14, 58, 88);
+    g.lineStyle(1, q.color, 0.75);
+    g.strokeRect(-wd / 2 + 12, -ht / 2 + 14, 58, 88);
+    c.add(g);
+    const icon = this.add.image(-wd / 2 + 41, -ht / 2 + 58, w.texture)
+      .setScale(Math.min(1.05, (w.iconScale || 1) * 0.9));
+    c.add(icon);
+    const name = this.add.text(-wd / 2 + 80, -ht / 2 + 20, w.name, UI.textStyle(13, {
+      color: q.hex, strokeThickness: 2,
+    })).setOrigin(0, 0.5);
+    c.add(name);
+    const qText = this.add.text(-wd / 2 + 80, -ht / 2 + 36, `品质：${q.name}`, UI.textStyle(8, {
+      color: q.hex, strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0, 0);
+    c.add(qText);
+    const desc = this.add.text(-wd / 2 + 80, -ht / 2 + 50, UI.wrapCJK(w.desc || '', 12), UI.textStyle(8, {
+      color: '#b9cba0', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0, 0);
+    desc.setLineSpacing(2);
+    c.add(desc);
+    const owned = Store.hasWeapon(w.id);
+    const stat1 = this.add.text(-wd / 2 + 80, ht / 2 - 32,
+      w.melee ? `近战 · 伤害 ${w.damage}` : `伤害 ${w.damage || '-'} · 能量 ${w.energyCost || 0}`,
+      UI.textStyle(8, { color: '#8fa77a', strokeThickness: 2, bold: false, shadow: false })).setOrigin(0, 0.5);
+    const stat2 = this.add.text(-wd / 2 + 80, ht / 2 - 17,
+      owned ? '已解锁' : `碎片需求 ${w.fragReq || 0}`,
+      UI.textStyle(8, { color: owned ? '#9ff0a8' : '#e0b96a', strokeThickness: 2, bold: false, shadow: false })).setOrigin(0, 0.5);
+    c.add([stat1, stat2]);
+    return c;
+  }
+
+  createRingCard(r, x, y) {
+    const wd = 206, ht = 144;
+    const q = QUALITIES[r.quality] || QUALITIES.gold;
+    const c = this.add.container(x, y).setDepth(2);
+    const g = this.add.graphics();
+    g.fillStyle(0x000000, 0.3);
+    g.fillRect(-wd / 2 + 4, -ht / 2 + 4, wd, ht);
+    g.fillStyle(0x111a0d, 0.96);
+    g.fillRect(-wd / 2, -ht / 2, wd, ht);
+    g.lineStyle(2, r.color, 0.9);
+    g.strokeRect(-wd / 2, -ht / 2, wd, ht);
+    g.fillStyle(r.color, 0.85);
+    g.fillRect(-wd / 2, -ht / 2, wd, 3);
+    g.fillStyle(0x0b1208, 0.95);
+    g.fillRect(-wd / 2 + 12, -ht / 2 + 14, 58, 88);
+    g.lineStyle(1, r.color, 0.75);
+    g.strokeRect(-wd / 2 + 12, -ht / 2 + 14, 58, 88);
+    c.add(g);
+    const icon = this.add.image(-wd / 2 + 41, -ht / 2 + 58, 'ring_icon').setTint(r.color).setScale(1.5);
+    c.add(icon);
+    const name = this.add.text(-wd / 2 + 80, -ht / 2 + 20, r.name, UI.textStyle(13, {
+      color: '#fff1c4', strokeThickness: 2,
+    })).setOrigin(0, 0.5);
+    c.add(name);
+    const qText = this.add.text(-wd / 2 + 80, -ht / 2 + 36, `品质：${q.name}`, UI.textStyle(8, {
+      color: q.hex, strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0, 0);
+    c.add(qText);
+    const desc = this.add.text(-wd / 2 + 80, -ht / 2 + 50, UI.wrapCJK(r.desc || '', 12), UI.textStyle(8, {
+      color: '#b9cba0', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0, 0);
+    desc.setLineSpacing(2);
+    c.add(desc);
+    const owned = Store.hasRing(r.id);
+    const equipped = Store.data.equippedRing === r.id;
+    const stat1 = this.add.text(-wd / 2 + 80, ht / 2 - 32, `碎片需求 ${r.fragReq}`,
+      UI.textStyle(8, { color: '#e0b96a', strokeThickness: 2, bold: false, shadow: false })).setOrigin(0, 0.5);
+    const stat2 = this.add.text(-wd / 2 + 80, ht / 2 - 17,
+      equipped ? '装备中' : (owned ? '已拥有' : '未合成'),
+      UI.textStyle(8, { color: equipped ? '#ffd76a' : (owned ? '#9ff0a8' : '#8fa77a'), strokeThickness: 2, bold: false, shadow: false })).setOrigin(0, 0.5);
+    c.add([stat1, stat2]);
+    return c;
   }
 
   createCard(entry, x, y) {
