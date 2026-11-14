@@ -404,9 +404,39 @@ class GuestScene extends Phaser.Scene {
     if (this.ended) return;
     Net.send({ t: 'action', key });
     if (key === 'skill' && (!this.state || !this.state.gs || !this.state.gs.cd)) {
-      const ring = this.add.image(this.predX, this.predY, 'ring')
-        .setTint(0x9fe8ff).setScale(0.2).setAlpha(0.9)
-        .setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
+      this.playLocalSkill();
+    }
+  }
+
+  playLocalSkill() {
+    const char = (this.state && this.state.g && this.state.g.character) || 'gunner';
+    const colors = {
+      gunner: 0xff9a3a, swordsman: 0xbfe8ff, frankenstein: 0x7dff5a,
+      mage: 0xb07bff, guitarist: 0xd96a9a, demon: 0xff5a3a,
+      vampire: 0xd92a3a, knight: 0xfff2c8, ranger: 0x8ff0b0,
+      rogue: 0xff4a6a, alchemist: 0x7ad9a0,
+    };
+    const color = colors[char] || 0x9fe8ff;
+    const x = this.predX;
+    const y = this.predY;
+    if (char === 'mage') {
+      const aim = this.aimSet ? Math.atan2((this.aimY || 0) - y, (this.aimX || 0) - x) : (this.state.g.aim || 0);
+      const glow = this.add.rectangle(x, y - 6, 560, 24, color, 0.3)
+        .setOrigin(0, 0.5).setRotation(aim).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
+      const core = this.add.rectangle(x, y - 6, 560, 8, 0xffffff, 0.95)
+        .setOrigin(0, 0.5).setRotation(aim).setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
+      this.tweens.add({
+        targets: [glow, core], alpha: 0, duration: 1700, ease: 'Sine.In',
+        onComplete: () => { glow.destroy(); core.destroy(); },
+      });
+    } else if (char === 'guitarist' || char === 'vampire' || char === 'knight' || char === 'demon') {
+      const aura = this.add.image(x, y, 'ring').setTint(color)
+        .setScale(0.4).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
+      this.tweens.add({ targets: aura, scale: 1.8, alpha: 0.2, duration: 500, yoyo: true, repeat: 5 });
+      this.time.delayedCall(3200, () => { if (aura.active) aura.destroy(); });
+    } else {
+      const ring = this.add.image(x, y, 'ring').setTint(color)
+        .setScale(0.2).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(830);
       this.tweens.add({
         targets: ring, scale: 1.8, alpha: 0, duration: 360,
         onComplete: () => ring.destroy(),
