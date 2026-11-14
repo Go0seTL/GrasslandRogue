@@ -2388,8 +2388,11 @@ class GameScene extends Phaser.Scene {
     };
     this.enemies.getChildren().forEach((e) => {
       if (!e.active || e.dying) return;
+      if (e.goatAim) addRect(e.goatAim);
       if (e.goatBeam) { addRect(e.goatBeam.glow); addRect(e.goatBeam.core); }
+      if (e.kingAims) e.kingAims.forEach(addRect);
       if (e.kingBeams) e.kingBeams.forEach(addRect);
+      if (e.breathFlag) addRect(e.breathFlag);
       if (e.breathBeam) { addRect(e.breathBeam.glow); addRect(e.breathBeam.core); }
       if (e.phase2Beams) e.phase2Beams.forEach((b) => { addRect(b.glow); addRect(b.core); });
     });

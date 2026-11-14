@@ -71,6 +71,7 @@ class GuestScene extends Phaser.Scene {
     }).setDepth(820);
     this.poisonG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
     this.stickG = this.add.graphics().setDepth(840).setScrollFactor(0);
+    this.localVampireG = this.add.graphics().setDepth(828).setBlendMode(Phaser.BlendModes.ADD);
     this.hostAura = this.add.image(0, 0, 'ring').setTint(0xb07bff)
       .setScale(1.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(703).setVisible(false);
     this.hostBeamObjs = null;
@@ -680,7 +681,22 @@ class GuestScene extends Phaser.Scene {
           glow.destroy(); core.destroy();
         },
       });
-    } else if (char === 'guitarist' || char === 'vampire' || char === 'knight' || char === 'demon') {
+    } else if (char === 'vampire') {
+      const aura = this.add.image(x, y, 'ring').setTint(0xff3a4a)
+        .setScale(0.5).setAlpha(0.85).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
+      this.localAura = aura;
+      this.localVampireUntil = this.time.now + 5000;
+      this.tweens.add({
+        targets: aura, scale: 2.0, alpha: 0.25, duration: 650,
+        yoyo: true, repeat: 5,
+      });
+      this.time.delayedCall(5000, () => {
+        if (this.localAura === aura) this.localAura = null;
+        this.localVampireUntil = 0;
+        if (this.localVampireG) this.localVampireG.clear();
+        if (aura.active) aura.destroy();
+      });
+    } else if (char === 'guitarist' || char === 'knight' || char === 'demon') {
       const aura = this.add.image(x, y, 'ring').setTint(color)
         .setScale(0.4).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD).setDepth(829);
       this.localAura = aura;
@@ -1057,7 +1073,13 @@ class GuestScene extends Phaser.Scene {
         const sprite = this.add.sprite(d.x, d.y, tex).setDepth(500);
         const poisonIcon = this.add.image(d.x, d.y - 42, 'skull').setTint(0x7ad9a0)
           .setScale(d.boss ? 0.55 : 0.24).setDepth(831).setVisible(false);
-        entry = { sprite, poisonIcon, id: d.id };
+        const glow = (d.elite || d.boss) ? this.add.image(d.x, d.y, 'glow')
+          .setTint(d.boss ? 0xfff2c8 : 0xffd76a)
+          .setScale(d.boss ? 1.6 : 0.8)
+          .setAlpha(d.boss ? 0.22 : 0.28)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(499) : null;
+        entry = { sprite, poisonIcon, glow, id: d.id };
         this.enemyMap.set(d.id, entry);
       }
       const s = entry.sprite;
@@ -1072,6 +1094,9 @@ class GuestScene extends Phaser.Scene {
       s.setFlipX(!!d.flip);
       s.setAlpha(d.alpha == null ? 1 : d.alpha);
       s.setDepth(500 + Math.floor(d.y));
+      if (entry.glow && entry.glow.active) {
+        entry.glow.setPosition(d.x, d.y).setDepth(499);
+      }
       if (d.poison) {
         s.setTint(0x9ff0b0);
         entry.poisonIcon.setVisible(true).setPosition(d.x, d.y - (d.boss ? 74 : 42));
@@ -1082,12 +1107,32 @@ class GuestScene extends Phaser.Scene {
         else if (s.isTinted) s.clearTint();
       }
       entry.meta = d;
+      if (entry.lastHp != null && d.hp < entry.lastHp) {
+        s.setTintFill(0xffffff);
+        this.sparks.explode(2, d.x, d.y - 8);
+        this.time.delayedCall(70, () => {
+          if (s.active) this.applyEnemyTint(entry);
+        });
+      }
+      entry.lastHp = d.hp;
     });
     this.enemyMap.forEach((entry, id) => {
       if (seen.has(id)) return;
       entry.sprite.destroy();
+      if (entry.poisonIcon) entry.poisonIcon.destroy();
+      if (entry.glow) entry.glow.destroy();
       this.enemyMap.delete(id);
     });
+  }
+
+  applyEnemyTint(entry) {
+    if (!entry || !entry.sprite || !entry.sprite.active) return;
+    const d = entry.meta || {};
+    const s = entry.sprite;
+    if (d.poison) s.setTint(0x9ff0b0);
+    else if (d.boss) s.setTint(0xfff2c8);
+    else if (d.elite) s.setTint(0xffd76a);
+    else s.clearTint();
   }
 
   updatePool(pool, data, defaultTex, depth) {
@@ -1287,6 +1332,18 @@ class GuestScene extends Phaser.Scene {
     }
     if (this.localAura && this.localAura.active) {
       this.localAura.setPosition(this.guestSprite.x, this.guestSprite.y);
+    }
+    if (this.localVampireG) {
+      this.localVampireG.clear();
+      if (this.localVampireUntil > this.time.now && this.state && this.state.enemies) {
+        const targets = this.state.enemies
+          .filter((e) => e.active !== false && Math.hypot(e.x - this.guestSprite.x, e.y - this.guestSprite.y) < 300)
+          .slice(0, 5);
+        targets.forEach((e) => {
+          this.localVampireG.lineStyle(3, 0xff3a4a, 0.55);
+          this.localVampireG.lineBetween(this.guestSprite.x, this.guestSprite.y, e.x, e.y);
+        });
+      }
     }
     if (this.localBeam && this.localBeam.glow.active) {
       const aim = this.state && this.state.g ? (this.state.g.aim || 0) : 0;
