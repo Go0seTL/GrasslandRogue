@@ -74,6 +74,7 @@ class GuestScene extends Phaser.Scene {
       .setScale(1.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(703).setVisible(false);
     this.hostBeamObjs = null;
     this.syncBeamsG = this.add.graphics().setDepth(735).setBlendMode(Phaser.BlendModes.ADD);
+    this.swordSprites = [];
     this.goo = this.add.particles(0, 0, 'spark', {
       lifespan: { min: 220, max: 520 }, speed: { min: 50, max: 190 },
       gravityY: 360, scale: { start: 0.9, end: 0 }, alpha: { start: 1, end: 0 },
@@ -764,9 +765,22 @@ class GuestScene extends Phaser.Scene {
         this.syncBeamsG.lineBetween(b.x1, b.y1, b.x2, b.y2);
       });
     }
+    this.updateSwords(d.swords || []);
     this.drawHostSkill(d);
     this.updateHud(d);
     if (d.fx && d.fx.length) this.playFx(d.fx);
+  }
+
+  updateSwords(list) {
+    for (let i = 0; i < list.length; i++) {
+      let img = this.swordSprites[i];
+      if (!img) {
+        img = this.add.image(0, 0, 'sword').setDepth(820).setBlendMode(Phaser.BlendModes.ADD);
+        this.swordSprites[i] = img;
+      }
+      img.setVisible(true).setPosition(list[i].x, list[i].y).setRotation(list[i].r);
+    }
+    for (let i = list.length; i < this.swordSprites.length; i++) this.swordSprites[i].setVisible(false);
   }
 
   drawHostSkill(d) {

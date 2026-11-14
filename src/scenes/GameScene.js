@@ -2489,6 +2489,12 @@ class GameScene extends Phaser.Scene {
         ? { type: this.skill.type, left: Math.max(0, Math.ceil((this.skill.endsAt - time) / 1000)) }
         : null,
       hostShield: Math.ceil(this.player.shieldHp || 0),
+      swords: this.skill.type === 'sword' && this.skill.swords
+        ? this.skill.swords.map((sw) => ({
+          x: round(sw.x), y: round(sw.y),
+          r: round(sw.img && sw.img.rotation != null ? sw.img.rotation : 0),
+        }))
+        : [],
       hostBeam: this.sulfurBeam && this.weapon
         ? {
           kind: this.weapon.beamKind || 'sulfur',
