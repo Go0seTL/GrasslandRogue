@@ -86,6 +86,10 @@ class GuestScene extends Phaser.Scene {
     this.guestShieldAura = this.add.image(480, 405, 'ring').setTint(0x7dffb0)
       .setScale(1.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(702);
     this.mercSprite = this.add.sprite(480, 405, 'merc_xuan_0').setVisible(false).setDepth(699);
+    this.merchantSprite = this.add.sprite(480, 405, 'merchant_0').setVisible(false).setDepth(698);
+    this.merchantTag = this.add.text(480, 375, '奇旅商人', UI.textStyle(9, {
+      color: '#ffd76a', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0.5).setDepth(880).setVisible(false);
     this.mercTag = this.add.text(480, 375, '', UI.textStyle(9, {
       color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(880).setVisible(false);
@@ -727,6 +731,7 @@ class GuestScene extends Phaser.Scene {
     this.applyPlayer(this.guestSprite, this.guestTag, d.g, true);
     this.applyEnemies(d.enemies || []);
     this.applyMercenary(d.merc);
+    this.applyMerchant(d.merchant);
     this.updatePool(this.pbSprites, d.pb || [], 'bullet', 690);
     this.updatePool(this.ebSprites, d.eb || [], 'orb', 692);
     this.updatePickups(d);
@@ -821,6 +826,27 @@ class GuestScene extends Phaser.Scene {
         this.predY += dy * 0.08;
       }
     }
+  }
+
+  applyMerchant(m) {
+    if (!m) {
+      this.merchantSprite.setVisible(false);
+      this.merchantTag.setVisible(false);
+      return;
+    }
+    this.merchantSprite.setVisible(true);
+    this.merchantSprite.tx = m.x;
+    this.merchantSprite.ty = m.y;
+    if (m.tex && this.textures.exists(m.tex) && this.merchantSprite.texture.key !== m.tex) {
+      this.merchantSprite.setTexture(m.tex);
+    }
+    if (m.anim && this.anims.exists(m.anim)) {
+      if (!this.merchantSprite.anims.isPlaying || !this.merchantSprite.anims.currentAnim
+        || this.merchantSprite.anims.currentAnim.key !== m.anim) {
+        this.merchantSprite.play(m.anim, true);
+      }
+    }
+    this.merchantTag.setVisible(true);
   }
 
   applyMercenary(m) {
@@ -1049,6 +1075,11 @@ class GuestScene extends Phaser.Scene {
       lerp(this.guestSprite, this.guestSprite.tx, this.guestSprite.ty, 0.35);
     }
     lerp(this.hostSprite, this.hostSprite.tx, this.hostSprite.ty, 0.35);
+    if (this.merchantSprite && this.merchantSprite.visible) {
+      lerp(this.merchantSprite, this.merchantSprite.tx, this.merchantSprite.ty, 0.25);
+      this.merchantSprite.setDepth(500 + Math.floor(this.merchantSprite.y));
+      this.merchantTag.setPosition(this.merchantSprite.x, this.merchantSprite.y - 46);
+    }
     if (this.mercSprite && this.mercSprite.visible) {
       lerp(this.mercSprite, this.mercSprite.tx, this.mercSprite.ty, 0.35);
       this.mercSprite.setDepth(500 + Math.floor(this.mercSprite.y));
