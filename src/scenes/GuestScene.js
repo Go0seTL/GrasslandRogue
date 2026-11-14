@@ -55,6 +55,8 @@ class GuestScene extends Phaser.Scene {
 
     this.hostSprite = this.add.sprite(480, 405, 'player_idle').setDepth(700);
     this.guestSprite = this.add.sprite(480, 405, 'player_idle').setDepth(701).setTint(0xbfe8ff);
+    this.guestShieldAura = this.add.image(480, 405, 'ring').setTint(0x7dffb0)
+      .setScale(1.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(702);
     this.hostTag = this.add.text(480, 375, '房主', UI.textStyle(9, {
       color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(880);
@@ -529,6 +531,11 @@ class GuestScene extends Phaser.Scene {
     tag.setPosition(p.x, p.y - 34);
     tag.setText(isGuest ? (p.dead ? '玩家2 · 倒地' : '玩家2') : (p.dead ? '房主 · 倒地' : '房主'));
     tag.setAlpha(1);
+    if (isGuest && this.guestShieldAura) {
+      this.guestShieldAura.setVisible((p.shield || 0) > 0)
+        .setPosition(p.x, p.y)
+        .setAlpha((p.shield || 0) > 0 ? 0.5 : 0);
+    }
     if (isGuest) {
       const dx = p.x - this.predX;
       const dy = p.y - this.predY;
@@ -645,7 +652,7 @@ class GuestScene extends Phaser.Scene {
     this.hudName.textContent = g.dead ? '玩家2 · 倒地' : '玩家2';
     this.hudStatus.textContent = g.dead
       ? (d.reviveWho === 'g' && d.reviveProgress > 0 ? `救援中 ${d.reviveProgress}%` : '等待救援')
-      : '联机中';
+      : ((g.shield || 0) > 0 ? `护盾 ${g.shield}` : '联机中');
     if (this.statusText) {
       this.statusText.textContent = d.paused ? '房主暂停 / 选择强化中' : '已连接';
     }
@@ -737,6 +744,10 @@ class GuestScene extends Phaser.Scene {
     lerp(this.hostSprite, this.hostSprite.tx, this.hostSprite.ty, 0.35);
     this.hostTag.setPosition(this.hostSprite.x, this.hostSprite.y - 34);
     this.guestTag.setPosition(this.guestSprite.x, this.guestSprite.y - 34);
+    if (this.guestShieldAura && this.guestShieldAura.visible) {
+      this.guestShieldAura.setPosition(this.guestSprite.x, this.guestSprite.y)
+        .setAlpha(0.35 + Math.sin(time * 0.01) * 0.15);
+    }
     this.enemyMap.forEach((entry) => {
       lerp(entry.sprite, entry.sprite.tx, entry.sprite.ty, 0.4);
       entry.sprite.setDepth(500 + Math.floor(entry.sprite.y));

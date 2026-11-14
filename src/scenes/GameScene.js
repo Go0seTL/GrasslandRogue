@@ -910,10 +910,10 @@ class GameScene extends Phaser.Scene {
   startEndlessWave() {
     if (!this.player || this.player.isDead) return;
     this.endlessAwaitUpgrade = false;
-    this.round = this.endlessWave;
+    this.round = 1 + (this.endlessWave - 1) * 0.55;
     this.stage = 1;
-    this.enemyLevel = this.endlessWave * 2;
-    this.endlessAtkMul = 1 + Math.min(1.0, (this.endlessWave - 1) * 0.035);
+    this.enemyLevel = 1 + (this.endlessWave - 1) * 0.9;
+    this.endlessAtkMul = 1 + Math.min(0.6, (this.endlessWave - 1) * 0.02);
     this.transitioning = false;
     this.locked = true;
     this.roomState = 'intro';
@@ -936,7 +936,7 @@ class GameScene extends Phaser.Scene {
       if (!this.scene.isActive() || this.player.isDead) return;
       this.locked = false;
       this.roomState = 'fighting';
-      const count = Math.min(46, 8 + Math.floor(this.endlessWave * 2.4));
+      const count = Math.min(60, 10 + Math.floor(this.endlessWave * 3));
       const pool = this.endlessEnemyPool(this.endlessWave);
       for (let i = 0; i < count; i++) this.spawnQueue.push(choice(pool));
       this.pendingSpawns = this.spawnQueue.length;
@@ -1197,10 +1197,10 @@ class GameScene extends Phaser.Scene {
   spawnNextBatch() {
     if (this.roomState !== 'fighting' || this.spawnQueue.length === 0) return;
     const batch = this.endless
-      ? Math.min(3 + Math.floor(this.endlessWave / 5), this.spawnQueue.length)
+      ? Math.min(5 + Math.floor(this.endlessWave / 4), this.spawnQueue.length)
       : Math.min(2 + (this.enemyLevel >= 5 ? 1 : 0), this.spawnQueue.length);
     const eliteChance = this.endless
-      ? Math.min(0.55, 0.08 + this.endlessWave * 0.02)
+      ? Math.min(0.45, 0.06 + this.endlessWave * 0.015)
       : Math.min(0.06 + (this.round - 1) * 0.05 + (this.enemyLevel - 1) * 0.006, 0.30);
     for (let i = 0; i < batch; i++) {
       const type = this.spawnQueue.shift();
@@ -1209,7 +1209,7 @@ class GameScene extends Phaser.Scene {
       this.scheduleSpawn(type, pt.x, pt.y, this.endless ? 340 + i * 110 : 480 + i * 170, elite);
     }
     if (this.spawnQueue.length > 0) {
-      this.time.delayedCall(this.endless ? 720 : 1350, () => {
+      this.time.delayedCall(this.endless ? 600 : 1350, () => {
         if (this.scene.isActive()) this.spawnNextBatch();
       });
     }
@@ -2130,7 +2130,7 @@ class GameScene extends Phaser.Scene {
     if (time < g.dashUntil) {
       // 冲刺速度由 startDash 设置，不覆写
     } else {
-      const guitarBoost = this.guestSkill && this.guestSkill.type === 'guitar' ? 1.35 : 1;
+      const guitarBoost = this.guestSkill && this.guestSkill.type === 'guitar' ? GUITAR.speed : 1;
       const speed = BALANCE.playerSpeed * ((this.buffs.speed) || 1) * guitarBoost;
       g.body.setVelocity(mx * speed, my * speed);
     }
@@ -2155,7 +2155,11 @@ class GameScene extends Phaser.Scene {
       ? WEAPONS[this.guestWeaponId]
       : (this.weapon || WEAPONS.pistol);
     if (g.networkWeapon !== weapon) g.networkWeapon = weapon;
-    if (g.gun) {
+    if (g.giant) {
+      if (g.gun) g.gun.setVisible(false);
+      if (g.shadow) g.shadow.setPosition(g.x, g.y + 30).setDepth(g.y + 18);
+      if (input.fire && time >= g.nextShotAt) g.giantPunch(aim, time);
+    } else if (g.gun) {
       if (g.gun.texture.key !== weapon.texture) g.gun.setTexture(weapon.texture);
       const gx = g.x + cos * 10;
       const gy = g.y + 5 + Math.sin(aim) * 8;
@@ -2166,12 +2170,15 @@ class GameScene extends Phaser.Scene {
     g.setDepth(g.y + 20);
     if (this.guestTag) this.guestTag.setPosition(g.x, g.y - 52).setDepth(880);
     const ringRegen = (this.hasRing('azure') ? 3 : 1) * (this.guestRing === 'azure' ? 3 : 1);
+    g.updateShield(time);
     g.energy = Math.min(g.maxEnergy, g.energy + BALANCE.energyRegen * ringRegen * delta / 1000);
-    if (g.chargeFx) g.updateChargeFx(g.chargeRatio || 0);
-    if (weapon.charge) {
-      g.updateChargeWeapon(time, aim, !!input.fire, weapon);
-    } else if (input.fire && time >= g.nextShotAt && !weapon.sulfur) {
-      g.fire(time, aim);
+    if (!g.giant && g.chargeFx) g.updateChargeFx(g.chargeRatio || 0);
+    if (!g.giant) {
+      if (weapon.charge) {
+        g.updateChargeWeapon(time, aim, !!input.fire, weapon);
+      } else if (input.fire && time >= g.nextShotAt && !weapon.sulfur) {
+        g.fire(time, aim);
+      }
     }
   }
 
@@ -2190,7 +2197,19 @@ class GameScene extends Phaser.Scene {
       }
     }
     const armor = Math.min(0.45, this.buffs.armor || 0);
-    g.hp -= amount * (1 - armor);
+    let incoming = amount * (1 - armor);
+    if (g.shieldHp > 0 && now < g.shieldUntil) {
+      const absorbed = Math.min(g.shieldHp, incoming);
+      g.shieldHp -= absorbed;
+      incoming -= absorbed;
+      this.fx.ring(g.x, g.y, 0x7dffb0, 0.2, 1.4, 240, 0.8, 736);
+      if (g.shieldHp <= 0) g.clearShield();
+      if (incoming <= 0.01) {
+        g.invulnUntil = Math.max(g.invulnUntil, now + 300);
+        return;
+      }
+    }
+    g.hp -= incoming;
     g.invulnUntil = now + 450;
     g.setTintFill(0xff5a4a);
     this.time.delayedCall(80, () => { if (g.active && !g.isDead) g.clearTint(); });
@@ -2373,6 +2392,7 @@ class GameScene extends Phaser.Scene {
       hp: Math.max(0, Math.ceil(pl.hp)), maxHp: Math.ceil(pl.maxHp),
       energy: Math.max(0, Math.floor(pl.energy)), maxEnergy: Math.ceil(pl.maxEnergy),
       dead: !!pl.isDead,
+      shield: Math.ceil(pl.shieldHp || 0),
       character: pl.characterId,
     });
     const vel = (o) => ({ vx: round((o.body && o.body.velocity.x) || 0), vy: round((o.body && o.body.velocity.y) || 0) });
@@ -2444,7 +2464,7 @@ class GameScene extends Phaser.Scene {
     if (data.key === 'skill') {
       if (this.time.now < this.guestSkill.cooldownUntil) return;
       const cdMap = {
-        gunner: 10000, swordsman: 10000, frankenstein: 30000, mage: 20000,
+        gunner: 12000, swordsman: 10000, frankenstein: 22000, mage: 20000,
         guitarist: 18000, demon: 20000, vampire: 18000, knight: 18000,
         ranger: 14000, rogue: 10000, alchemist: 16000,
       };
@@ -2501,50 +2521,52 @@ class GameScene extends Phaser.Scene {
     const color = tintMap[type] || 0x9fe8ff;
 
     if (type === 'gunner') {
-      skill.activeUntil = now + 1400;
-      skill.nextTick = now;
-      skill.targets = this.guestSkillTargets(3);
-      this.hud.toastQueue.push('玩家2：枪手技能');
+      skill.activeUntil = now + SKILL.duration;
+      skill.nextTick = now + 80;
+      skill.targets = this.guestSkillTargets(SKILL.maxTargets);
+      this.hud.toastQueue.push('玩家2：枪手技能 · 自动索敌');
     } else if (type === 'swordsman') {
-      const dmg = this.guestSkillDamage(34);
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        this.guestBurst(a, dmg, { speed: 760, tint: 0xbfe8ff, pierce: 1, texture: 'sword', scale: 1.1 });
-      }
-      skill.activeUntil = now + 700;
-      this.hud.toastQueue.push('玩家2：万剑归宗');
-    } else if (type === 'frankenstein') {
-      const dmg = this.guestSkillDamage(95);
-      this.enemies.getChildren().forEach((e) => {
-        if (e.active && !e.dying && dist2(e.x, e.y, g.x, g.y) < 165 * 165) {
-          e.takeDamage(dmg, Math.atan2(e.y - g.y, e.x - g.x));
-          this.markGuestHit(e.x, e.y, 0x7dff5a);
+      skill.activeUntil = now + 1800;
+      this.time.delayedCall(1000, () => {
+        if (!this.player2 || this.player2.isDead) return;
+        const dmg = this.guestSkillDamage(34);
+        const targets = this.guestSkillTargets(8);
+        for (let i = 0; i < 8; i++) {
+          const target = targets[i % Math.max(1, targets.length)];
+          const a = target ? Math.atan2(target.y - this.player2.y, target.x - this.player2.x) : (i / 8) * Math.PI * 2;
+          this.guestBurst(a, dmg, { speed: 760, tint: 0xbfe8ff, pierce: 1, texture: 'sword', scale: 1.1 });
+          this.fx.hitSpark(this.player2.x, this.player2.y);
         }
       });
-      g.invulnUntil = Math.max(g.invulnUntil, now + 2000);
+      this.hud.toastQueue.push('玩家2：万剑归宗');
+    } else if (type === 'frankenstein') {
+      const duration = GIANT.duration * (1 + this.guestSkillLevel * SKILL_UPGRADE.durationPerLevel);
+      g.setGiantForm(true);
+      g.addShield(150, duration);
+      g.invulnUntil = Math.max(g.invulnUntil, now + 700);
+      skill.activeUntil = now + duration;
       this.fx.ring(g.x, g.y, 0x7dff5a, 0.2, 2.4, 520, 0.9, 744);
-      this.cameras.main.shake(160, 0.005);
-      skill.activeUntil = now + 700;
-      this.hud.toastQueue.push('玩家2：巨型铁拳冲击');
+      this.cameras.main.shake(180, 0.005);
+      this.hud.toastQueue.push(`玩家2：巨型化 ${Math.round(duration / 1000)} 秒 + 护盾`);
     } else if (type === 'mage') {
-      skill.activeUntil = now + 2500;
+      skill.activeUntil = now + MAGE_LASER.duration;
       skill.nextTick = now;
       skill.beam = this.createGuestBeam(g, color);
       this.hud.toastQueue.push('玩家2：法师激光');
     } else if (type === 'guitarist') {
-      skill.activeUntil = now + 4000;
+      skill.activeUntil = now + GUITAR.duration;
       skill.nextTick = now;
       skill.aura = this.add.image(g.x, g.y, 'ring').setTint(color).setScale(1.8)
         .setAlpha(0.55).setBlendMode(Phaser.BlendModes.ADD).setDepth(g.y - 2);
       this.hud.toastQueue.push('玩家2：吉他音浪');
     } else if (type === 'demon') {
-      g.guestDemonUntil = now + 5000;
-      skill.activeUntil = now + 5000;
+      g.guestDemonUntil = now + DEMON.duration;
+      skill.activeUntil = now + DEMON.duration;
       skill.aura = this.add.image(g.x, g.y, 'glow').setTint(color).setScale(1.7)
         .setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(g.y - 2);
       this.hud.toastQueue.push('玩家2：恶魔契约 · 攻速伤害提升');
     } else if (type === 'vampire') {
-      skill.activeUntil = now + 3000;
+      skill.activeUntil = now + VAMPIRE.duration;
       skill.nextTick = now;
       skill.aura = this.add.image(g.x, g.y, 'ring').setTint(color).setScale(1.5)
         .setAlpha(0.45).setBlendMode(Phaser.BlendModes.ADD).setDepth(g.y - 2);
@@ -2641,16 +2663,18 @@ class GameScene extends Phaser.Scene {
       this.clearGuestSkillVisuals();
       return;
     }
-    if (time >= skill.activeUntil && skill.type !== 'gunner' && skill.type !== 'demon' && skill.type !== 'knight') {
+    if (time >= skill.activeUntil && skill.type !== 'gunner' && skill.type !== 'demon'
+      && skill.type !== 'knight' && skill.type !== 'frankenstein') {
       this.clearGuestSkillVisuals();
       return;
     }
     if (skill.type === 'gunner') {
       if (time >= skill.nextTick && time < skill.activeUntil) {
-        skill.nextTick = time + 180;
-        skill.targets = this.guestSkillTargets(3);
         const weapon = g.networkWeapon || this.weapon || WEAPONS.pistol;
-        const dmg = this.guestSkillDamage((weapon.damage || 15) * 1.2);
+        const interval = weapon.charge ? weapon.chargeTime * 1000 : weapon.fireRate * 1000;
+        skill.nextTick = time + Math.max(70, interval * (this.buffs.fireRate || 1));
+        skill.targets = this.guestSkillTargets(SKILL.maxTargets);
+        const dmg = this.guestSkillDamage(weapon.damage || 15);
         skill.targets.forEach((e) => {
           this.guestBurst(Math.atan2(e.y - g.y, e.x - g.x), dmg, {
             speed: weapon.bulletSpeed || 900, tint: weapon.tint, pierce: weapon.pierce,
@@ -2665,7 +2689,7 @@ class GameScene extends Phaser.Scene {
         skill.beam.glow.setPosition(g.x, g.y - 8).setRotation(a);
         skill.beam.core.setPosition(g.x, g.y - 8).setRotation(a);
         if (time >= skill.nextTick) {
-          skill.nextTick = time + 130;
+          skill.nextTick = time + MAGE_LASER.tick;
           const dmg = this.guestSkillDamage(MAGE_LASER.damage);
           const cos = Math.cos(a), sin = Math.sin(a);
           this.enemies.getChildren().forEach((e) => {
@@ -2673,7 +2697,7 @@ class GameScene extends Phaser.Scene {
             const dx = e.x - g.x, dy = e.y - (g.y - 8);
             const along = dx * cos + dy * sin;
             const perp = Math.abs(-dx * sin + dy * cos);
-            if (along > 0 && along < 700 && perp < 28) {
+            if (along > 0 && along < MAGE_LASER.length && perp < MAGE_LASER.width) {
               e.takeDamage(dmg, a);
               this.markGuestHit(e.x, e.y, 0xb07bff);
             }
@@ -2684,7 +2708,7 @@ class GameScene extends Phaser.Scene {
     } else if (skill.type === 'guitarist') {
       if (skill.aura) skill.aura.setPosition(g.x, g.y).setScale(1.65 + Math.sin(time * 0.012) * 0.2);
       if (time >= skill.nextTick) {
-        skill.nextTick = time + 380;
+        skill.nextTick = time + GUITAR.tick;
         const dmg = this.guestSkillDamage(GUITAR.damage);
         this.enemies.getChildren().forEach((e) => {
           if (e.active && !e.dying && dist2(e.x, e.y, g.x, g.y) < GUITAR.radius * GUITAR.radius) {
@@ -2697,11 +2721,11 @@ class GameScene extends Phaser.Scene {
     } else if (skill.type === 'vampire') {
       if (skill.aura) skill.aura.setPosition(g.x, g.y);
       if (time >= skill.nextTick) {
-        skill.nextTick = time + 380;
-        const targets = this.guestSkillTargets(5);
+        skill.nextTick = time + VAMPIRE.tick;
+        const targets = this.guestSkillTargets(VAMPIRE.maxTargets);
         let total = 0;
         targets.forEach((e) => {
-          if (dist2(e.x, e.y, g.x, g.y) > 300 * 300) return;
+          if (dist2(e.x, e.y, g.x, g.y) > VAMPIRE.radius * VAMPIRE.radius) return;
           const dmg = this.guestSkillDamage(VAMPIRE.damage);
           e.takeDamage(dmg, Math.atan2(e.y - g.y, e.x - g.x));
           total += dmg;
@@ -2710,6 +2734,12 @@ class GameScene extends Phaser.Scene {
         if (total > 0) g.hp = Math.min(g.maxHp, g.hp + Math.max(1, Math.round(total * VAMPIRE.healRatio)));
       }
       if (time >= skill.activeUntil) this.clearGuestSkillVisuals();
+    } else if (skill.type === 'frankenstein') {
+      if (time >= skill.activeUntil) {
+        g.setGiantForm(false);
+        g.clearShield();
+        this.clearGuestSkillVisuals();
+      }
     } else if (skill.type === 'demon' || skill.type === 'knight') {
       if (skill.aura) {
         skill.aura.setPosition(g.x, g.y)

@@ -166,7 +166,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       range: GIANT.range,
       arc: GIANT.arc,
       quality: 'green',
-      skillFactor: scene.skillFactor ? scene.skillFactor() : 1,
+      skillFactor: this.networkGuest
+        ? (1 + (scene.guestSkillLevel || 0) * SKILL_UPGRADE.damagePerLevel)
+        : (scene.skillFactor ? scene.skillFactor() : 1),
     };
     scene.meleeAttack(this, aim, fakeWeapon);
     const px = this.x + Math.cos(aim) * GIANT.range * 0.55;
