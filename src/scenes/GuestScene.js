@@ -355,7 +355,6 @@ class GuestScene extends Phaser.Scene {
   applyState(d) {
     if (!d || this.ended) return;
     this.state = d;
-    if (this.statusText && this.statusText.textContent !== '已连接') this.statusText.textContent = '已连接';
     const tex = this.mapTexture(d.map);
     if (this.bg.texture.key !== tex) this.bg.setTexture(tex);
     this.applyPlayer(this.hostSprite, this.hostTag, d.p, false);
@@ -484,6 +483,9 @@ class GuestScene extends Phaser.Scene {
     this.hudStatus.textContent = g.dead
       ? (d.reviveWho === 'g' && d.reviveProgress > 0 ? `救援中 ${d.reviveProgress}%` : '等待救援')
       : '联机中';
+    if (this.statusText) {
+      this.statusText.textContent = d.paused ? '房主暂停 / 选择强化中' : '已连接';
+    }
     this.weaponText.textContent = `武器：${(d.gs && d.gs.weapon) || '手枪'}`;
     if (g.dead) {
       this.helpText.textContent = '你倒下了 · 房主靠近并站立 5 秒可以救你';

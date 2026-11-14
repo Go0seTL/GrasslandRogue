@@ -27,7 +27,7 @@ class GameScene extends Phaser.Scene {
     this.guestTouchAt = 0;
     this.guestWeaponId = null;
     this.guestSkill = { cooldownUntil: 0, total: 12000 };
-    this.nextGuestStateAt = 0;
+    this.nextGuestStateReal = 0;
     this.netIdSeq = 0;
     this.netIds = new WeakMap();
     this.hostDowned = false;
@@ -289,6 +289,16 @@ class GameScene extends Phaser.Scene {
       };
       Net.onAction = (data) => this.handleGuestAction(data);
       Net.onGuestLeft = () => this.removeGuest();
+      this.time.delayedCall(120, () => {
+        if (this.netHost && this.player2) this.sendGuestState(this.time.now, true);
+      });
+      // 房主暂停/选强化时 Game.update 不跑，但客人仍需要画面
+      this.guestStateTimer = setInterval(() => {
+        if (!this.netHost || !this.player2 || !this.scene.isActive()) return;
+        if (this.upgradeOpen || (this.scene.isPaused && this.scene.isPaused())) {
+          this.sendGuestState(this.time.now, true);
+        }
+      }, 100);
     }
 
     if (this.endless) {
@@ -302,12 +312,16 @@ class GameScene extends Phaser.Scene {
         Net.onInput = null;
         Net.onAction = null;
         Net.onGuestLeft = null;
+        if (this.guestStateTimer) {
+          clearInterval(this.guestStateTimer);
+          this.guestStateTimer = null;
+        }
         Net.close();
       });
     }
 
-    // 继续游戏时不重复弹出开局强化；无尽挑战每波结束后再选
-    if (!this.resumeData && !this.endless) {
+    // 继续游戏时不重复弹出开局强化；无尽挑战/联机不弹开局强化（避免开局就暂停）
+    if (!this.resumeData && !this.endless && !this.netHost) {
       this.time.delayedCall(700, () => {
         if (!this.scene.isActive()) return;
         this.openUpgrade(true);
@@ -2227,9 +2241,11 @@ class GameScene extends Phaser.Scene {
     return this.netIds.get(e);
   }
 
-  sendGuestState(time) {
-    if (!this.netHost || !this.player2 || time < this.nextGuestStateAt) return;
-    this.nextGuestStateAt = time + 33;
+  sendGuestState(time, force) {
+    if (!this.netHost || !this.player2) return;
+    const real = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    if (!force && real < this.nextGuestStateReal) return;
+    this.nextGuestStateReal = real + 33;
     const p = this.player;
     const g = this.player2;
     const round = (n) => Math.round(n * 10) / 10;
@@ -2282,6 +2298,7 @@ class GameScene extends Phaser.Scene {
       map: this.currentMap,
       mapName: this.mapName,
       room: this.roomState,
+      paused: !!(this.scene.isPaused && this.scene.isPaused()) || !!this.upgradeOpen,
       round: this.round, stage: this.stage,
       endless: !!this.endless, endlessWave: this.endlessWave,
       hostDowned: !!this.hostDowned,
