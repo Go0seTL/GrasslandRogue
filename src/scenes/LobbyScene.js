@@ -230,7 +230,7 @@ class LobbyScene extends Phaser.Scene {
       if (this.started) return;
       this.started = true;
       this.starting = true;
-      this.scene.start('Guest');
+      this.scene.start('RemoteGame');
     };
     Net.onEnded = (reason) => {
       if (this.statusText) this.statusText.setText(reason || '房主结束了游戏');

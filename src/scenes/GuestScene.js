@@ -1,6 +1,6 @@
 class GuestScene extends Phaser.Scene {
-  constructor() {
-    super('Guest');
+  constructor(key) {
+    super(key || 'Guest');
   }
 
   init(data) {

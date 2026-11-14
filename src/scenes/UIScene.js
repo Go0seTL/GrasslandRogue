@@ -26,9 +26,11 @@ class UIScene extends Phaser.Scene {
     UI.drawPanel(this.staticG, 16, 484, 210, 44, { border: 0x6f8a5a, bg: 0x141e0f, alpha: 0.8 });
 
     const gameScene = this.scene.get('Game');
+    const remoteScene = this.scene.get('RemoteGame');
     const guestScene = this.scene.get('Guest');
-    this.isGuestHud = !!(guestScene && guestScene.isRemoteHud);
-    this.hudSource = this.isGuestHud ? guestScene : gameScene;
+    const source = (remoteScene && remoteScene.isRemoteHud) ? remoteScene : guestScene;
+    this.isGuestHud = !!(source && source.isRemoteHud);
+    this.hudSource = this.isGuestHud ? source : gameScene;
     this.characterId = this.hudSource ? this.hudSource.characterId : 'gunner';
     const portraitKey = {
       swordsman: 'swordsman_idle', frankenstein: 'frankenstein_idle',

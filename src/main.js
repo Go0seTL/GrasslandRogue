@@ -45,6 +45,7 @@ const gameConfig = {
     RingScene,
     LobbyScene,
     GuestScene,
+    RemoteGameScene,
   ],
 };
 
