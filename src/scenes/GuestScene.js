@@ -62,6 +62,8 @@ class GuestScene extends Phaser.Scene {
       color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(880).setVisible(false);
     this.mercHpG = this.add.graphics().setDepth(832);
+    this.hostGun = this.add.image(480, 405, 'gun').setOrigin(0.22, 0.5).setDepth(705);
+    this.guestGun = this.add.image(480, 405, 'gun').setOrigin(0.22, 0.5).setDepth(706);
     this.hostTag = this.add.text(480, 375, '房主', UI.textStyle(9, {
       color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(880);
@@ -120,7 +122,7 @@ class GuestScene extends Phaser.Scene {
       'box-shadow:inset 0 0 0 2px rgba(75,107,62,.55)',
     ].join(';'), this.hud);
     this.portraitImg = this.makeEl('img', [
-      'width:46px', 'height:56px', 'object-fit:contain', 'image-rendering:pixelated',
+      'width:40px', 'height:52px', 'object-fit:contain', 'image-rendering:pixelated',
       'background:rgba(8,14,6,.8)', 'border:1px solid #6f8a5a', 'border-radius:3px',
     ].join(';'), this.hpPanel);
     const statusCol = this.makeEl('div', 'flex:1;min-width:0;', this.hpPanel);
@@ -156,8 +158,11 @@ class GuestScene extends Phaser.Scene {
     this.weaponIcon = this.makeEl('img', [
       'width:34px', 'height:24px', 'object-fit:contain', 'image-rendering:pixelated',
     ].join(';'), this.weaponPanel);
-    this.weaponText = this.makeEl('div', 'font-size:12px;color:#dfe8c8;white-space:nowrap;', this.weaponPanel);
+    const weaponCol = this.makeEl('div', 'display:flex;flex-direction:column;gap:1px;', this.weaponPanel);
+    this.weaponText = this.makeEl('div', 'font-size:12px;color:#dfe8c8;white-space:nowrap;', weaponCol);
     this.weaponText.textContent = '手枪';
+    this.weaponSub = this.makeEl('div', 'font-size:8px;color:#93a97d;white-space:nowrap;', weaponCol);
+    this.weaponSub.textContent = '无限弹药';
 
     // 右下操作区
     this.ctrlPanel = this.makeEl('div', [
@@ -167,10 +172,14 @@ class GuestScene extends Phaser.Scene {
     ].join(';'), this.hud);
     this.btnSwitch = this.makeButton('切枪', () => this.sendAction('switch'));
     this.btnSkill = this.makeButton('技能', () => this.sendAction('skill'), 'flame_icon', true);
-    this.btnFire = this.makeButton('开火', null, 'gun', true);
+    this.btnFire = this.makeButton('射击', null, 'gun', true);
     this.btnDash = this.makeButton('翻滚', () => this.sendAction('dash'));
     this.btnExit = this.makeButton('退出', () => this.exitToMenu());
     this.bindFireButton(this.btnFire);
+    this.btnSkill.style.borderRadius = '50%';
+    this.btnFire.style.borderRadius = '50%';
+    this.btnSkill.style.boxShadow = 'inset 0 0 0 3px rgba(75,107,62,.55),0 2px 0 #0a1208';
+    this.btnFire.style.boxShadow = 'inset 0 0 0 3px rgba(75,107,62,.55),0 2px 0 #0a1208';
 
     this.connection = this.makeEl('div', [
       'position:absolute', 'font-size:10px;color:#9fe8ff',
@@ -273,17 +282,17 @@ class GuestScene extends Phaser.Scene {
       if (w != null) el.style.width = `${w * sx}px`;
       if (h != null) el.style.height = `${h * sy}px`;
     };
-    place(this.hpPanel, 10, 10, 360, 84);
+    place(this.hpPanel, 12, 10, 306, 80);
     place(this.levelText, 380, 14, 200, 24);
     place(this.levelSub, 380, 38, 200, 16);
     place(this.bossText, 360, 58, 240, 18);
-    place(this.weaponPanel, 10, 482, 260, 46);
-    place(this.ctrlPanel, 686, 366, 270, 134);
-    place(this.btnSwitch, 696, 404, 64, 34);
-    place(this.btnSkill, 766, 380, 86, 64);
-    place(this.btnFire, 856, 376, 90, 70);
-    place(this.btnDash, 856, 452, 90, 38);
-    place(this.btnExit, 696, 446, 64, 32);
+    place(this.weaponPanel, 10, 484, 260, 46);
+    place(this.ctrlPanel, 0, 0, 0, 0);
+    place(this.btnSwitch, 728, 410, 58, 34);
+    place(this.btnSkill, 806, 410, 78, 78);
+    place(this.btnFire, 884, 410, 84, 84);
+    place(this.btnDash, 884, 492, 64, 28);
+    place(this.btnExit, 660, 492, 64, 28);
     place(this.connection, 400, 464, 200, 16);
     place(this.statusText, 400, 480, 200, 16);
     place(this.helpText, 290, 514, 380, 16);
@@ -537,6 +546,14 @@ class GuestScene extends Phaser.Scene {
     tag.setPosition(p.x, p.y - 34);
     tag.setText(isGuest ? (p.dead ? '玩家2 · 倒地' : '玩家2') : (p.dead ? '房主 · 倒地' : '房主'));
     tag.setAlpha(1);
+    if (isGuest && this.guestGun) {
+      const giant = p.tex && p.tex.indexOf('giant') >= 0;
+      this.guestGun.setVisible(!p.dead && !giant);
+      if (p.weaponTex && this.textures.exists(p.weaponTex)) this.guestGun.setTexture(p.weaponTex);
+    } else if (this.hostGun) {
+      this.hostGun.setVisible(!p.dead);
+      if (p.weaponTex && this.textures.exists(p.weaponTex)) this.hostGun.setTexture(p.weaponTex);
+    }
     if (isGuest && this.guestShieldAura) {
       this.guestShieldAura.setVisible((p.shield || 0) > 0)
         .setPosition(p.x, p.y)
@@ -689,6 +706,15 @@ class GuestScene extends Phaser.Scene {
       this.statusText.textContent = d.paused ? '房主暂停 / 选择强化中' : '已连接';
     }
     this.weaponText.textContent = (d.gs && d.gs.weapon) || '手枪';
+    if (this.weaponSub && d.gs) {
+      const w = WEAPONS[d.gs.weaponId];
+      if (w) {
+        this.weaponSub.textContent = w.melee
+          ? `近战 · ${w.energyCost || 0} 能量/次`
+          : (w.charge ? `蓄力 · ${w.energyCost || 0} 能量/发`
+            : (w.energyCost ? `无限弹药 · ${w.energyCost} 能量/发` : '无限弹药 · 不耗能量'));
+      }
+    }
     if (this.weaponIcon && d.gs && d.gs.weaponTex && this.weaponIcon.dataset.tex !== d.gs.weaponTex) {
       this.weaponIcon.dataset.tex = d.gs.weaponTex;
       const url = this.textureURL(d.gs.weaponTex);
@@ -787,6 +813,18 @@ class GuestScene extends Phaser.Scene {
     }
     this.hostTag.setPosition(this.hostSprite.x, this.hostSprite.y - 34);
     this.guestTag.setPosition(this.guestSprite.x, this.guestSprite.y - 34);
+    const placeGun = (gun, sprite, p) => {
+      if (!gun || !p) return;
+      const aim = p.aim || 0;
+      const cos = Math.cos(aim);
+      gun.setPosition(sprite.x + cos * 10, sprite.y + 5 + Math.sin(aim) * 8)
+        .setRotation(aim).setFlipY(cos < 0)
+        .setDepth(sprite.y + 21);
+    };
+    if (this.state) {
+      placeGun(this.hostGun, this.hostSprite, this.state.p);
+      placeGun(this.guestGun, this.guestSprite, this.state.g);
+    }
     if (this.guestShieldAura && this.guestShieldAura.visible) {
       this.guestShieldAura.setPosition(this.guestSprite.x, this.guestSprite.y)
         .setAlpha(0.35 + Math.sin(time * 0.01) * 0.15);

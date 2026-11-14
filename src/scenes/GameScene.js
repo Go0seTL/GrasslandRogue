@@ -2393,6 +2393,7 @@ class GameScene extends Phaser.Scene {
       energy: Math.max(0, Math.floor(pl.energy)), maxEnergy: Math.ceil(pl.maxEnergy),
       dead: !!pl.isDead,
       shield: Math.ceil(pl.shieldHp || 0),
+      weaponTex: pl === this.player ? (this.weapon.texture || 'gun') : ((pl.networkWeapon || this.weapon || WEAPONS.pistol).texture || 'gun'),
       character: pl.characterId,
     });
     const vel = (o) => ({ vx: round((o.body && o.body.velocity.x) || 0), vy: round((o.body && o.body.velocity.y) || 0) });
@@ -2427,6 +2428,7 @@ class GameScene extends Phaser.Scene {
         cd: Math.max(0, Math.ceil((this.guestSkill.cooldownUntil - time) / 1000)),
         total: GUEST_SKILL.cooldown,
         weapon: (g.networkWeapon || this.weapon || WEAPONS.pistol).name,
+        weaponId: (g.networkWeapon || this.weapon || WEAPONS.pistol).id,
         weaponTex: (g.networkWeapon || this.weapon || WEAPONS.pistol).texture,
         skillTex: this.guestSkillTexture(),
         level: this.guestLevel,
