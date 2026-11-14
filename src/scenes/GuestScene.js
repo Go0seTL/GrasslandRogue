@@ -8,6 +8,33 @@ class GuestScene extends Phaser.Scene {
   }
 
   create() {
+    this.isRemoteHud = true;
+    this.characterId = this.characterId || Store.data.lastChar || 'gunner';
+    this.player = { hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, isDead: false };
+    this.player2 = null;
+    this.weapon = WEAPONS.pistol;
+    this.weaponId = 'pistol';
+    this.secondaryWeapon = null;
+    this.secondaryId = null;
+    this.dualWield = false;
+    this.skill = { active: false, type: null, cooldownUntil: 0, cooldown: 12000, duration: 0 };
+    this.boss = null;
+    this.remoteBosses = [];
+    this.enemies = { getChildren: () => this.remoteBosses };
+    this.hudState = { bannerQueue: [], toastQueue: [], hintText: '', hintUntil: 0, hurtAt: 0 };
+    this.round = 1;
+    this.stage = 1;
+    this.endless = false;
+    this.endlessWave = 1;
+    this.demonRealm = false;
+    this.mapName = '草原';
+    this.coins = 0;
+    this.kills = 0;
+    this.runCoins = 0;
+    this.treasurePot = 0;
+    this.touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    this.netHost = false;
+    this.uiLaunched = false;
     this.ended = false;
     this.closing = false;
     this.state = null;
@@ -87,6 +114,7 @@ class GuestScene extends Phaser.Scene {
     window.addEventListener('resize', this.onResize);
     window.addEventListener('orientationchange', this.onResize);
     this.events.once('shutdown', () => this.cleanup());
+    this.time.delayedCall(120, () => this.launchHud());
     this.time.delayedCall(60, () => this.layoutHud());
     this.cameras.main.fadeIn(200, 0, 0, 0);
   }
@@ -398,6 +426,7 @@ class GuestScene extends Phaser.Scene {
 
   bindInputs() {
     this.attachPointer();
+    this.setupRemotePointer();
     window.addEventListener('keydown', this.onKeyDown = (e) => {
       const k = e.code;
       this.keys[k] = true;
@@ -407,6 +436,60 @@ class GuestScene extends Phaser.Scene {
       if (k === 'Escape') this.exitToMenu();
     });
     window.addEventListener('keyup', this.onKeyUp = (e) => { this.keys[e.code] = false; });
+  }
+
+  isUiZone(x, y) {
+    return (x > 888 && y > 58 && y < 320)
+      || (x > 688 && y > 360 && y < 532);
+  }
+
+  setupRemotePointer() {
+    const touchInfo = (pointer) => !!(pointer.wasTouch || (pointer.event && pointer.event.pointerType === 'touch'));
+    this.input.on('pointerdown', (pointer) => {
+      if (this.ended || this.uiModalOpen || this.menuEl) return;
+      const x = pointer.x, y = pointer.y;
+      if (this.isUiZone(x, y)) return;
+      if (touchInfo(pointer)) {
+        if (x < 480) {
+          this.moveTouch = { id: pointer.id, gx: x, gy: y, dx: 0, dy: 0 };
+        } else {
+          this.aimTouch = { id: pointer.id, gx: x, gy: y, dx: 0, dy: 0 };
+          this.fire = true;
+          this.aimX = x; this.aimY = y; this.aimSet = true;
+        }
+      } else {
+        this.fire = true;
+        this.aimX = x; this.aimY = y; this.aimSet = true;
+      }
+      this.drawSticks();
+    });
+    this.input.on('pointermove', (pointer) => {
+      const x = pointer.x, y = pointer.y;
+      if (this.moveTouch && this.moveTouch.id === pointer.id) {
+        this.moveTouch.dx = x - this.moveTouch.gx;
+        this.moveTouch.dy = y - this.moveTouch.gy;
+      }
+      if (this.aimTouch && this.aimTouch.id === pointer.id) {
+        this.aimTouch.dx = x - this.aimTouch.gx;
+        this.aimTouch.dy = y - this.aimTouch.gy;
+        this.aimX = x; this.aimY = y; this.aimSet = true; this.fire = true;
+      } else if (!touchInfo(pointer)) {
+        this.aimX = x; this.aimY = y; this.aimSet = true;
+      }
+      this.drawSticks();
+    });
+    const release = (pointer) => {
+      if (this.moveTouch && this.moveTouch.id === pointer.id) this.moveTouch = null;
+      if (this.aimTouch && this.aimTouch.id === pointer.id) {
+        this.aimTouch = null;
+        this.fire = false;
+      } else if (!touchInfo(pointer)) {
+        this.fire = false;
+      }
+      this.drawSticks();
+    };
+    this.input.on('pointerup', release);
+    this.input.on('pointerupoutside', release);
   }
 
   drawSticks() {
@@ -466,8 +549,8 @@ class GuestScene extends Phaser.Scene {
         clearInterval(this.modalCheck);
         this.modalCheck = null;
         this.uiModalOpen = false;
-        if (this.hud) this.hud.style.display = '';
-        if (this.touchLayer) this.touchLayer.style.display = '';
+        if (this.hud) this.hud.style.display = this.domHudHidden ? 'none' : '';
+        if (this.touchLayer) this.touchLayer.style.display = this.domHudHidden ? 'none' : '';
         this.layoutHud();
       }
     }, 200);
@@ -588,9 +671,56 @@ class GuestScene extends Phaser.Scene {
     return this.textures.exists(key) ? key : 'ground';
   }
 
+  launchHud() {
+    if (this.uiLaunched || this.ended) return;
+    this.uiLaunched = true;
+    this.domHudHidden = true;
+    if (this.hud) this.hud.style.display = 'none';
+    if (this.touchLayer) this.touchLayer.style.display = 'none';
+    this.scene.launch('UI');
+    this.scene.bringToTop('UI');
+  }
+
+  activateSkill() { this.sendAction('skill'); }
+  switchWeapon() { this.sendAction('switch'); }
+  setTouchFire(active) { this.fire = !!active; }
+  openPause() { this.showGuestMenu(); }
+  collectTreasure() { this.showToast('联机取财请让房主操作', '#ffd0a0'); }
+
+  updateHudModel(d) {
+    const g = d.g || {};
+    this.player.hp = g.hp || 0;
+    this.player.maxHp = Math.max(1, g.maxHp || 1);
+    this.player.energy = g.energy || 0;
+    this.player.maxEnergy = Math.max(1, g.maxEnergy || 1);
+    this.player.isDead = !!g.dead;
+    this.characterId = g.character || this.characterId;
+    if (d.gs && d.gs.weaponId && WEAPONS[d.gs.weaponId]) {
+      this.weaponId = d.gs.weaponId;
+      this.weapon = WEAPONS[d.gs.weaponId];
+    }
+    if (d.gs) {
+      this.skill.cooldown = d.gs.total || 12000;
+      this.skill.cooldownUntil = this.time.now + (d.gs.cd || 0) * 1000;
+      this.skill.active = false;
+    }
+    this.remoteBosses = (d.enemies || []).filter((e) => e.boss).map((e) => ({
+      isBoss: true, active: true, dying: false,
+      bossName: e.name, hp: e.hp, maxHp: e.maxHp, x: e.x, y: e.y,
+    }));
+    this.boss = this.remoteBosses[0] || null;
+    this.round = d.round || 1;
+    this.stage = d.stage || 1;
+    this.endless = !!d.endless;
+    this.endlessWave = d.endlessWave || 1;
+    this.demonRealm = d.map === 'demon_realm';
+    this.mapName = d.mapName || '草原';
+  }
+
   applyState(d) {
     if (!d || this.ended) return;
     this.state = d;
+    this.updateHudModel(d);
     const tex = this.mapTexture(d.map);
     if (this.bg.texture.key !== tex) this.bg.setTexture(tex);
     this.applyPlayer(this.hostSprite, this.hostTag, d.p, false);
@@ -1082,6 +1212,7 @@ class GuestScene extends Phaser.Scene {
     Net.onEnded = null;
     Net.onHud = null;
     Net.onStream = null;
+    if (this.uiLaunched) { try { this.scene.stop('UI'); } catch (e) {} }
     if (this.modalCheck) clearInterval(this.modalCheck);
     if (this.toastTimer) clearTimeout(this.toastTimer);
     if (this.toastEl && this.toastEl.parentNode) this.toastEl.remove();

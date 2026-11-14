@@ -26,7 +26,10 @@ class UIScene extends Phaser.Scene {
     UI.drawPanel(this.staticG, 16, 484, 210, 44, { border: 0x6f8a5a, bg: 0x141e0f, alpha: 0.8 });
 
     const gameScene = this.scene.get('Game');
-    this.characterId = gameScene ? gameScene.characterId : 'gunner';
+    const guestScene = this.scene.get('Guest');
+    this.isGuestHud = !!(guestScene && guestScene.isRemoteHud);
+    this.hudSource = this.isGuestHud ? guestScene : gameScene;
+    this.characterId = this.hudSource ? this.hudSource.characterId : 'gunner';
     const portraitKey = {
       swordsman: 'swordsman_idle', frankenstein: 'frankenstein_idle',
       mage: 'mage_0', guitarist: 'guitarist_0', demon: 'demon_0',
@@ -139,7 +142,7 @@ class UIScene extends Phaser.Scene {
       .setDepth(3002)
       .setInteractive({ useHandCursor: true });
     this.skillHit.on('pointerup', () => {
-      const game = this.scene.get('Game');
+      const game = this.hudSource;
       if (game) game.activateSkill();
     });
 
@@ -160,7 +163,7 @@ class UIScene extends Phaser.Scene {
       .setDepth(3002)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
-    const fireGame = this.scene.get('Game');
+    const fireGame = this.hudSource;
     const releaseFire = () => {
       if (fireGame) fireGame.setTouchFire(false);
     };
@@ -174,25 +177,29 @@ class UIScene extends Phaser.Scene {
 
     // 切枪按钮
     this.switchBtn = UI.button(this, 728, 410, 58, 34, '切枪', () => {
-      const game = this.scene.get('Game');
+      const game = this.hudSource;
       if (game) game.switchWeapon();
     }, { variant: 'ghost', fontSize: 12 }).setDepth(3001);
 
     this.createPauseButton();
     this.bestiaryBtn = this.createHudButton(922, 140, 54, 32, '图鉴', () => {
-      this.scene.launch('Bestiary', { from: 'game' });
+      if (this.isGuestHud) this.hudSource.openGuestModal('Bestiary');
+      else this.scene.launch('Bestiary', { from: 'game' });
     });
     this.weaponBtn = this.createHudButton(922, 188, 54, 32, '武器', () => {
-      this.scene.launch('Forge', { from: 'game' });
+      if (this.isGuestHud) this.hudSource.openGuestModal('Forge');
+      else this.scene.launch('Forge', { from: 'game' });
     });
     this.upgradeBtn = this.createHudButton(922, 236, 54, 32, '升级', () => {
-      this.scene.launch('CharUpgrade', { characterId: this.characterId });
+      if (this.isGuestHud && this.hudSource.showToast) this.hudSource.showToast('联机中角色升级请回主菜单', '#ffd0a0');
+      else this.scene.launch('CharUpgrade', { characterId: this.characterId });
     });
     this.bagBtn = this.createHudButton(922, 284, 54, 32, '背包', () => {
-      this.scene.launch('Inventory', { from: 'game' });
+      if (this.isGuestHud) this.hudSource.openGuestModal('Inventory');
+      else this.scene.launch('Inventory', { from: 'game' });
     });
     this.treasureBtn = this.createHudButton(872, 70, 120, 28, '取财', () => {
-      const game = this.scene.get('Game');
+      const game = this.hudSource;
       if (game) game.collectTreasure();
     });
     this.treasureBtn.setVisible(false);
@@ -227,7 +234,7 @@ class UIScene extends Phaser.Scene {
     hit.on('pointerover', () => draw(true));
     hit.on('pointerout', () => draw(false));
     hit.on('pointerup', () => {
-      const game = this.scene.get('Game');
+      const game = this.hudSource;
       if (game) game.openPause();
     });
     draw(false);
@@ -307,11 +314,13 @@ class UIScene extends Phaser.Scene {
   }
 
   update() {
-    const game = this.scene.get('Game');
+    const game = this.hudSource;
     if (!game || !game.scene.isActive() || !game.player) return;
+    const hudState = game.hudState || game.hud;
 
     const hp = Math.max(0, Math.ceil(game.player.hp));
     if (hp !== this.lastHp) {
+      if (this.lastHp != null && hp < this.lastHp) hudState.hurtAt = game.time.now;
       this.lastHp = hp;
       this.drawHp(hp, game.player.maxHp);
     }
@@ -404,22 +413,22 @@ class UIScene extends Phaser.Scene {
       for (let j = 1; j < 12; j++) g.lineBetween(x + (w / 12) * j, y + 2, x + (w / 12) * j, y + h - 2);
     });
 
-    while (game.hud.bannerQueue.length > 0) {
-      this.showBanner(game.hud.bannerQueue.shift());
+    while (hudState.bannerQueue.length > 0) {
+      this.showBanner(hudState.bannerQueue.shift());
     }
-    while (game.hud.toastQueue.length > 0) {
-      this.toast.show(game.hud.toastQueue.shift());
+    while (hudState.toastQueue.length > 0) {
+      this.toast.show(hudState.toastQueue.shift());
     }
 
-    if (game.hud.hintText && game.time.now < game.hud.hintUntil) {
-      const remain = game.hud.hintUntil - game.time.now;
-      this.hintText.setText(game.hud.hintText).setAlpha(Math.min(1, remain / 900));
+    if (hudState.hintText && game.time.now < hudState.hintUntil) {
+      const remain = hudState.hintUntil - game.time.now;
+      this.hintText.setText(hudState.hintText).setAlpha(Math.min(1, remain / 900));
     } else {
       this.hintText.setAlpha(0);
     }
 
-    if (game.hud.hurtAt > this.lastHurtAt) {
-      this.lastHurtAt = game.hud.hurtAt;
+    if (hudState.hurtAt > this.lastHurtAt) {
+      this.lastHurtAt = hudState.hurtAt;
       this.tweens.killTweensOf(this.redVignette);
       this.redVignette.setAlpha(0.9);
       this.tweens.add({ targets: this.redVignette, alpha: 0, duration: 480, ease: 'Sine.Out' });

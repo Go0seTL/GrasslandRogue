@@ -2434,14 +2434,14 @@ class GameScene extends Phaser.Scene {
       }),
       gs: {
         cd: Math.max(0, Math.ceil((this.guestSkill.cooldownUntil - time) / 1000)),
-        total: GUEST_SKILL.cooldown,
+        total: this.guestSkill.total || GUEST_SKILL.cooldown,
         weapon: (g.networkWeapon || this.weapon || WEAPONS.pistol).name,
         weaponId: (g.networkWeapon || this.weapon || WEAPONS.pistol).id,
         weaponTex: (g.networkWeapon || this.weapon || WEAPONS.pistol).texture,
         skillTex: this.guestSkillTexture(),
         level: this.guestLevel,
         speed: Math.round(BALANCE.playerSpeed * (this.buffs.speed || 1)
-          * (this.guestSkill.type === 'guitar' ? 1.35 : 1)),
+          * (this.guestSkill.type === 'guitar' ? GUITAR.speed : 1)),
       },
       fx: this.guestFx.splice(0, 30),
       enemies,
