@@ -27,12 +27,12 @@ class UIScene extends Phaser.Scene {
 
     const gameScene = this.scene.get('Game');
     this.characterId = gameScene ? gameScene.characterId : 'gunner';
-    const portraitKey = this.characterId === 'swordsman' ? 'swordsman_idle'
-      : (this.characterId === 'frankenstein' ? 'frankenstein_idle'
-        : (this.characterId === 'mage' ? 'mage_0'
-          : (this.characterId === 'guitarist' ? 'guitarist_0'
-            : (this.characterId === 'demon' ? 'demon_0'
-              : (this.characterId === 'vampire' ? 'vampire_0' : 'player_idle')))));
+    const portraitKey = {
+      swordsman: 'swordsman_idle', frankenstein: 'frankenstein_idle',
+      mage: 'mage_0', guitarist: 'guitarist_0', demon: 'demon_0',
+      vampire: 'vampire_0', knight: 'knight_0', ranger: 'ranger_0',
+      rogue: 'rogue_0', alchemist: 'alchemist_0',
+    }[this.characterId] || 'player_idle';
     this.add.image(46, 42, portraitKey).setDepth(102).setScale(0.95);
     this.charLevelText = this.add.text(46, 72, 'Lv.0', UI.textStyle(9, {
       color: '#ffe9a8', strokeThickness: 2, bold: true, shadow: false,
@@ -112,18 +112,19 @@ class UIScene extends Phaser.Scene {
     const isGuitarist = this.characterId === 'guitarist';
     const isDemon = this.characterId === 'demon';
     const isVampire = this.characterId === 'vampire';
+    const skillIconKey = {
+      swordsman: 'sword', frankenstein: 'fist_icon', mage: 'mage_icon',
+      guitarist: 'guitar_icon', demon: 'demon_icon', vampire: 'vampire_icon',
+      knight: 'ring_icon', ranger: 'bow', rogue: 'sword', alchemist: 'orb',
+    }[this.characterId] || 'flame_icon';
     this.skillG = this.add.graphics().setDepth(3000);
-    this.skillIcon = this.add.image(806, 410,
-      isSword ? 'sword'
-        : (isFrankenstein ? 'fist_icon'
-          : (isMage ? 'mage_icon'
-            : (isGuitarist ? 'guitar_icon'
-              : (isDemon ? 'demon_icon'
-                : (isVampire ? 'vampire_icon' : 'flame_icon'))))))
-      .setDepth(3001);
-    if (isSword) {
+    this.skillIcon = this.add.image(806, 410, skillIconKey).setDepth(3001);
+    if (isSword || this.characterId === 'rogue') {
       this.skillIcon.setScale(0.6).setRotation(-0.7);
-    } else if (isFrankenstein || isMage || isGuitarist || isDemon || isVampire) {
+    } else if (this.characterId === 'ranger') {
+      this.skillIcon.setScale(1.05);
+    } else if (isFrankenstein || isMage || isGuitarist || isDemon || isVampire
+      || this.characterId === 'knight' || this.characterId === 'alchemist') {
       this.skillIcon.setScale(0.95);
     } else {
       this.skillIcon.setScale(0.82);

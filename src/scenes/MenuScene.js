@@ -232,10 +232,8 @@ class MenuScene extends Phaser.Scene {
     })).setOrigin(0.5);
     const box = this.add.rectangle(480, 246, 280, 44, 0x0b1208, 1);
     box.setStrokeStyle(2, 0x7e9a5e, 1);
-    const usedAll = Store.data.activationUsed && Store.data.superActivationUsed;
-    const hint = usedAll ? '激活码已全部使用' : '请输入激活码';
-    const status = this.add.text(480, 284, hint, UI.textStyle(12, {
-      color: usedAll ? '#ffd0a0' : '#a9bd8f', strokeThickness: 3, bold: false,
+    const status = this.add.text(480, 284, '请输入激活码', UI.textStyle(12, {
+      color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5);
     const confirm = UI.button(this, 480, 330, 160, 36, '确 认', () => this.submitActivation(status), {
       fontSize: 14,
@@ -312,11 +310,6 @@ class MenuScene extends Phaser.Scene {
       return;
     }
     if (h === ACTIVATION_HASH.super) {
-      if (Store.data.superActivationUsed) {
-        Sfx.uiDeny();
-        statusText.setText('该激活码已经使用过了').setColor('#ffd0a0');
-        return;
-      }
       Store.data.superActivationUsed = true;
       CHAR_DEFS.forEach((def) => {
         if (!Store.data.unlocked.includes(def.id)) Store.data.unlocked.push(def.id);

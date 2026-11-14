@@ -67,8 +67,9 @@ class CharUpgradeScene extends Phaser.Scene {
       `等级        Lv.${lvl}\n` +
       `生命上限    ${hp}\n` +
       `能量上限    ${energy}\n` +
-      `攻击/技能   +${dmg}%\n` +
-      `攻击速度    +${aspd}%`
+      `武器伤害    +${dmg}%\n` +
+      `攻击速度    +${aspd}%\n` +
+      `技能等级    Lv.${Store.getSkillLevel(this.characterId)}（选人界面升级）`
     );
     this.cost.setText(`升级消耗：${upgradeCost} 金币`);
     this.cost.setColor(Store.data.coins >= upgradeCost ? '#ffe9a8' : '#ff9a8a');
@@ -86,7 +87,7 @@ class CharUpgradeScene extends Phaser.Scene {
     if (this.gameScene && this.gameScene.applyCharLevelUp) {
       this.gameScene.applyCharLevelUp();
     }
-    this.msg.setText('升级成功！生命/能量上限与攻击、技能伤害、攻速已提升').setColor('#9ff0a8');
+    this.msg.setText('升级成功！生命/能量、武器伤害与攻速已提升（技能请单独升级）').setColor('#9ff0a8');
     this.refresh();
   }
 

@@ -18,7 +18,7 @@ class CharacterSelectScene extends Phaser.Scene {
     this.add.text(480, 40, this.endless ? '选择角色 · 无尽挑战' : '选择角色', UI.textStyle(36, {
       color: '#ffe9a8', strokeThickness: 8,
     })).setOrigin(0.5).setDepth(10);
-    this.add.text(480, 72, '枪手免费 · 剑客800 · 科学怪人3000 · 法师1800 · 吉他手2200 · 恶魔3200 · 吸血鬼2600', UI.textStyle(11, {
+    this.add.text(480, 72, '枪手免费 · 其余角色金币解锁 · 角色等级与技能等级分开升级', UI.textStyle(11, {
       color: '#a9bd8f', strokeThickness: 3, bold: false,
     })).setOrigin(0.5).setDepth(10);
 
@@ -45,8 +45,11 @@ class CharacterSelectScene extends Phaser.Scene {
     UI.button(this, 828, 502, 194, 48, '开始冒险', () => this.startGame(), {
       fontSize: 21, once: true,
     }).setDepth(20);
-    UI.button(this, 480, 454, 220, 36, '角色升级', () => this.openCharUpgrade(), {
-      variant: 'ghost', fontSize: 15,
+    UI.button(this, 375, 454, 160, 36, '角色升级', () => this.openCharUpgrade(), {
+      variant: 'ghost', fontSize: 14,
+    }).setDepth(20);
+    UI.button(this, 585, 454, 160, 36, '技能升级', () => this.openSkillUpgrade(), {
+      variant: 'ghost', fontSize: 14,
     }).setDepth(20);
     this.add.text(480, 502, '金币在死亡后也会保留，放心攒', UI.textStyle(12, {
       color: '#93a97d', strokeThickness: 3, bold: false,
@@ -221,7 +224,7 @@ class CharacterSelectScene extends Phaser.Scene {
         `等级        Lv.${lvl}\n` +
         `生命上限    ${hp}\n` +
         `能量上限    ${energy}\n` +
-        `攻击/技能   +${dmg}%\n` +
+        `武器伤害    +${dmg}%\n` +
         `攻击速度    +${aspd}%`
       );
       cost.setText(`升级消耗：${upgradeCost} 金币`);
@@ -248,6 +251,87 @@ class CharacterSelectScene extends Phaser.Scene {
     }, { variant: 'ghost', fontSize: 11 });
 
     root.add([dim, g, title, sub, stats, cost, wallet, msg, upBtn, closeBtn]);
+    root.setDepth(5000);
+    this.upgradeOverlay = root;
+    refresh();
+  }
+
+  openSkillUpgrade() {
+    if (this.upgradeOverlay) return;
+    const def = CHAR_DEFS.find((d) => d.id === this.selectedId);
+    if (!def || !def.playable) {
+      Sfx.uiDeny();
+      this.toast.show('这个角色还没有完成', '#ffd0a0');
+      return;
+    }
+    if (!Store.isUnlocked(def.id)) {
+      Sfx.uiDeny();
+      this.toast.show(`先花 ${def.price} 金币解锁「${def.name}」`, '#ffd0a0');
+      return;
+    }
+
+    const root = this.add.container(0, 0).setDepth(5000);
+    const dim = this.add.rectangle(0, 0, GAME_W, GAME_H, 0x000000, 0.66).setOrigin(0);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, GAME_W, GAME_H), Phaser.Geom.Rectangle.Contains);
+    const g = this.add.graphics();
+    UI.drawPanel(g, 270, 104, 420, 344, { border: 0xe0bd63, bg: 0x141e0f, alpha: 0.98 });
+    const title = this.add.text(480, 136, '技能升级', UI.textStyle(28, {
+      color: '#ffe9a8', strokeThickness: 6,
+    })).setOrigin(0.5);
+    const sub = this.add.text(480, 164, def.name, UI.textStyle(15, {
+      color: '#b9cba0', strokeThickness: 3,
+    })).setOrigin(0.5);
+    const stats = this.add.text(318, 192, '', UI.textStyle(13, {
+      color: '#dfe8c8', strokeThickness: 3, bold: false, align: 'left', shadow: false,
+    })).setOrigin(0, 0);
+    stats.setLineSpacing(8);
+    const note = this.add.text(480, 282, '角色等级只加武器伤害/生命，技能伤害只看技能等级', UI.textStyle(9, {
+      color: '#93a97d', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0.5);
+    const cost = this.add.text(480, 318, '', UI.textStyle(14, {
+      color: '#ffe9a8', strokeThickness: 3,
+    })).setOrigin(0.5);
+    const wallet = this.add.text(480, 340, '', UI.textStyle(12, {
+      color: '#b9cba0', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0.5);
+    const msg = this.add.text(480, 362, '', UI.textStyle(10, {
+      color: '#ffb09a', strokeThickness: 2, bold: false, shadow: false,
+    })).setOrigin(0.5);
+
+    const refresh = () => {
+      const lvl = Store.getSkillLevel(def.id);
+      const costValue = Store.skillUpgradeCost(def.id);
+      const cur = Math.round(lvl * SKILL_UPGRADE.damagePerLevel * 100);
+      const next = Math.round((lvl + 1) * SKILL_UPGRADE.damagePerLevel * 100);
+      stats.setText(
+        `技能等级    Lv.${lvl}\n` +
+        `技能伤害    +${cur}%\n` +
+        `下一级      +${next}%`
+      );
+      cost.setText(`升级消耗：${costValue} 金币`);
+      cost.setColor(Store.data.coins >= costValue ? '#ffe9a8' : '#ff9a8a');
+      wallet.setText(`当前金币：${Store.data.coins}`);
+    };
+
+    const upBtn = UI.button(this, 480, 398, 200, 38, '升 级', () => {
+      if (Store.upgradeSkill(def.id)) {
+        Sfx.unlock();
+        msg.setText('技能升级成功！').setColor('#9ff0a8');
+        refresh();
+        this.refreshCards();
+        this.walletText.setText(String(Store.data.coins));
+      } else {
+        Sfx.uiDeny();
+        msg.setText('金币不足').setColor('#ffb09a');
+        refresh();
+      }
+    }, { fontSize: 16 });
+    const closeBtn = UI.button(this, 480, 430, 150, 24, '关 闭', () => {
+      root.destroy();
+      this.upgradeOverlay = null;
+    }, { variant: 'ghost', fontSize: 11 });
+
+    root.add([dim, g, title, sub, stats, note, cost, wallet, msg, upBtn, closeBtn]);
     root.setDepth(5000);
     this.upgradeOverlay = root;
     refresh();

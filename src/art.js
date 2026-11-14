@@ -217,6 +217,7 @@ const Art = {
       ctx.fillRect(17, 17, 2, 2);
     }, 2);
 
+    this._newHeroSprites(scene);
     this._mageSprites(scene);
     this._guitaristSprites(scene);
     this._demonSprites(scene);
@@ -418,6 +419,149 @@ const Art = {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(4, 4, 2, 2);
     }, 2);
+  },
+
+  _newHeroSprites(scene) {
+    for (let frame = 0; frame < 2; frame++) {
+      const s = frame ? 1 : 0;
+
+      this._canvas(scene, `knight_${frame}`, 16, 22, (ctx) => {
+        ctx.fillStyle = '#2a2e38';
+        ctx.fillRect(5, 18, 3, 4);
+        ctx.fillRect(9, 18, 3, 4);
+        ctx.fillStyle = '#c8d0e0';
+        ctx.fillRect(5, 18 + s, 3, 3);
+        ctx.fillRect(9, 18 - s, 3, 3);
+        // 板甲
+        this._ellipse(ctx, 8, 13, 5.4, 5.2, '#2a2e38', 1);
+        this._ellipse(ctx, 8, 13, 4.6, 4.4, '#8a9ab8', 1);
+        ctx.fillStyle = '#e8c467';
+        ctx.fillRect(4, 12, 8, 2);
+        ctx.fillRect(7, 11, 2, 5);
+        // 头盔
+        this._ellipse(ctx, 8, 6, 4.2, 4.0, '#2a2e38', 1);
+        this._ellipse(ctx, 8, 6, 3.4, 3.2, '#c8d0e0', 1);
+        ctx.fillStyle = '#5a6a88';
+        ctx.fillRect(5, 6, 6, 2);
+        ctx.fillStyle = '#9fe8ff';
+        ctx.fillRect(6, 6, 1, 1);
+        ctx.fillRect(9, 6, 1, 1);
+        ctx.fillStyle = '#e8c467';
+        ctx.fillRect(7, 1, 2, 3);
+        // 盾牌
+        ctx.fillStyle = '#2a2e38';
+        ctx.fillRect(0, 9, 5, 9);
+        ctx.fillStyle = '#d9b45a';
+        ctx.fillRect(1, 9, 3, 8);
+        ctx.fillStyle = '#fff2c8';
+        ctx.fillRect(2, 10, 1, 6);
+        ctx.fillStyle = '#5a8ac0';
+        ctx.fillRect(1, 12, 3, 2);
+        // 剑
+        ctx.fillStyle = '#e8f0ff';
+        ctx.fillRect(13, 7, 2, 10);
+        ctx.fillStyle = '#e8c467';
+        ctx.fillRect(12, 16, 4, 2);
+      }, 2);
+
+      this._canvas(scene, `ranger_${frame}`, 16, 22, (ctx) => {
+        ctx.fillStyle = '#2a2014';
+        ctx.fillRect(5, 18, 3, 4);
+        ctx.fillRect(9, 18, 3, 4);
+        // 皮甲
+        this._ellipse(ctx, 8, 13, 5.2, 5.0, '#2a2014', 1);
+        this._ellipse(ctx, 8, 13, 4.4, 4.2, '#4f7a3a', 1);
+        ctx.fillStyle = '#7a5a32';
+        ctx.fillRect(4, 12, 8, 2);
+        // 兜帽与脸
+        this._ellipse(ctx, 8, 6, 4.5, 4.3, '#1e3a1e', 1);
+        this._ellipse(ctx, 8, 7, 3.2, 3.0, '#d8b08a', 1);
+        ctx.fillStyle = '#1e3a1e';
+        ctx.fillRect(4, 2, 8, 4);
+        ctx.fillRect(3, 5, 2, 3);
+        ctx.fillRect(11, 5, 2, 3);
+        ctx.fillStyle = '#ffe9a8';
+        ctx.fillRect(6, 7, 1, 1);
+        ctx.fillRect(9, 7, 1, 1);
+        // 背弓
+        ctx.strokeStyle = '#8a5a2a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(12, 12, 6, -1.2, 1.2);
+        ctx.stroke();
+        ctx.fillStyle = '#e8d0a0';
+        ctx.fillRect(13, 6, 1, 12);
+        // 箭袋
+        ctx.fillStyle = '#5a3a22';
+        ctx.fillRect(1, 10, 3, 6);
+        ctx.fillStyle = '#9fe8ff';
+        ctx.fillRect(2, 8, 1, 3);
+        ctx.fillRect(3, 9, 1, 2);
+      }, 2);
+
+      this._canvas(scene, `rogue_${frame}`, 16, 22, (ctx) => {
+        ctx.fillStyle = '#1a141e';
+        ctx.fillRect(5, 18, 3, 4);
+        ctx.fillRect(9, 18, 3, 4);
+        // 黑衣
+        this._ellipse(ctx, 8, 13, 5.0, 5.0, '#1a141e', 1);
+        this._ellipse(ctx, 8, 13, 4.2, 4.2, '#3a2a4a', 1);
+        ctx.fillStyle = '#b23a4a';
+        ctx.fillRect(4, 10, 8, 2);
+        ctx.fillRect(11, 10, 4, 1);
+        // 兜帽
+        this._ellipse(ctx, 8, 6, 4.4, 4.2, '#141018', 1);
+        this._ellipse(ctx, 8, 7, 3.2, 3.0, '#c89a7a', 1);
+        ctx.fillStyle = '#141018';
+        ctx.fillRect(4, 2, 8, 4);
+        ctx.fillRect(3, 5, 2, 4);
+        ctx.fillRect(11, 5, 2, 4);
+        ctx.fillStyle = '#ff5a6a';
+        ctx.fillRect(6, 7, 1, 1);
+        ctx.fillRect(9, 7, 1, 1);
+        // 双匕
+        ctx.fillStyle = '#d8e8ff';
+        ctx.fillRect(0, 8, 2, 7);
+        ctx.fillRect(14, 8, 2, 7);
+        ctx.fillStyle = '#e8c467';
+        ctx.fillRect(0, 14, 3, 2);
+        ctx.fillRect(13, 14, 3, 2);
+      }, 2);
+
+      this._canvas(scene, `alchemist_${frame}`, 16, 22, (ctx) => {
+        ctx.fillStyle = '#2a1f14';
+        ctx.fillRect(5, 18, 3, 4);
+        ctx.fillRect(9, 18, 3, 4);
+        // 长袍
+        this._ellipse(ctx, 8, 14, 5.8, 6.0, '#2a1f14', 1);
+        this._ellipse(ctx, 8, 14, 5.0, 5.2, '#5a4a8a', 1);
+        ctx.fillStyle = '#7ad9a0';
+        ctx.fillRect(4, 16, 8, 2);
+        ctx.fillStyle = '#d9b45a';
+        ctx.fillRect(7, 10, 2, 6);
+        // 头与护目镜
+        this._ellipse(ctx, 8, 6, 4.0, 3.8, '#2a1f14', 1);
+        this._ellipse(ctx, 8, 6, 3.2, 3.0, '#d8b08a', 1);
+        ctx.fillStyle = '#3a2a4a';
+        ctx.fillRect(3, 2, 10, 4);
+        ctx.fillStyle = '#9fe8ff';
+        ctx.fillRect(5, 5, 2, 2);
+        ctx.fillRect(9, 5, 2, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(5, 5, 1, 1);
+        ctx.fillRect(9, 5, 1, 1);
+        // 药瓶
+        ctx.fillStyle = '#2a1f14';
+        ctx.fillRect(13, 8, 3, 7);
+        ctx.fillStyle = '#7ad9a0';
+        ctx.fillRect(13, 11, 3, 4);
+        ctx.fillStyle = '#d8ffe8';
+        ctx.fillRect(14, 7, 1, 2);
+        // 背包
+        ctx.fillStyle = '#5a3a22';
+        ctx.fillRect(0, 10, 3, 6);
+      }, 2);
+    }
   },
 
   _mageSprites(scene) {
@@ -3293,5 +3437,9 @@ const Art = {
     if (!A.exists('angel_float')) {
       A.create({ key: 'angel_float', frames: [{ key: 'angel_0' }, { key: 'angel_1' }], frameRate: 3.0, repeat: -1 });
     }
+    ['knight', 'ranger', 'rogue', 'alchemist'].forEach((id) => {
+      if (A.exists(`${id}_walk`)) return;
+      A.create({ key: `${id}_walk`, frames: [{ key: `${id}_0` }, { key: `${id}_1` }], frameRate: 8, repeat: -1 });
+    });
   },
 };

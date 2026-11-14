@@ -10,6 +10,7 @@ const Store = {
     ownedRings: [],
     equippedRing: null,
     charLevels: {},
+    skillLevels: {},
     swordsmanPurchased: false,
     muted: false,
     autoFire: false,
@@ -52,8 +53,10 @@ const Store = {
       if (typeof this.data.fragments[id] !== 'number') this.data.fragments[id] = 0;
     });
     if (!this.data.charLevels || typeof this.data.charLevels !== 'object') this.data.charLevels = {};
+    if (!this.data.skillLevels || typeof this.data.skillLevels !== 'object') this.data.skillLevels = {};
     CHAR_DEFS.forEach((def) => {
       if (typeof this.data.charLevels[def.id] !== 'number') this.data.charLevels[def.id] = 0;
+      if (typeof this.data.skillLevels[def.id] !== 'number') this.data.skillLevels[def.id] = 0;
     });
     this.data.coins = Math.max(0, Number(this.data.coins) || 0);
     this.data.demonHearts = Math.max(0, Number(this.data.demonHearts) || 0);
@@ -151,6 +154,24 @@ const Store = {
     if (this.data.coins < cost) return false;
     this.data.coins -= cost;
     this.data.charLevels[id] = this.getCharLevel(id) + 1;
+    this.save();
+    return true;
+  },
+
+  getSkillLevel(id) {
+    if (!this.data.skillLevels) this.data.skillLevels = {};
+    return this.data.skillLevels[id] || 0;
+  },
+
+  skillUpgradeCost(id) {
+    return SKILL_UPGRADE.baseCost + this.getSkillLevel(id) * SKILL_UPGRADE.costPerLevel;
+  },
+
+  upgradeSkill(id) {
+    const cost = this.skillUpgradeCost(id);
+    if (this.data.coins < cost) return false;
+    this.data.coins -= cost;
+    this.data.skillLevels[id] = this.getSkillLevel(id) + 1;
     this.save();
     return true;
   },

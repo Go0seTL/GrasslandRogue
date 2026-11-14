@@ -16,6 +16,9 @@ const Net = {
   onStarted: null,
   onEnded: null,
   onStream: null,
+  onHud: null,
+  onState: null,
+  onWait: null,
 
   peerIdFor(code) {
     return `leshen-gunner-${code}`;
@@ -98,6 +101,9 @@ const Net = {
     }
     if (this.role === 'guest') {
       if (data.t === 'started' && this.onStarted) this.onStarted();
+      else if (data.t === 'hud' && this.onHud) this.onHud(data);
+      else if (data.t === 'state' && this.onState) this.onState(data);
+      else if (data.t === 'wait' && this.onWait) this.onWait(data.text || '房主正在操作');
       else if (data.t === 'ended' && this.onEnded) this.onEnded(data.reason || '房主结束了游戏');
     }
   },
@@ -113,12 +119,44 @@ const Net = {
     this.send({ t: 'started' });
     if (this.mediaCall) return true;
     try {
-      const stream = canvas.captureStream(30);
+      const stream = canvas.captureStream(60);
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        try { track.contentHint = 'detail'; } catch (e) { /* ignore */ }
+        try { track.applyConstraints({ frameRate: 60 }).catch(() => {}); } catch (e) { /* ignore */ }
+      }
       this.mediaCall = this.peer.call(this.guestPeerId, stream);
+      this.boostVideoSender();
       return true;
     } catch (e) {
       this.status('画面共享启动失败');
       return false;
+    }
+  },
+
+  boostVideoSender() {
+    const apply = () => {
+      try {
+        const pc = this.mediaCall && this.mediaCall.peerConnection;
+        if (!pc) return false;
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+        if (!sender || !sender.getParameters) return false;
+        const params = sender.getParameters();
+        if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+        params.encodings[0].maxFramerate = 60;
+        params.encodings[0].maxBitrate = 8000000;
+        params.encodings[0].scaleResolutionDownBy = 1;
+        if ('degradationPreference' in params) params.degradationPreference = 'maintain-resolution';
+        const p = sender.setParameters(params);
+        if (p && p.catch) p.catch(() => {});
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+    if (!apply()) {
+      setTimeout(apply, 600);
+      setTimeout(apply, 1600);
     }
   },
 

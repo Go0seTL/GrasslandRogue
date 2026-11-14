@@ -68,6 +68,13 @@ const CHAR_UPGRADE = {
   maxSpeedBonus: 0.30,
 };
 
+// 技能强度单独升级：角色等级只加武器伤害/生存，技能伤害只吃这里的等级
+const SKILL_UPGRADE = {
+  baseCost: 150,
+  costPerLevel: 100,
+  damagePerLevel: 0.08,
+};
+
 // Boss 平衡：血量提高、伤害降低
 const BOSS_BALANCE = { hp: 1.2, damage: 0.8 };
 
@@ -106,6 +113,18 @@ const MAGE_LASER = {
   tick: 180,
   damage: 12,
 };
+
+// 联机客人：通用援护爆发（客人技能按钮）
+const GUEST_SKILL = { cooldown: 12000, bullets: 14, damageMul: 1.4 };
+
+// 骑士：4 秒圣盾无敌
+const KNIGHT_SHIELD = { duration: 4000, cooldown: 18000 };
+// 游侠：锁敌箭雨
+const RANGER_VOLLEY = { cooldown: 14000, damage: 18, arrowsPerTarget: 4, maxTargets: 3 };
+// 刺客：瞬身到最近敌人身后并斩击
+const ROGUE_STRIKE = { cooldown: 10000, damage: 85, radius: 82 };
+// 炼金术士：毒瓶，命中后持续中毒
+const ALCHEMIST_FLASK = { cooldown: 16000, damage: 6, dps: 5, duration: 4000, maxTargets: 5 };
 
 // 吸血鬼：5 秒吸取周围最多 5 个敌人
 const VAMPIRE = {
@@ -276,10 +295,10 @@ const CHAR_DEFS = [
   { id: 'guitarist', name: '吉他手',   price: 2200, desc: '音浪 · 移速爆发',        color: 0xd96a9a, playable: true,  portrait: 'guitarist_0' },
   { id: 'demon',     name: '恶魔',     price: 3200, desc: '血祭 · 攻速翻倍',        color: 0xb23a2c, playable: true,  portrait: 'demon_0' },
   { id: 'vampire',   name: '吸血鬼',   price: 2600, desc: '汲取 · 五人吸血',        color: 0x8a2a4a, playable: true,  portrait: 'vampire_0' },
-  { id: 'knight',    name: '骑士',     price: 1200, desc: '近战 · 高生命 · 格挡',   color: 0x4a6fa5, playable: false, portrait: 'player_idle' },
-  { id: 'ranger',    name: '游侠',     price: 2500, desc: '弓箭 · 高机动',          color: 0x3f8f4a, playable: false, portrait: 'player_idle' },
-  { id: 'rogue',     name: '刺客',     price: 3500, desc: '匕首 · 暴击 · 闪避',     color: 0x8a3f4a, playable: false, portrait: 'player_idle' },
-  { id: 'alchemist', name: '炼金术士', price: 5000, desc: '药水 · 控制 · 召唤',     color: 0xa58a3f, playable: false, portrait: 'player_idle' },
+  { id: 'knight',    name: '骑士',     price: 1200, desc: '圣盾 · 4秒无敌',         color: 0x4a6fa5, playable: true, portrait: 'knight_0' },
+  { id: 'ranger',    name: '游侠',     price: 2500, desc: '箭雨 · 环形齐射',        color: 0x3f8f4a, playable: true, portrait: 'ranger_0' },
+  { id: 'rogue',     name: '刺客',     price: 3500, desc: '影袭 · 瞬身斩杀',        color: 0x8a3f4a, playable: true, portrait: 'rogue_0' },
+  { id: 'alchemist', name: '炼金术士', price: 5000, desc: '毒瓶 · 持续中毒',        color: 0xa58a3f, playable: true, portrait: 'alchemist_0' },
 ];
 
 // 海克斯式三选一强化
@@ -317,6 +336,16 @@ const UPGRADES = [
   { id: 'first_aid', name: '急救', icon: '药', color: 0x9ff0a8, desc: '血包回复量 +50%。' },
   { id: 'scavenger', name: '拾荒者', icon: '拾', color: 0xd9b45a, desc: '血包和能量包掉落率 +30%。' },
   { id: 'quick_hands', name: '快手', icon: '快', color: 0xffa8e8, desc: '武器射速 +10%。' },
+  { id: 'freeze', name: '冰霜弹', icon: '冰', color: 0x9fe8ff, desc: '子弹有 18% 概率冻结敌人 0.9 秒。' },
+  { id: 'chain', name: '连锁闪电', icon: '电', color: 0x8ac8ff, desc: '子弹命中时有 18% 概率弹射到附近敌人，造成 50% 伤害。' },
+  { id: 'explosive', name: '爆裂弹', icon: '爆', color: 0xff8a4a, desc: '子弹命中时有 15% 概率引发小范围爆炸。' },
+  { id: 'berserk', name: '狂战士', icon: '怒', color: 0xff5a4a, desc: '生命低于 40% 时，伤害 +25%。' },
+  { id: 'last_stand', name: '背水一战', icon: '守', color: 0x7a9a5a, desc: '生命低于 40% 时，受到的伤害 -20%。' },
+  { id: 'bloodlust', name: '嗜血', icon: '嗜', color: 0xa84a5a, desc: '击杀敌人回复 1% 生命上限。' },
+  { id: 'veteran', name: '老兵', icon: '兵', color: 0xd9b45a, desc: '生命上限 +30，受到的伤害 -5%。' },
+  { id: 'adrenaline', name: '肾上腺素', icon: '激', color: 0x9ff0e0, desc: '移动速度 +8%，翻滚冷却 -15%。' },
+  { id: 'sniper_focus', name: '狙击手', icon: '狙', color: 0xa8d8ff, desc: '子弹伤害 +8%，子弹速度 +10%。' },
+  { id: 'gold_armor', name: '金甲', icon: '金', color: 0xe8c467, desc: '受到的伤害 -10%，金币获取 +20%。' },
 ];
 
 const RINGS = {

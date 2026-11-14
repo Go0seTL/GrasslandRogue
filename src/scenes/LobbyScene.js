@@ -110,8 +110,7 @@ class LobbyScene extends Phaser.Scene {
     input.placeholder = '房间码';
     input.autocomplete = 'off';
     input.style.cssText = [
-      'position:fixed', 'left:50%', 'top:54%', 'transform:translate(-50%,-50%)',
-      'width:220px', 'height:44px', 'font-size:24px', 'text-align:center',
+      'position:fixed', 'box-sizing:border-box', 'text-align:center',
       'letter-spacing:8px', 'background:#0f180c', 'color:#ffe9a8',
       'border:2px solid #d9b45a', 'border-radius:4px', 'outline:none',
       'z-index:1000', 'font-family:monospace',
@@ -121,12 +120,28 @@ class LobbyScene extends Phaser.Scene {
     });
     holder.appendChild(input);
     this.codeInput = input;
+    this.positionCodeInput();
+    this.codeResize = () => this.positionCodeInput();
+    window.addEventListener('resize', this.codeResize);
+    window.addEventListener('orientationchange', this.codeResize);
     input.focus();
     this.time.delayedCall(120, () => {
       this.confirmJoinBtn = UI.button(this, 480, 330, 180, 38, '确认加入', () => {
         this.joinWithCode(input.value);
       }, { fontSize: 15 }).setDepth(5);
     });
+  }
+
+  positionCodeInput() {
+    if (!this.codeInput || !this.game || !this.game.canvas) return;
+    const rect = this.game.canvas.getBoundingClientRect();
+    const sx = rect.width / GAME_W;
+    const sy = rect.height / GAME_H;
+    this.codeInput.style.left = `${rect.left + 480 * sx - 140 * sx}px`;
+    this.codeInput.style.top = `${rect.top + 248 * sy - 22 * sy}px`;
+    this.codeInput.style.width = `${280 * sx}px`;
+    this.codeInput.style.height = `${44 * sy}px`;
+    this.codeInput.style.fontSize = `${Math.max(16, 24 * sy)}px`;
   }
 
   joinWithCode(value) {
@@ -170,6 +185,11 @@ class LobbyScene extends Phaser.Scene {
   }
 
   removeCodeInput() {
+    if (this.codeResize) {
+      window.removeEventListener('resize', this.codeResize);
+      window.removeEventListener('orientationchange', this.codeResize);
+      this.codeResize = null;
+    }
     if (this.codeInput) {
       this.codeInput.remove();
       this.codeInput = null;

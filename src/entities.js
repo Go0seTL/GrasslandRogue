@@ -8,11 +8,19 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const isGuitarist = character === 'guitarist';
     const isDemon = character === 'demon';
     const isVampire = character === 'vampire';
-    const idle = isSword ? 'swordsman_idle'
-      : (isFrankenstein ? 'frankenstein_idle'
-        : (isMage ? 'mage_0'
-          : (isGuitarist ? 'guitarist_0'
-            : (isDemon ? 'demon_0' : (isVampire ? 'vampire_0' : 'player_idle')))));
+    const heroArt = {
+      swordsman: ['swordsman_idle', 'swordsman_walk', 'swordsman_walk'],
+      frankenstein: ['frankenstein_idle', 'frankenstein_walk', 'frankenstein_walk'],
+      mage: ['mage_0', 'mage_1', 'mage_walk'],
+      guitarist: ['guitarist_0', 'guitarist_1', 'guitarist_walk'],
+      demon: ['demon_0', 'demon_1', 'demon_walk'],
+      vampire: ['vampire_0', 'vampire_1', 'vampire_walk'],
+      knight: ['knight_0', 'knight_1', 'knight_walk'],
+      ranger: ['ranger_0', 'ranger_1', 'ranger_walk'],
+      rogue: ['rogue_0', 'rogue_1', 'rogue_walk'],
+      alchemist: ['alchemist_0', 'alchemist_1', 'alchemist_walk'],
+    }[character] || ['player_idle', 'player_walk', 'player_walk'];
+    const idle = heroArt[0];
     super(scene, x, y, idle);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -22,18 +30,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.characterId = character || 'gunner';
     this.idleTexture = idle;
-    this.walkTexture = isSword ? 'swordsman_walk'
-      : (isFrankenstein ? 'frankenstein_walk'
-        : (isMage ? 'mage_1'
-          : (isGuitarist ? 'guitarist_1'
-            : (isDemon ? 'demon_1' : (isVampire ? 'vampire_1' : 'player_walk')))));
-    this.walkAnim = isSword ? 'swordsman_walk'
-      : (isFrankenstein ? 'frankenstein_walk'
-        : (isMage ? 'mage_walk'
-          : (isGuitarist ? 'guitarist_walk'
-            : (isDemon ? 'demon_walk' : (isVampire ? 'vampire_walk' : 'player_walk')))));
+    this.walkTexture = heroArt[1];
+    this.walkAnim = heroArt[2];
     this.giant = false;
     this.networkGuest = false;
+    this.networkWeapon = null;
     this.axeChanneling = false;
     this.axeChanneled = false;
     this.axeChannelStart = 0;
@@ -125,6 +126,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       range: GIANT.range,
       arc: GIANT.arc,
       quality: 'green',
+      skillFactor: scene.skillFactor ? scene.skillFactor() : 1,
     };
     scene.meleeAttack(this, aim, fakeWeapon);
     const px = this.x + Math.cos(aim) * GIANT.range * 0.55;
@@ -562,7 +564,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   fire(time, aim) {
-    const w = this.scene.weapon || WEAPONS.pistol;
+    const w = this.networkWeapon || this.scene.weapon || WEAPONS.pistol;
     const buffs = this.scene.buffs || {};
     const demon = this.isDemonActive();
     const dmgMul = demon ? 1.4 : 1;
@@ -666,13 +668,22 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount, srcX, srcY, time) {
     if (this.isDead || time < this.invulnUntil) return false;
+    if (this.scene.isKnightShieldActive && this.scene.isKnightShieldActive()) {
+      this.scene.fx.ring(this.x, this.y, 0xfff2c8, 0.2, 0.9, 220, 0.75, 736);
+      return false;
+    }
     const dodge = this.scene.ringDodgeChance ? this.scene.ringDodgeChance() : 0;
     if (dodge > 0 && Math.random() < dodge) {
       this.scene.onRingDodge();
       return false;
     }
     const armor = Math.min(0.45, (this.scene.buffs && this.scene.buffs.armor) || 0);
-    this.hp = Math.max(0, this.hp - amount * (1 - armor));
+    let incoming = amount * (1 - armor);
+    const buffs = this.scene.buffs || {};
+    if (buffs.lastStand > 0 && this.hp < this.maxHp * 0.4) {
+      incoming *= (1 - buffs.lastStand);
+    }
+    this.hp = Math.max(0, this.hp - incoming);
     this.invulnUntil = time + BALANCE.hurtInvuln;
     const ang = Math.atan2(this.y - srcY, this.x - srcX);
     this.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
@@ -977,6 +988,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dist = Math.hypot(dx, dy);
     const angTo = Math.atan2(dy, dx);
 
+    if (this.frozenUntil && time < this.frozenUntil) {
+      this.setVelocity(0, 0);
+      return;
+    }
+
     if (this.enemyType === 'slime' || this.enemyType === 'slime_mini') {
       this.hopTimer -= delta;
       if (this.hopTimer <= 0) {
@@ -1131,7 +1147,6 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (time >= this.ghostCd && dist < 480) {
       this.ghostBurst = 3;
       this.ghostCd = time + 140;
-      this.scene.hud.toastQueue.push('亡灵的连射！');
     }
   }
 

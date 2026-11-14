@@ -18,6 +18,11 @@ class GameScene extends Phaser.Scene {
     this.guestRespawnAt = 0;
     this.guestDead = false;
     this.guestTouchAt = 0;
+    this.guestWeaponId = null;
+    this.guestSkill = { cooldownUntil: 0, total: 12000 };
+    this.nextGuestStateAt = 0;
+    this.netIdSeq = 0;
+    this.netIds = new WeakMap();
     // 「继续游戏」：读取上一次退出时的房间检查点
     const cp = (data && data.resume && Store.data.runCheckpoint
       && Number(Store.data.runCheckpoint.round) > 0)
@@ -78,6 +83,8 @@ class GameScene extends Phaser.Scene {
       armor: 0, regen: 0, energyRegen: 1, luck: 0, pickup: 1, coinMul: 0,
       dashInvuln: 0, pierceBonus: 0, critChance: 0, thorns: 0, bulletLife: 1,
       healMul: 1, dropRate: 0, executioner: 0,
+      freezeChance: 0, chainChance: 0, explosiveChance: 0, berserk: 0,
+      lastStand: 0, bloodlust: 0,
     };
     if (cp && cp.buffs && typeof cp.buffs === 'object') {
       Object.keys(this.buffs).forEach((key) => {
@@ -265,9 +272,6 @@ class GameScene extends Phaser.Scene {
       };
       Net.onAction = (data) => this.handleGuestAction(data);
       Net.onGuestLeft = () => this.removeGuest();
-      this.time.delayedCall(500, () => {
-        if (this.netHost && this.scene.isActive()) Net.startHostStream(this.game.canvas);
-      });
     }
 
     if (this.endless) {
@@ -1856,6 +1860,10 @@ class GameScene extends Phaser.Scene {
     b.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     if (o.tint != null) b.setTint(o.tint);
     let dmg = damage || BALANCE.bulletDamage;
+    if (this.buffs.berserk > 0 && this.player && !this.player.isDead
+      && this.player.hp < this.player.maxHp * 0.4) {
+      dmg *= 1 + this.buffs.berserk;
+    }
     const crit = (this.buffs.critChance || 0) > 0 && Math.random() < this.buffs.critChance;
     if (crit) {
       dmg *= 2;
@@ -1911,7 +1919,7 @@ class GameScene extends Phaser.Scene {
     const py = player.y - 5;
     const range = w.range || 70;
     const arc = w.arc || 1.1;
-    const dmg = Math.round(w.damage * (this.buffs.damage || 1));
+    const dmg = Math.round(w.damage * (this.buffs.damage || 1) * (w.skillFactor || 1));
     const q = QUALITIES[w.quality] || QUALITIES.white;
     const sl = this.add.image(px, py, 'slash')
       .setTint(q.color)
@@ -2019,7 +2027,10 @@ class GameScene extends Phaser.Scene {
     const cos = Math.cos(aim);
     if (cos < -0.08) g.setFlipX(true);
     else if (cos > 0.08) g.setFlipX(false);
-    const weapon = this.weapon || WEAPONS.pistol;
+    const weapon = (this.guestWeaponId && WEAPONS[this.guestWeaponId])
+      ? WEAPONS[this.guestWeaponId]
+      : (this.weapon || WEAPONS.pistol);
+    if (g.networkWeapon !== weapon) g.networkWeapon = weapon;
     if (g.gun) {
       if (g.gun.texture.key !== weapon.texture) g.gun.setTexture(weapon.texture);
       const gx = g.x + cos * 10;
@@ -2085,12 +2096,122 @@ class GameScene extends Phaser.Scene {
     this.hud.toastQueue.push('玩家2 已复活');
   }
 
+  netIdFor(e) {
+    if (!this.netIds.has(e)) this.netIds.set(e, ++this.netIdSeq);
+    return this.netIds.get(e);
+  }
+
+  sendGuestState(time) {
+    if (!this.netHost || !this.player2 || time < this.nextGuestStateAt) return;
+    this.nextGuestStateAt = time + 33;
+    const p = this.player;
+    const g = this.player2;
+    const round = (n) => Math.round(n * 10) / 10;
+    const bulletData = (b) => ({
+      x: round(b.x), y: round(b.y), r: round(b.rotation || 0),
+      s: round(b.scaleX || 1), tex: b.texture.key,
+      tint: b.tintTopLeft && b.tintTopLeft !== 0xffffff ? b.tintTopLeft : null,
+      a: round(b.alpha == null ? 1 : b.alpha),
+    });
+    const enemies = [];
+    this.enemies.getChildren().forEach((e) => {
+      if (!e.active || e.dying) return;
+      if (enemies.length >= 28) return;
+      enemies.push({
+        id: this.netIdFor(e),
+        type: e.enemyType,
+        tex: e.texture.key,
+        anim: e.anims && e.anims.currentAnim ? e.anims.currentAnim.key : null,
+        x: round(e.x), y: round(e.y),
+        hp: Math.max(0, Math.ceil(e.hp)), maxHp: Math.ceil(e.maxHp),
+        scale: round(e.scaleX || 1),
+        flip: !!e.flipX,
+        alpha: round(e.alpha == null ? 1 : e.alpha),
+        elite: !!e.isElite,
+        boss: !!e.isBoss,
+        name: e.bossName || (e.def && e.def.name) || '',
+      });
+    });
+    const playerData = (pl) => ({
+      x: round(pl.x), y: round(pl.y),
+      tex: pl.texture.key,
+      anim: pl.anims && pl.anims.currentAnim && pl.anims.isPlaying ? pl.anims.currentAnim.key : null,
+      flip: !!pl.flipX,
+      aim: round(pl.aimAngle || 0),
+      hp: Math.max(0, Math.ceil(pl.hp)), maxHp: Math.ceil(pl.maxHp),
+      energy: Math.max(0, Math.floor(pl.energy)), maxEnergy: Math.ceil(pl.maxEnergy),
+      dead: !!pl.isDead,
+      character: pl.characterId,
+    });
+    const coins = this.coins.getChildren().filter((c) => c.active).slice(0, 40)
+      .map((c) => ({ x: round(c.x), y: round(c.y), v: c.value || 1 }));
+    const hpacks = this.healthPacks.getChildren().filter((h) => h.active).slice(0, 15)
+      .map((h) => ({ x: round(h.x), y: round(h.y) }));
+    const epacks = this.energyPacks.getChildren().filter((e) => e.active).slice(0, 15)
+      .map((e) => ({ x: round(e.x), y: round(e.y) }));
+    const frags = this.fragments.getChildren().filter((f) => f.active).slice(0, 20)
+      .map((f) => ({ x: round(f.x), y: round(f.y), ring: !!f.isRing, color: f.isRing && RINGS[f.ringId] ? RINGS[f.ringId].color : 0xffd76a }));
+    Net.send({
+      t: 'state',
+      map: this.currentMap,
+      mapName: this.mapName,
+      room: this.roomState,
+      round: this.round, stage: this.stage,
+      endless: !!this.endless, endlessWave: this.endlessWave,
+      p: playerData(p),
+      g: Object.assign(playerData(g), {
+        respawn: g.isDead ? Math.max(0, Math.ceil((this.guestRespawnAt - time) / 1000)) : 0,
+      }),
+      gs: {
+        cd: Math.max(0, Math.ceil((this.guestSkill.cooldownUntil - time) / 1000)),
+        total: GUEST_SKILL.cooldown,
+        weapon: (g.networkWeapon || this.weapon || WEAPONS.pistol).name,
+      },
+      enemies,
+      eb: this.enemyBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),
+      pb: this.playerBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),
+      coins, hpacks, epacks, frags,
+      portal: this.portal ? { x: round(this.portal.x), y: round(this.portal.y), armed: !!this.portal.armed } : null,
+    });
+  }
+
   handleGuestAction(data) {
-    if (!data || !this.player2 || this.player2.isDead) return;
+    if (!data || !this.player2) return;
+    if (data.key === 'switch') {
+      const owned = (Store.data.ownedWeapons || []).filter((id) => WEAPONS[id]);
+      if (owned.length === 0) return;
+      const cur = this.guestWeaponId || this.weaponId;
+      const idx = Math.max(0, owned.indexOf(cur));
+      this.guestWeaponId = owned[(idx + 1) % owned.length];
+      this.player2.networkWeapon = WEAPONS[this.guestWeaponId];
+      return;
+    }
+    if (this.player2.isDead) return;
     if (data.key === 'dash') {
       const g = this.player2;
       if (this.time.now < g.dashReadyAt) return;
       g.startDash(this.time.now, this.guestInput.moveX, this.guestInput.moveY);
+      return;
+    }
+    if (data.key === 'skill') {
+      if (this.time.now < this.guestSkill.cooldownUntil) return;
+      this.guestSkill.cooldownUntil = this.time.now + GUEST_SKILL.cooldown;
+      const g = this.player2;
+      const weapon = g.networkWeapon || this.weapon || WEAPONS.pistol;
+      const dmg = Math.round((weapon.damage || 18) * (this.buffs.damage || 1) * GUEST_SKILL.damageMul);
+      for (let i = 0; i < GUEST_SKILL.bullets; i++) {
+        const a = (i / GUEST_SKILL.bullets) * Math.PI * 2;
+        this.spawnPlayerBullet(g.x, g.y - 2, a, dmg, {
+          speed: 760, tint: weapon.tint || 0x9fe8ff, pierce: 1,
+          color: 0x9fe8ff, power: 4,
+          texture: weapon.projectileTexture,
+          scale: weapon.projectileScale,
+        });
+      }
+      g.invulnUntil = Math.max(g.invulnUntil, this.time.now + 1000);
+      this.fx.ring(g.x, g.y, 0x9fe8ff, 0.2, 2.0, 500, 0.9, 745);
+      this.hud.toastQueue.push('玩家2：援护爆发');
+      return;
     }
   }
 
@@ -2577,6 +2698,37 @@ class GameScene extends Phaser.Scene {
     if (!enemy.dying && bullet.burn && enemy.applyBurn) {
       enemy.applyBurn(bullet.burn.duration, bullet.burn.dps);
     }
+    if (enemy.active && !enemy.dying) {
+      if (this.buffs.freezeChance > 0 && Math.random() < this.buffs.freezeChance) {
+        enemy.frozenUntil = Math.max(enemy.frozenUntil || 0, this.time.now + 900);
+        this.fx.ring(enemy.x, enemy.y, 0x9fe8ff, 0.12, 0.7, 240, 0.7, 738);
+      }
+      if (this.buffs.chainChance > 0 && Math.random() < this.buffs.chainChance) {
+        let nearest = null;
+        let best = 240 * 240;
+        this.enemies.getChildren().forEach((e) => {
+          if (!e.active || e.dying || e === enemy) return;
+          const d = dist2(e.x, e.y, enemy.x, enemy.y);
+          if (d < best) { best = d; nearest = e; }
+        });
+        if (nearest) {
+          nearest.takeDamage(Math.round(dmg * 0.5), ang);
+          const line = this.add.line(0, 0, enemy.x, enemy.y, nearest.x, nearest.y, 0x9fe8ff, 0.85)
+            .setOrigin(0).setDepth(740).setLineWidth(2);
+          this.tweens.add({ targets: line, alpha: 0, duration: 160, onComplete: () => line.destroy() });
+        }
+      }
+      if (this.buffs.explosiveChance > 0 && Math.random() < this.buffs.explosiveChance) {
+        const radius = 72;
+        this.enemies.getChildren().forEach((e) => {
+          if (!e.active || e.dying || e === enemy) return;
+          if (dist2(e.x, e.y, enemy.x, enemy.y) > radius * radius) return;
+          e.takeDamage(Math.round(dmg * 0.5), Math.atan2(e.y - enemy.y, e.x - enemy.x));
+        });
+        this.fx.ring(enemy.x, enemy.y, 0xff8a4a, 0.15, 1.4, 280, 0.8, 740);
+        this.cameras.main.shake(45, 0.0015);
+      }
+    }
     this.fx.weaponHit(bx, by, bullet.qualityColor, bullet.qualityPower);
     if (enemy.dying) {
       this.cameras.main.shake(wasBoss ? 140 : 80, wasBoss ? 0.006 : 0.0028);
@@ -2644,6 +2796,23 @@ class GameScene extends Phaser.Scene {
     this.saveCheckpoint();
   }
 
+  charDamageMul() {
+    return 1 + (this.charLevel || 0) * CHAR_UPGRADE.damagePerLevel;
+  }
+
+  skillUpgradeMul() {
+    return 1 + Store.getSkillLevel(this.characterId) * SKILL_UPGRADE.damagePerLevel;
+  }
+
+  // 技能伤害不吃角色等级，只吃「技能升级」和局内强化
+  skillDamageMul() {
+    return ((this.buffs.damage || 1) / this.charDamageMul()) * this.skillUpgradeMul();
+  }
+
+  skillFactor() {
+    return this.skillUpgradeMul() / this.charDamageMul();
+  }
+
   enableDualWield() {
     this.dualWield = true;
     this.pickSecondaryWeapon();
@@ -2665,6 +2834,7 @@ class GameScene extends Phaser.Scene {
   openUpgrade(isStart) {
     if (this.upgradeOpen || this.player.isDead || !this.scene.isActive()) return;
     this.upgradeOpen = true;
+    if (this.netHost) Net.send({ t: 'wait', text: '房主正在选择强化' });
     if (isStart) this.startUpgradeShown = true;
     this.scene.launch('Upgrade', { from: 'game', isStart: !!isStart });
     this.scene.pause();
@@ -2792,6 +2962,40 @@ class GameScene extends Phaser.Scene {
       case 'quick_hands':
         this.buffs.fireRate *= 0.9;
         break;
+      case 'freeze':
+        this.buffs.freezeChance = Math.min(0.6, (this.buffs.freezeChance || 0) + 0.18);
+        break;
+      case 'chain':
+        this.buffs.chainChance = Math.min(0.6, (this.buffs.chainChance || 0) + 0.18);
+        break;
+      case 'explosive':
+        this.buffs.explosiveChance = Math.min(0.5, (this.buffs.explosiveChance || 0) + 0.15);
+        break;
+      case 'berserk':
+        this.buffs.berserk += 0.25;
+        break;
+      case 'last_stand':
+        this.buffs.lastStand = Math.min(0.5, (this.buffs.lastStand || 0) + 0.2);
+        break;
+      case 'bloodlust':
+        this.buffs.bloodlust = Math.min(0.05, (this.buffs.bloodlust || 0) + 0.01);
+        break;
+      case 'veteran':
+        this.player.addMaxHp(30);
+        this.buffs.armor = Math.min(0.45, (this.buffs.armor || 0) + 0.05);
+        break;
+      case 'adrenaline':
+        this.buffs.speed *= 1.08;
+        this.buffs.dashCd *= 0.85;
+        break;
+      case 'sniper_focus':
+        this.buffs.damage *= 1.08;
+        this.buffs.bulletSpeed *= 1.1;
+        break;
+      case 'gold_armor':
+        this.buffs.armor = Math.min(0.45, (this.buffs.armor || 0) + 0.10);
+        this.buffs.coinMul += 0.2;
+        break;
       default:
         break;
     }
@@ -2838,6 +3042,9 @@ class GameScene extends Phaser.Scene {
       : Math.min(0.55, (this.player.energy < this.player.maxEnergy * 0.4 ? 0.16 : 0.10) * dropBonus);
     if (Math.random() < energyChance) this.dropEnergyPack(enemy.x, enemy.y);
     if (this.buffs.lifesteal > 0 && !this.player.isDead) this.player.heal(this.buffs.lifesteal);
+    if (this.buffs.bloodlust > 0 && !this.player.isDead) {
+      this.player.heal(Math.max(1, Math.round(this.player.maxHp * this.buffs.bloodlust)));
+    }
     this.maybeDropFragment(enemy);
     this.maybeDropRingFragment(enemy);
     this.ringBloodOnKill();
@@ -2950,6 +3157,10 @@ class GameScene extends Phaser.Scene {
     else if (this.characterId === 'guitarist') this.activateGuitarSkill();
     else if (this.characterId === 'demon') this.activateDemonSkill();
     else if (this.characterId === 'vampire') this.activateVampireSkill();
+    else if (this.characterId === 'knight') this.activateKnightSkill();
+    else if (this.characterId === 'ranger') this.activateRangerSkill();
+    else if (this.characterId === 'rogue') this.activateRogueSkill();
+    else if (this.characterId === 'alchemist') this.activateAlchemistSkill();
     else this.activateGunnerSkill();
   }
 
@@ -3087,6 +3298,172 @@ class GameScene extends Phaser.Scene {
     this.hud.toastQueue.push('吸血鬼：5 秒内持续吸取周围最多 5 个敌人的生命');
   }
 
+  nearestEnemies(count) {
+    return this.enemies.getChildren()
+      .filter((e) => e.active && !e.dying)
+      .sort((a, b) => dist2(this.player.x, this.player.y, a.x, a.y) - dist2(this.player.x, this.player.y, b.x, b.y))
+      .slice(0, count);
+  }
+
+  activateKnightSkill() {
+    const s = this.skill;
+    const now = this.time.now;
+    s.type = 'knight';
+    s.active = true;
+    s.endsAt = now + KNIGHT_SHIELD.duration;
+    s.cooldown = KNIGHT_SHIELD.cooldown * (this.buffs.skillCd || 1);
+    s.cooldownUntil = now + s.cooldown;
+    s.duration = KNIGHT_SHIELD.duration;
+    s.targets = [];
+    s.locks = [];
+    s.swords = [];
+    s.aimTarget = null;
+    this.knightAura = this.add.image(this.player.x, this.player.y, 'ring')
+      .setTint(0xffe9a8).setScale(1.4).setAlpha(0.8)
+      .setBlendMode(Phaser.BlendModes.ADD).setDepth(this.player.y - 2);
+    this.fx.ring(this.player.x, this.player.y, 0xfff2c8, 0.2, 2.0, 500, 0.9, 738);
+    this.cameras.main.flash(180, 255, 245, 210);
+    Sfx.skillStart();
+    this.hud.toastQueue.push('骑士：圣盾展开，4 秒内免疫伤害');
+  }
+
+  isKnightShieldActive() {
+    return !!(this.skill && this.skill.active && this.skill.type === 'knight');
+  }
+
+  updateKnightSkill(time) {
+    const s = this.skill;
+    if (this.player.isDead || time >= s.endsAt) {
+      this.endSkill();
+      return;
+    }
+    if (this.knightAura && this.knightAura.active) {
+      this.knightAura.setPosition(this.player.x, this.player.y)
+        .setScale(1.35 + Math.sin(time * 0.012) * 0.18)
+        .setAlpha(0.55 + Math.sin(time * 0.02) * 0.2)
+        .setDepth(this.player.y - 2);
+    }
+  }
+
+  clearKnightSkill() {
+    if (!this.knightAura) return;
+    const aura = this.knightAura;
+    this.knightAura = null;
+    this.tweens.killTweensOf(aura);
+    this.tweens.add({
+      targets: aura, alpha: 0, scale: 2.0, duration: 220,
+      onComplete: () => aura.destroy(),
+    });
+  }
+
+  activateRangerSkill() {
+    const s = this.skill;
+    const now = this.time.now;
+    s.type = 'ranger';
+    s.active = true;
+    s.endsAt = now + 400;
+    s.cooldown = RANGER_VOLLEY.cooldown * (this.buffs.skillCd || 1);
+    s.cooldownUntil = now + s.cooldown;
+    s.duration = 400;
+    s.targets = this.nearestEnemies(RANGER_VOLLEY.maxTargets);
+    s.locks = [];
+    s.swords = [];
+    const dmg = Math.round(RANGER_VOLLEY.damage * this.skillDamageMul());
+    const shoot = (angle) => {
+      this.spawnPlayerBullet(this.player.x, this.player.y - 2, angle, dmg, {
+        speed: 1050, tint: 0x8ff0b0, pierce: 1, color: 0x5ad98a, power: 4,
+        texture: 'charged_arrow', scale: 1.05,
+      });
+    };
+    if (s.targets.length > 0) {
+      s.targets.forEach((e) => {
+        const base = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+        for (let i = 0; i < RANGER_VOLLEY.arrowsPerTarget; i++) {
+          shoot(base + (i - (RANGER_VOLLEY.arrowsPerTarget - 1) / 2) * 0.14);
+        }
+      });
+    } else {
+      for (let i = 0; i < 12; i++) shoot((i / 12) * Math.PI * 2);
+    }
+    this.fx.ring(this.player.x, this.player.y, 0x8ff0b0, 0.18, 1.7, 380, 0.85, 738);
+    this.cameras.main.shake(80, 0.002);
+    Sfx.bowRelease();
+    this.hud.toastQueue.push('游侠：箭雨齐射！');
+  }
+
+  activateRogueSkill() {
+    const s = this.skill;
+    const now = this.time.now;
+    s.type = 'rogue';
+    s.active = true;
+    s.endsAt = now + 350;
+    s.cooldown = ROGUE_STRIKE.cooldown * (this.buffs.skillCd || 1);
+    s.cooldownUntil = now + s.cooldown;
+    s.duration = 350;
+    s.targets = this.nearestEnemies(1);
+    s.locks = [];
+    s.swords = [];
+    const target = s.targets[0];
+    const dmg = Math.round(ROGUE_STRIKE.damage * this.skillDamageMul());
+    if (target) {
+      const ang = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+      const bx = clamp(target.x + Math.cos(ang) * 58, ARENA.left + 24, ARENA.right - 24);
+      const by = clamp(target.y + Math.sin(ang) * 58, ARENA.top + 24, ARENA.bottom - 24);
+      this.player.body.reset(bx, by);
+      this.player.aimAngle = ang + Math.PI;
+      this.player.invulnUntil = Math.max(this.player.invulnUntil, now + 1200);
+      this.enemies.getChildren().forEach((e) => {
+        if (!e.active || e.dying) return;
+        if (dist2(e.x, e.y, target.x, target.y) <= ROGUE_STRIKE.radius * ROGUE_STRIKE.radius) {
+          e.takeDamage(dmg, ang);
+          this.fx.hitSpark(e.x, e.y);
+        }
+      });
+      this.fx.ring(target.x, target.y, 0xff4a6a, 0.2, 2.0, 420, 0.9, 742);
+    } else {
+      const ang = this.player.aimAngle || 0;
+      const bx = clamp(this.player.x + Math.cos(ang) * 150, ARENA.left + 24, ARENA.right - 24);
+      const by = clamp(this.player.y + Math.sin(ang) * 150, ARENA.top + 24, ARENA.bottom - 24);
+      this.player.body.reset(bx, by);
+      this.player.invulnUntil = Math.max(this.player.invulnUntil, now + 900);
+    }
+    this.fx.ring(this.player.x, this.player.y, 0xb07bff, 0.15, 1.4, 300, 0.8, 739);
+    this.cameras.main.shake(100, 0.003);
+    Sfx.slash();
+    this.hud.toastQueue.push('刺客：影袭！');
+  }
+
+  activateAlchemistSkill() {
+    const s = this.skill;
+    const now = this.time.now;
+    s.type = 'alchemist';
+    s.active = true;
+    s.endsAt = now + 450;
+    s.cooldown = ALCHEMIST_FLASK.cooldown * (this.buffs.skillCd || 1);
+    s.cooldownUntil = now + s.cooldown;
+    s.duration = 450;
+    s.targets = this.nearestEnemies(ALCHEMIST_FLASK.maxTargets);
+    s.locks = [];
+    s.swords = [];
+    const dmg = Math.round(ALCHEMIST_FLASK.damage * this.skillDamageMul());
+    const dps = Math.round(ALCHEMIST_FLASK.dps * this.skillDamageMul());
+    const throwFlask = (angle) => {
+      this.spawnPlayerBullet(this.player.x, this.player.y - 2, angle, dmg, {
+        speed: 430, tint: 0x7ad9a0, pierce: 0, color: 0x7ad9a0, power: 3,
+        texture: 'orb', scale: 0.95,
+        burn: { duration: ALCHEMIST_FLASK.duration, dps },
+      });
+    };
+    if (s.targets.length > 0) {
+      s.targets.forEach((e) => throwFlask(Math.atan2(e.y - this.player.y, e.x - this.player.x)));
+    } else {
+      for (let i = 0; i < 8; i++) throwFlask((i / 8) * Math.PI * 2);
+    }
+    this.fx.ring(this.player.x, this.player.y, 0x7ad9a0, 0.18, 1.5, 360, 0.85, 738);
+    Sfx.spore();
+    this.hud.toastQueue.push('炼金术士：毒瓶命中后会持续中毒');
+  }
+
   activateGunnerSkill() {
     const s = this.skill;
     s.type = 'gunner';
@@ -3174,7 +3551,10 @@ class GameScene extends Phaser.Scene {
     else if (s.type === 'guitar') this.updateGuitarSkill(time);
     else if (s.type === 'demon') this.updateDemonSkill(time);
     else if (s.type === 'vampire') this.updateVampireSkill(time);
-    else this.updateGunnerSkill(time);
+    else if (s.type === 'knight') this.updateKnightSkill(time);
+    else if (s.type === 'ranger' || s.type === 'rogue' || s.type === 'alchemist') {
+      if (time >= s.endsAt) this.endSkill();
+    } else this.updateGunnerSkill(time);
   }
 
   updateMageSkill(time) {
@@ -3191,7 +3571,7 @@ class GameScene extends Phaser.Scene {
     this.mageBeam.core.setPosition(ox, oy).setRotation(angle);
     if (time >= this.mageNextTick) {
       this.mageNextTick = time + MAGE_LASER.tick;
-      const dmg = Math.round(MAGE_LASER.damage * (this.buffs.damage || 1));
+      const dmg = Math.round(MAGE_LASER.damage * this.skillDamageMul());
       const len = MAGE_LASER.length;
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
@@ -3224,7 +3604,7 @@ class GameScene extends Phaser.Scene {
     }
     if (time >= this.guitarNextTick) {
       this.guitarNextTick = time + GUITAR.tick;
-      const dmg = Math.round(GUITAR.damage * (this.buffs.damage || 1));
+      const dmg = Math.round(GUITAR.damage * this.skillDamageMul());
       const r2 = GUITAR.radius * GUITAR.radius;
       let hits = 0;
       this.enemies.getChildren().forEach((e) => {
@@ -3291,7 +3671,7 @@ class GameScene extends Phaser.Scene {
       this.vampireNextTick = time + VAMPIRE.tick;
       let total = 0;
       targets.forEach((e) => {
-        const dmg = Math.round(VAMPIRE.damage * (this.buffs.damage || 1));
+        const dmg = Math.round(VAMPIRE.damage * this.skillDamageMul());
         e.takeDamage(dmg, Math.atan2(e.y - this.player.y, e.x - this.player.x));
         total += dmg;
         this.fx.hitSpark(e.x, e.y);
@@ -3417,13 +3797,13 @@ class GameScene extends Phaser.Scene {
     const p = this.player;
 
     if (weapon.melee) {
-      this.meleeAttack(p, angle, weapon);
+      this.meleeAttack(p, angle, Object.assign({}, weapon, { skillFactor: this.skillFactor() }));
       Sfx.slash();
       return;
     }
 
     if (weapon.charge) {
-      const dmg = Math.round((weapon.baseDamage + weapon.maxBonus) * (buffs.damage || 1));
+      const dmg = Math.round((weapon.baseDamage + weapon.maxBonus) * this.skillDamageMul());
       const px = p.x + Math.cos(angle) * 24;
       const py = p.y + 2 + Math.sin(angle) * 24;
       this.spawnPlayerBullet(px, py, angle, dmg, {
@@ -3445,7 +3825,7 @@ class GameScene extends Phaser.Scene {
     if (weapon.ringCount) {
       for (let i = 0; i < weapon.ringCount; i++) {
         const a = (i / weapon.ringCount) * Math.PI * 2 + rand(-0.03, 0.03);
-        this.spawnPlayerBullet(p.x, p.y - 2, a, Math.round(weapon.damage * (buffs.damage || 1)), {
+        this.spawnPlayerBullet(p.x, p.y - 2, a, Math.round(weapon.damage * this.skillDamageMul()), {
           speed: weapon.bulletSpeed * (buffs.bulletSpeed || 1),
           tint: weapon.tint,
           pierce: weapon.pierce,
@@ -3470,7 +3850,7 @@ class GameScene extends Phaser.Scene {
     const pellets = (weapon.pellets || 1) + extra;
     for (let i = 0; i < pellets; i++) {
       const a = angle + rand(-spread, spread);
-      this.spawnPlayerBullet(px, py, a, Math.round(weapon.damage * (buffs.damage || 1)), {
+      this.spawnPlayerBullet(px, py, a, Math.round(weapon.damage * this.skillDamageMul()), {
         speed: (weapon.bulletSpeed || 900) * (buffs.bulletSpeed || 1),
         tint: weapon.tint,
         pierce: weapon.pierce,
@@ -3603,7 +3983,7 @@ class GameScene extends Phaser.Scene {
           const rad = e.enemyType === 'boss' ? 64 : 38;
           if (dist2(sw.x, sw.y, e.x, e.y) < rad * rad) {
             sw.hits.add(e);
-            e.takeDamage(Math.round(34 * (this.buffs.damage || 1)), sw.travelAngle);
+            e.takeDamage(Math.round(34 * this.skillDamageMul()), sw.travelAngle);
             this.fx.hitSpark(sw.x, sw.y);
             this.cameras.main.shake(45, 0.0012);
             Sfx.hit();
@@ -3657,6 +4037,7 @@ class GameScene extends Phaser.Scene {
     if (s.type === 'demon') this.clearDemonSkill();
     if (s.type === 'mage') this.clearMageSkill();
     if (s.type === 'vampire') this.clearVampireSkill();
+    if (s.type === 'knight') this.clearKnightSkill();
     Sfx.skillEnd();
   }
 
@@ -4222,6 +4603,7 @@ class GameScene extends Phaser.Scene {
       }
     }
     this.updateGuestPlayer(time, delta);
+    if (this.netHost && this.player2) this.sendGuestState(time);
     this.updateVision();
     this.updateGhost(time);
     this.updateMercenary(time, delta);
