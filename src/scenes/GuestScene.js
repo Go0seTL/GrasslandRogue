@@ -768,6 +768,59 @@ class GuestScene extends Phaser.Scene {
           targets: ring, scale: 0.4 + p * 0.08, alpha: 0,
           duration: 200, onComplete: () => ring.destroy(),
         });
+      } else if (fx.k === 'ring') {
+        const img = this.add.image(fx.x, fx.y, 'ring').setTint(fx.c == null ? 0xffe066 : fx.c)
+          .setScale(fx.s || 0.2).setAlpha(fx.a == null ? 0.8 : fx.a)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(821);
+        this.tweens.add({
+          targets: img, scale: fx.e || 1.2, alpha: 0, duration: fx.d || 300,
+          onComplete: () => img.destroy(),
+        });
+      } else if (fx.k === 'muzzle') {
+        const m = this.add.image(fx.x, fx.y, 'muzzle').setRotation(fx.r || 0)
+          .setTint(fx.c == null ? 0xffe066 : fx.c)
+          .setScale(0.6).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(820);
+        this.tweens.add({ targets: m, alpha: 0, scale: 1.05, duration: 90, onComplete: () => m.destroy() });
+      } else if (fx.k === 'death') {
+        this.goo.explode(fx.t === 'bat' ? 10 : 15, fx.x, fx.y);
+        this.sparks.explode(6, fx.x, fx.y);
+        const ring = this.add.image(fx.x, fx.y, 'ring').setTint(0x9ff0a8)
+          .setScale(0.12).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(821);
+        this.tweens.add({ targets: ring, scale: 1.0, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
+      } else if (fx.k === 'text') {
+        const t = this.add.text(fx.x, fx.y, fx.t, UI.textStyle(15, {
+          color: fx.c || '#ffe9a8', strokeThickness: 3,
+        })).setOrigin(0.5).setDepth(835);
+        this.tweens.add({
+          targets: t, y: fx.y - 34, alpha: 0, duration: 700,
+          onComplete: () => t.destroy(),
+        });
+      } else if (fx.k === 'heal') {
+        this.goo.explode(8, fx.x, fx.y);
+        if (fx.n) {
+          const t = this.add.text(fx.x, fx.y - 20, '+' + fx.n, UI.textStyle(15, {
+            color: '#9ff0a8', strokeThickness: 3,
+          })).setOrigin(0.5).setDepth(835);
+          this.tweens.add({ targets: t, y: fx.y - 52, alpha: 0, duration: 600, onComplete: () => t.destroy() });
+        }
+      } else if (fx.k === 'telegraph') {
+        const circle = this.add.circle(fx.x, fx.y, fx.rad, fx.c, 0.14).setDepth(3);
+        const ring = this.add.image(fx.x, fx.y, 'ring').setTint(fx.c)
+          .setScale(fx.rad / 48).setAlpha(0.9).setDepth(3);
+        this.tweens.add({
+          targets: [circle, ring], alpha: 0, duration: fx.d,
+          onComplete: () => { circle.destroy(); ring.destroy(); },
+        });
+      } else if (fx.k === 'bossSlam' || fx.k === 'bossDeath') {
+        const big = fx.k === 'bossDeath';
+        this.goo.explode(big ? 30 : 14, fx.x, fx.y);
+        this.sparks.explode(big ? 24 : 8, fx.x, fx.y);
+        for (let i = 0; i < (big ? 3 : 2); i++) {
+          const ring = this.add.image(fx.x, fx.y, 'ring').setTint(i === 0 ? 0xffd76a : 0xff9a5a)
+            .setScale(0.3 + i * 0.2).setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(821);
+          this.tweens.add({ targets: ring, scale: 2.2 + i * 0.5, alpha: 0, duration: 500, onComplete: () => ring.destroy() });
+        }
+        this.cameras.main.shake(big ? 300 : 120, big ? 0.007 : 0.004);
       } else if (fx.k === 'kill') {
         this.goo.explode(fx.boss ? 24 : 12, fx.x, fx.y);
         this.sparks.explode(fx.boss ? 16 : 6, fx.x, fx.y);

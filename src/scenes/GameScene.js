@@ -565,6 +565,12 @@ class GameScene extends Phaser.Scene {
     })).setOrigin(0.5).setDepth(951).setScrollFactor(0).setVisible(false);
   }
 
+  relayFx(ev) {
+    if (!this.netHost) return;
+    this.guestFx.push(ev);
+    if (this.guestFx.length > 80) this.guestFx.splice(0, this.guestFx.length - 80);
+  }
+
   setupFX() {
     const scene = this;
     const mk = (key, cfg, depth) => scene.add.particles(0, 0, key, Object.assign({ emitting: false }, cfg)).setDepth(depth);
@@ -631,6 +637,7 @@ class GameScene extends Phaser.Scene {
     const fx = { sparks, goo, dust, smoke, shells, flames, skillGlow };
 
     fx.ring = (x, y, color, from, to, duration, alpha, depth) => {
+      scene.relayFx({ k: 'ring', x, y, c: color, a: alpha == null ? 0.9 : alpha, s: from, e: to, d: duration });
       const img = scene.add.image(x, y, 'ring')
         .setTint(color).setScale(from).setAlpha(alpha == null ? 0.9 : alpha)
         .setBlendMode(Phaser.BlendModes.ADD).setDepth(depth == null ? 750 : depth);
@@ -642,6 +649,7 @@ class GameScene extends Phaser.Scene {
     };
 
     fx.muzzle = (x, y, angle, color, power) => {
+      scene.relayFx({ k: 'muzzle', x, y, r: angle, c: color, p: power || 0 });
       const img = scene.add.image(x, y, 'muzzle')
         .setRotation(rand(-0.4, 0.4))
         .setScale(rand(0.55, 0.85))
@@ -699,11 +707,13 @@ class GameScene extends Phaser.Scene {
     fx.hopDust = (x, y) => { dust.explode(2, x, y); };
 
     fx.dash = (x, y) => {
+      scene.relayFx({ k: 'ring', x, y: y + 8, c: 0x9ff0e0, a: 0.55, s: 0.2, e: 0.8, d: 300 });
       dust.explode(9, x, y);
       fx.ring(x, y + 8, 0x9ff0e0, 0.2, 0.8, 300, 0.55, 720);
     };
 
     fx.enemyDeath = (x, y, type) => {
+      scene.relayFx({ k: 'death', x, y, t: type });
       goo.explode(type === 'bat' ? 10 : 15, x, y);
       smoke.explode(type === 'bat' ? 2 : 4, x, y);
       fx.ring(x, y, 0x9ff0a8, 0.12, 0.6, 300, 0.5, 740);
@@ -712,6 +722,7 @@ class GameScene extends Phaser.Scene {
     fx.coinPop = (x, y) => { sparks.explode(3, x, y); };
 
     fx.floatingText = (x, y, text, color) => {
+      scene.relayFx({ k: 'text', x, y, t: text, c: color });
       const t = scene.add.text(x, y, text, UI.textStyle(17, {
         color: color || '#ffe9a8', strokeThickness: 4,
       })).setOrigin(0.5).setDepth(780);
@@ -722,6 +733,7 @@ class GameScene extends Phaser.Scene {
     };
 
     fx.healBurst = (x, y, amount) => {
+      scene.relayFx({ k: 'heal', x, y, n: amount || 0 });
       goo.explode(10, x, y);
       const img = scene.add.image(x, y - 18, 'heal').setDepth(760).setScale(1.1);
       scene.tweens.add({
@@ -745,6 +757,7 @@ class GameScene extends Phaser.Scene {
     };
 
     fx.telegraph = (x, y, r, color, duration) => {
+      scene.relayFx({ k: 'telegraph', x, y, rad: r, c: color, d: duration || 500 });
       const circle = scene.add.circle(x, y, r, color, 0.14).setDepth(3);
       const ring = scene.add.image(x, y, 'ring').setTint(color).setScale(r / 48).setAlpha(0.9).setDepth(3);
       scene.tweens.add({
@@ -766,6 +779,7 @@ class GameScene extends Phaser.Scene {
     };
 
     fx.bossSlam = (x, y) => {
+      scene.relayFx({ k: 'bossSlam', x, y });
       dust.explode(18, x, y);
       smoke.explode(6, x, y);
       fx.ring(x, y, 0xffd76a, 0.5, 2.9, 520, 0.9, 745);
@@ -779,6 +793,7 @@ class GameScene extends Phaser.Scene {
     };
 
     fx.bossDeath = (x, y) => {
+      scene.relayFx({ k: 'bossDeath', x, y });
       for (let i = 0; i < 6; i++) {
         scene.time.delayedCall(i * 110, () => {
           const ox = x + rand(-70, 70);
