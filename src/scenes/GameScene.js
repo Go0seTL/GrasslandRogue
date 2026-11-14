@@ -3619,6 +3619,7 @@ class GameScene extends Phaser.Scene {
       Net.send({
         t: 'upgrade_offer',
         choices: this.pendingUpgradeChoices,
+        coins: Store.data.coins,
         isStart: !!isStart,
       });
     }
@@ -3662,10 +3663,15 @@ class GameScene extends Phaser.Scene {
     this.pendingUpgradeChoices = this.rollUpgradeChoices();
     const up = this.scene.get('Upgrade');
     if (up && up.scene && up.scene.isActive() && up.setChoices) {
-      up.setChoices(this.pendingUpgradeChoices);
+      up.setChoices(this.pendingUpgradeChoices, Store.data.coins);
     }
     if (this.netHost) {
-      Net.send({ t: 'upgrade_offer', choices: this.pendingUpgradeChoices, refresh: true });
+      Net.send({
+        t: 'upgrade_offer',
+        choices: this.pendingUpgradeChoices,
+        coins: Store.data.coins,
+        refresh: true,
+      });
     }
     return true;
   }

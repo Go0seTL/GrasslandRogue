@@ -968,12 +968,13 @@ class GuestScene extends Phaser.Scene {
     if (!data || !Array.isArray(data.choices) || data.choices.length === 0) return;
     const up = this.scene.get('Upgrade');
     if (up && up.scene && up.scene.isActive()) {
-      if (up.setChoices) up.setChoices(data.choices);
+      if (up.setChoices) up.setChoices(data.choices, data.coins);
       return;
     }
     this.scene.launch('Upgrade', {
       from: 'guest',
       choices: data.choices,
+      coins: data.coins,
       isStart: !!data.isStart,
     });
     this.scene.bringToTop('Upgrade');

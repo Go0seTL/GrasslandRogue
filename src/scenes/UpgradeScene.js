@@ -59,18 +59,20 @@ class UpgradeScene extends Phaser.Scene {
   }
 
   displayCoins() {
+    if (this.guestPick && this.initData.coins != null) return this.initData.coins;
     if (this.guestPick && this.gameScene && this.gameScene.hudCoins != null) {
       return this.gameScene.hudCoins;
     }
     return Store.data.coins;
   }
 
-  setChoices(ids) {
+  setChoices(ids, coins) {
     const list = (Array.isArray(ids) ? ids : [])
       .map((id) => UPGRADES.find((u) => u.id === id))
       .filter(Boolean)
       .slice(0, 3);
     if (list.length === 0) return;
+    if (coins != null) this.initData.coins = coins;
     this.forcedChoices = list;
     this.renderChoices();
     this.updateCoins();
