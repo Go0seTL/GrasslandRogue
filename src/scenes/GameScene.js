@@ -2459,6 +2459,21 @@ class GameScene extends Phaser.Scene {
           * (this.guestSkill.type === 'guitar' ? GUITAR.speed : 1)),
       },
       fx: this.guestFx.splice(0, 30),
+      hostSkill: this.skill && this.skill.active
+        ? { type: this.skill.type, left: Math.max(0, Math.ceil((this.skill.endsAt - time) / 1000)) }
+        : null,
+      hostShield: Math.ceil(this.player.shieldHp || 0),
+      hostBeam: this.sulfurBeam && this.weapon
+        ? {
+          kind: this.weapon.beamKind || 'sulfur',
+          x: round(this.player.x), y: round(this.player.y - 5),
+          angle: round(this.player.aimAngle || 0),
+          len: this.weapon.beamLength || 370,
+          width: this.weapon.beamWidth || 360,
+          height: this.weapon.beamThickness || 28,
+          core: this.weapon.beamCoreThickness || 9,
+          color: this.weapon.beamColor, mid: this.weapon.beamMid, coreColor: this.weapon.beamCore,
+        } : null,
       enemies,
       eb: this.enemyBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),
       pb: this.playerBullets.getChildren().filter((b) => b.active).slice(0, 70).map(bulletData),

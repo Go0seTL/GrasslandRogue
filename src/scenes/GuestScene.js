@@ -70,6 +70,9 @@ class GuestScene extends Phaser.Scene {
     }).setDepth(820);
     this.poisonG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
     this.stickG = this.add.graphics().setDepth(840).setScrollFactor(0);
+    this.hostAura = this.add.image(0, 0, 'ring').setTint(0xb07bff)
+      .setScale(1.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(703).setVisible(false);
+    this.hostBeamObjs = null;
     this.goo = this.add.particles(0, 0, 'spark', {
       lifespan: { min: 220, max: 520 }, speed: { min: 50, max: 190 },
       gravityY: 360, scale: { start: 0.9, end: 0 }, alpha: { start: 1, end: 0 },
@@ -751,8 +754,57 @@ class GuestScene extends Phaser.Scene {
         this.poisonG.strokeCircle(p.x, p.y, p.r);
       });
     }
+    this.drawHostSkill(d);
     this.updateHud(d);
     if (d.fx && d.fx.length) this.playFx(d.fx);
+  }
+
+  drawHostSkill(d) {
+    const skill = d.hostSkill;
+    const beam = d.hostBeam;
+    let b = beam;
+    if (!b && skill && skill.type === 'mage') {
+      b = { kind: 'mage', x: d.p.x, y: d.p.y - 5, angle: d.p.aim || 0,
+        len: 700, width: 640, height: 26, core: 8,
+        color: 0xb07bff, mid: 0xd8b8ff, coreColor: 0xffffff };
+    }
+    if (!b) {
+      if (this.hostBeamObjs) this.hostBeamObjs.forEach((o) => o.setVisible(false));
+    } else {
+      if (!this.hostBeamObjs) {
+        this.hostBeamObjs = [
+          this.add.rectangle(0, 0, 10, 10, 0xff0000, 0.4).setOrigin(0, 0.5).setDepth(736),
+          this.add.rectangle(0, 0, 10, 10, 0xff0000, 0.6).setOrigin(0, 0.5).setDepth(737),
+          this.add.rectangle(0, 0, 10, 10, 0xffffff, 0.95).setOrigin(0, 0.5).setDepth(738),
+        ];
+        this.hostBeamObjs[0].setBlendMode(b.kind === 'sulfur' ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD);
+        this.hostBeamObjs[1].setBlendMode(Phaser.BlendModes.ADD);
+        this.hostBeamObjs[2].setBlendMode(Phaser.BlendModes.ADD);
+      }
+      const [glow, mid, core] = this.hostBeamObjs;
+      glow.setVisible(true).setPosition(b.x, b.y).setRotation(b.angle)
+        .setFillStyle(b.color == null ? 0xff2a1a : b.color, b.kind === 'sulfur' ? 0.5 : 0.3)
+        .setDisplaySize(b.width, b.height);
+      mid.setVisible(true).setPosition(b.x, b.y).setRotation(b.angle)
+        .setFillStyle(b.mid == null ? 0xff8a2a : b.mid, 0.55)
+        .setDisplaySize(b.width, (b.height + b.core) * 0.5);
+      core.setVisible(true).setPosition(b.x, b.y).setRotation(b.angle)
+        .setFillStyle(b.coreColor == null ? 0xffffff : b.coreColor, 0.95)
+        .setDisplaySize(b.width, b.core);
+    }
+    let auraColor = 0;
+    if (skill) {
+      auraColor = { mage: 0xb07bff, guitarist: 0xd96a9a, vampire: 0xd92a3a,
+        demon: 0xff5a3a, knight: 0xfff2c8, frankenstein: 0x7dff5a }[skill.type] || 0;
+    }
+    if (!auraColor && d.hostShield > 0) auraColor = 0x7dffb0;
+    if (auraColor) {
+      this.hostAura.setVisible(true).setTint(auraColor)
+        .setPosition(this.hostSprite.x, this.hostSprite.y)
+        .setScale(1.4);
+    } else {
+      this.hostAura.setVisible(false);
+    }
   }
 
   playFx(list) {
@@ -1157,6 +1209,11 @@ class GuestScene extends Phaser.Scene {
     if (this.state) {
       placeGun(this.hostGun, this.hostSprite, this.state.p);
       placeGun(this.guestGun, this.guestSprite, this.state.g);
+    }
+    if (this.hostAura && this.hostAura.visible) {
+      this.hostAura.setPosition(this.hostSprite.x, this.hostSprite.y)
+        .setAlpha(0.35 + Math.sin(time * 0.012) * 0.15)
+        .setScale(1.35 + Math.sin(time * 0.01) * 0.15);
     }
     if (this.localAura && this.localAura.active) {
       this.localAura.setPosition(this.guestSprite.x, this.guestSprite.y);
