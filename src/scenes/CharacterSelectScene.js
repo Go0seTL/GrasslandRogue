@@ -292,6 +292,8 @@ class CharacterSelectScene extends Phaser.Scene {
       return;
     }
     this.starting = true;
+    Store.data.lastChar = this.selectedId;
+    Store.save();
     Sfx.uiClick();
     this.cameras.main.fadeOut(300, 6, 12, 6);
     this.cameras.main.once('camerafadeoutcomplete', () => {

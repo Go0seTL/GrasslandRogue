@@ -43,6 +43,8 @@ const gameConfig = {
     InventoryScene,
     MerchantScene,
     RingScene,
+    LobbyScene,
+    GuestScene,
   ],
 };
 

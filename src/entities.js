@@ -33,6 +33,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
           : (isGuitarist ? 'guitarist_walk'
             : (isDemon ? 'demon_walk' : (isVampire ? 'vampire_walk' : 'player_walk')))));
     this.giant = false;
+    this.networkGuest = false;
     this.axeChanneling = false;
     this.axeChanneled = false;
     this.axeChannelStart = 0;
@@ -431,9 +432,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   updateChargeWeapon(time, aim, firing, w) {
     const demon = this.isDemonActive();
-    const holding = this.scene.touchMode
-      ? (Store.data.autoFire ? (this.scene.touch.aim.active && firing) : firing)
-      : firing;
+    const holding = this.networkGuest
+      ? firing
+      : (this.scene.touchMode
+        ? (Store.data.autoFire ? (this.scene.touch.aim.active && firing) : firing)
+        : firing);
     if (holding) {
       this.chargeAim = aim;
       if (!this.charging) {

@@ -16,6 +16,7 @@ const Store = {
     activationUsed: false,
     superActivationUsed: false,
     best: null,
+    lastChar: 'gunner',
     runs: 0,
     totalKills: 0,
     demonHearts: 0,

@@ -54,6 +54,14 @@ class UIScene extends Phaser.Scene {
       color: '#eaffff', strokeThickness: 2, bold: true, shadow: false,
     })).setOrigin(0.5).setDepth(103);
 
+    this.guestPanelG = this.add.graphics().setDepth(101);
+    this.guestText = this.add.text(24, 103, '', UI.textStyle(10, {
+      color: '#9fe8ff', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(0, 0.5).setDepth(102).setVisible(false);
+    this.guestHpText = this.add.text(220, 116, '', UI.textStyle(9, {
+      color: '#eaffff', strokeThickness: 2, bold: true, shadow: false,
+    })).setOrigin(1, 0.5).setDepth(103).setVisible(false);
+
     this.levelBig = this.add.text(480, 26, '1-1', UI.textStyle(27, {
       color: '#ffe9a8', strokeThickness: 5,
     })).setOrigin(0.5).setDepth(102);
@@ -339,6 +347,31 @@ class UIScene extends Phaser.Scene {
         this.levelSub.setText(game.stage === ROUND_LEN
           ? `第 ${game.round} 轮 · BOSS · ${game.mapName || '草原'}`
           : `第 ${game.round} 轮 · ${game.mapName || '草原'}`);
+      }
+    }
+
+    if (this.guestText) {
+      const g2 = game.player2;
+      if (g2 && game.netHost) {
+        this.guestText.setVisible(true);
+        this.guestHpText.setVisible(true);
+        this.guestText.setText(g2.isDead ? '玩家2 · 复活中' : '玩家2');
+        const g = this.guestPanelG;
+        g.clear();
+        g.fillStyle(0x0b1208, 0.86);
+        g.fillRect(16, 94, 220, 36);
+        g.lineStyle(1, 0x5f8fa8, 0.9);
+        g.strokeRect(16, 94, 220, 36);
+        const pct = g2.isDead ? 0 : clamp(g2.hp / g2.maxHp, 0, 1);
+        g.fillStyle(0x0b1208, 1);
+        g.fillRect(24, 112, 186, 10);
+        g.fillStyle(0x4aa8d8, 1);
+        g.fillRect(25, 113, 184 * pct, 8);
+        this.guestHpText.setText(g2.isDead ? '0' : `${Math.max(0, Math.ceil(g2.hp))} / ${g2.maxHp}`);
+      } else {
+        this.guestText.setVisible(false);
+        this.guestHpText.setVisible(false);
+        this.guestPanelG.clear();
       }
     }
 

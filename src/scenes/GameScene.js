@@ -4,6 +4,13 @@ class GameScene extends Phaser.Scene {
   }
 
   init(data) {
+    this.netHost = !!(data && data.netHost);
+    this.guestInput = { moveX: 0, moveY: 0, fire: false, aimX: null, aimY: null };
+    this.player2 = null;
+    this.guestTag = null;
+    this.guestRespawnAt = 0;
+    this.guestDead = false;
+    this.guestTouchAt = 0;
     // 「继续游戏」：读取上一次退出时的房间检查点
     const cp = (data && data.resume && Store.data.runCheckpoint
       && Number(Store.data.runCheckpoint.round) > 0)
@@ -159,6 +166,13 @@ class GameScene extends Phaser.Scene {
       if (this.player.shadow) this.player.shadow.setScale(size);
       if (this.player.backSword) this.player.backSword.setScale(size);
     }
+    if (this.netHost) {
+      this.player2 = new Player(this, 430, 405, this.characterId);
+      this.player2.networkGuest = true;
+      this.guestTag = this.add.text(430, 353, '玩家2', UI.textStyle(10, {
+        color: '#9fe8ff', strokeThickness: 3, bold: true, shadow: false,
+      })).setOrigin(0.5).setDepth(880);
+    }
     this.enemies = this.physics.add.group();
     this.playerBullets = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
@@ -173,6 +187,10 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyTouchPlayer, null, this);
     this.physics.add.overlap(this.enemyBullets, this.mercenaries, this.onEnemyBulletHitMerc, null, this);
     this.physics.add.overlap(this.enemies, this.mercenaries, this.onEnemyTouchMerc, null, this);
+    if (this.player2) {
+      this.physics.add.overlap(this.player2, this.enemyBullets, this.onEnemyBulletHitGuest, null, this);
+      this.physics.add.overlap(this.player2, this.enemies, this.onEnemyTouchGuest, null, this);
+    }
 
     if (this.resumeData && this.resumeData.mercenary) {
       const mc = this.resumeData.mercenary;
@@ -217,7 +235,27 @@ class GameScene extends Phaser.Scene {
       : 'WASD 移动 · 鼠标瞄准 · 左键射击 · 空格翻滚 · E 技能';
     this.hud.hintUntil = this.time.now + 9000;
 
+    if (this.netHost) {
+      Net.onInput = (data) => {
+        if (!this.netHost) return;
+        this.guestInput = data || this.guestInput;
+      };
+      Net.onAction = (data) => this.handleGuestAction(data);
+      Net.onGuestLeft = () => this.removeGuest();
+      this.time.delayedCall(500, () => {
+        if (this.netHost && this.scene.isActive()) Net.startHostStream(this.game.canvas);
+      });
+    }
+
     this.startRoom(this.round, this.stage);
+    if (this.netHost) {
+      this.events.once('shutdown', () => {
+        Net.onInput = null;
+        Net.onAction = null;
+        Net.onGuestLeft = null;
+        Net.close();
+      });
+    }
 
     // 继续游戏时不重复弹出开局强化
     if (!this.resumeData) {
@@ -719,6 +757,13 @@ class GameScene extends Phaser.Scene {
     this.player.body.setVelocity(0, 0);
     this.player.invulnUntil = this.time.now + 700;
     this.player.nextShotAt = this.time.now + 350;
+    if (this.player2) {
+      if (!this.player2.isDead) {
+        this.player2.setPosition(430, 425);
+        this.player2.body.setVelocity(0, 0);
+      }
+      if (this.guestTag) this.guestTag.setPosition(this.player2.x, this.player2.y - 52);
+    }
 
     if (this.mercPrompt) this.mercPrompt.setVisible(false);
     if (this.merchantPrompt) this.merchantPrompt.setVisible(false);
@@ -1665,6 +1710,155 @@ class GameScene extends Phaser.Scene {
     this.fx.ring(p.x, p.y, 0x9fd8ff, 0.2, 1.5, 600, 0.9, 740);
     Sfx.ghostSummon();
     this.hud.toastQueue.push('幽灵宝宝加入了战斗');
+  }
+
+  updateGuestPlayer(time, delta) {
+    if (!this.netHost || !this.player2) return;
+    const g = this.player2;
+    if (g.isDead) {
+      if (time >= this.guestRespawnAt) this.respawnGuest();
+      else if (this.guestTag) this.guestTag.setPosition(g.x, g.y - 52);
+      return;
+    }
+    const input = this.guestInput || {};
+    let mx = Number(input.moveX) || 0;
+    let my = Number(input.moveY) || 0;
+    const len = Math.hypot(mx, my);
+    if (len > 1) { mx /= len; my /= len; }
+    if (time < g.dashUntil) {
+      // 冲刺速度由 startDash 设置，不覆写
+    } else {
+      const speed = BALANCE.playerSpeed * ((this.buffs.speed) || 1);
+      g.body.setVelocity(mx * speed, my * speed);
+    }
+    const moving = len > 0.12;
+    if (moving) {
+      if (!g.anims.isPlaying) g.play(g.walkAnim, true);
+    } else {
+      if (g.anims.isPlaying) g.anims.stop();
+      if (g.texture.key !== g.idleTexture) g.setTexture(g.idleTexture);
+    }
+    let aim = g.aimAngle || 0;
+    if (input.aimX != null && input.aimY != null) {
+      aim = Math.atan2(input.aimY - g.y, input.aimX - g.x);
+    } else if (moving) {
+      aim = Math.atan2(my, mx);
+    }
+    g.aimAngle = aim;
+    const cos = Math.cos(aim);
+    if (cos < -0.08) g.setFlipX(true);
+    else if (cos > 0.08) g.setFlipX(false);
+    const weapon = this.weapon || WEAPONS.pistol;
+    if (g.gun) {
+      if (g.gun.texture.key !== weapon.texture) g.gun.setTexture(weapon.texture);
+      const gx = g.x + cos * 8;
+      const gy = g.y + 4 + Math.sin(aim) * 8;
+      g.gun.setPosition(gx, gy).setRotation(aim).setFlipY(cos < 0)
+        .setDepth(g.y + 21).setVisible(true);
+    }
+    if (g.shadow) g.shadow.setPosition(g.x, g.y + 19).setDepth(g.y + 18);
+    g.setDepth(g.y + 20);
+    if (this.guestTag) this.guestTag.setPosition(g.x, g.y - 52).setDepth(880);
+    const ringRegen = this.hasRing('azure') ? 3 : 1;
+    g.energy = Math.min(g.maxEnergy, g.energy + BALANCE.energyRegen * ringRegen * delta / 1000);
+    if (g.chargeFx) g.updateChargeFx(g.chargeRatio || 0);
+    if (weapon.charge) {
+      g.updateChargeWeapon(time, aim, !!input.fire, weapon);
+    } else if (input.fire && time >= g.nextShotAt && !weapon.sulfur) {
+      g.fire(time, aim);
+    }
+  }
+
+  damageGuest(amount) {
+    const g = this.player2;
+    if (!g || g.isDead) return;
+    const now = this.time.now;
+    if (now < g.invulnUntil) return;
+    g.hp -= amount;
+    g.invulnUntil = now + 450;
+    g.setTintFill(0xff5a4a);
+    this.time.delayedCall(80, () => { if (g.active && !g.isDead) g.clearTint(); });
+    this.cameras.main.shake(80, 0.002);
+    if (g.hp <= 0) this.guestDown();
+  }
+
+  guestDown() {
+    const g = this.player2;
+    if (!g || g.isDead) return;
+    g.isDead = true;
+    g.hp = 0;
+    g.body.enable = false;
+    g.setVisible(false);
+    if (g.gun) g.gun.setVisible(false);
+    if (g.shadow) g.shadow.setVisible(false);
+    if (this.guestTag) this.guestTag.setText('玩家2 · 复活中').setPosition(g.x, g.y - 52);
+    this.guestRespawnAt = this.time.now + 8000;
+    this.guestInput.fire = false;
+    this.hud.toastQueue.push('玩家2 倒下了，8 秒后复活');
+  }
+
+  respawnGuest() {
+    const g = this.player2;
+    if (!g) return;
+    g.isDead = false;
+    g.hp = Math.max(1, Math.round(g.maxHp * 0.5));
+    g.energy = g.maxEnergy;
+    g.body.enable = true;
+    g.setVisible(true).setAlpha(1).clearTint();
+    if (g.gun) g.gun.setVisible(true);
+    if (g.shadow) g.shadow.setVisible(true);
+    g.setPosition(this.player.x - 52, this.player.y + 18);
+    g.body.reset(g.x, g.y);
+    g.invulnUntil = this.time.now + 2000;
+    if (this.guestTag) this.guestTag.setText('玩家2').setPosition(g.x, g.y - 52);
+    this.hud.toastQueue.push('玩家2 已复活');
+  }
+
+  handleGuestAction(data) {
+    if (!data || !this.player2 || this.player2.isDead) return;
+    if (data.key === 'dash') {
+      const g = this.player2;
+      if (this.time.now < g.dashReadyAt) return;
+      g.startDash(this.time.now, this.guestInput.moveX, this.guestInput.moveY);
+    }
+  }
+
+  removeGuest() {
+    if (this.player2) {
+      this.player2.destroy();
+      this.player2 = null;
+    }
+    if (this.guestTag) {
+      this.guestTag.destroy();
+      this.guestTag = null;
+    }
+    this.hud.toastQueue.push('玩家2 已离开房间');
+  }
+
+  onEnemyBulletHitGuest(guest, bullet) {
+    if (!this.player2 || this.player2.isDead || !bullet || !bullet.active) return;
+    const bx = bullet.x, by = bullet.y;
+    bullet.destroy();
+    this.damageGuest(bullet.damage || 8);
+    this.fx.hitSpark(bx, by);
+  }
+
+  onEnemyTouchGuest(guest, enemy) {
+    if (!this.player2 || this.player2.isDead || !enemy || !enemy.active || enemy.dying) return;
+    const now = this.time.now;
+    if (now - this.guestTouchAt < 600) return;
+    this.guestTouchAt = now;
+    this.damageGuest(enemy.damage);
+  }
+
+  getCollector(x, y) {
+    let best = this.player;
+    let bd = this.player ? dist2(x, y, this.player.x, this.player.y) : Infinity;
+    if (this.player2 && this.player2.active && !this.player2.isDead) {
+      const d = dist2(x, y, this.player2.x, this.player2.y);
+      if (d < bd) { bd = d; best = this.player2; }
+    }
+    return best;
   }
 
   updateGhost(time) {
@@ -3290,13 +3484,14 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: h, scale: 1, duration: 180, ease: 'Back.Out' });
   }
 
-  collectHealthPack(h) {
+  collectHealthPack(h, target) {
     if (!h.active) return;
+    const p = target || this.player;
     const amount = h.healAmount || 18;
     h.destroy();
-    this.player.heal(amount + this.buffs.healBonus);
+    p.heal(amount + this.buffs.healBonus);
     this.hud.hpDirty = true;
-    this.fx.healBurst(this.player.x, this.player.y, amount + this.buffs.healBonus);
+    this.fx.healBurst(p.x, p.y, amount + this.buffs.healBonus);
     Sfx.heal();
   }
 
@@ -3319,14 +3514,15 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: e, scale: 1, duration: 180, ease: 'Back.Out' });
   }
 
-  collectEnergyPack(e) {
+  collectEnergyPack(e, target) {
     if (!e.active) return;
+    const p = target || this.player;
     const amount = e.energyAmount || 35;
     const x = e.x, y = e.y;
     e.destroy();
-    this.player.restoreEnergy(amount);
+    p.restoreEnergy(amount);
     this.fx.ring(x, y, 0x5ad8ff, 0.15, 0.8, 300, 0.7, 740);
-    this.fx.floatingText(this.player.x, this.player.y - 26, `+${amount} 能量`, '#9fe8ff');
+    this.fx.floatingText(p.x, p.y - 26, `+${amount} 能量`, '#9fe8ff');
     Sfx.energy();
   }
 
@@ -3649,6 +3845,7 @@ class GameScene extends Phaser.Scene {
     if (!this.player) return;
     this.updateSkill(time, delta);
     if (!this.player.isDead) this.player.update(time, delta);
+    this.updateGuestPlayer(time, delta);
     this.updateVision();
     this.updateGhost(time);
     this.updateMercenary(time, delta);
@@ -3702,9 +3899,10 @@ class GameScene extends Phaser.Scene {
       this.coins.getChildren().slice().forEach((c) => {
         if (!c.active) return;
         if (time < c.collectReadyAt) return;
-        const d2 = dist2(c.x, c.y, this.player.x, this.player.y);
+        const collector = this.getCollector(c.x, c.y);
+        const d2 = dist2(c.x, c.y, collector.x, collector.y);
         if (d2 < 185 * 185) {
-          const ang = Math.atan2(this.player.y - c.y, this.player.x - c.x);
+          const ang = Math.atan2(collector.y - c.y, collector.x - c.x);
           const sp = d2 < 60 * 60 ? 620 : 390;
           c.body.setGravityY(0);
           c.body.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp);
@@ -3717,13 +3915,14 @@ class GameScene extends Phaser.Scene {
     if (!this.player.isDead) {
       this.healthPacks.getChildren().slice().forEach((h) => {
         if (!h.active || time < h.collectReadyAt) return;
-        const d2 = dist2(h.x, h.y, this.player.x, this.player.y);
+        const collector = this.getCollector(h.x, h.y);
+        const d2 = dist2(h.x, h.y, collector.x, collector.y);
         if (d2 < 130 * 130) {
-          const ang = Math.atan2(this.player.y - h.y, this.player.x - h.x);
+          const ang = Math.atan2(collector.y - h.y, collector.x - h.x);
           h.body.setGravityY(0);
           h.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
         }
-        if (d2 < 30 * 30) this.collectHealthPack(h);
+        if (d2 < 30 * 30) this.collectHealthPack(h, collector);
       });
     }
 
@@ -3731,13 +3930,14 @@ class GameScene extends Phaser.Scene {
     if (!this.player.isDead) {
       this.energyPacks.getChildren().slice().forEach((e) => {
         if (!e.active || time < e.collectReadyAt) return;
-        const d2 = dist2(e.x, e.y, this.player.x, this.player.y);
+        const collector = this.getCollector(e.x, e.y);
+        const d2 = dist2(e.x, e.y, collector.x, collector.y);
         if (d2 < 130 * 130) {
-          const ang = Math.atan2(this.player.y - e.y, this.player.x - e.x);
+          const ang = Math.atan2(collector.y - e.y, collector.x - e.x);
           e.body.setGravityY(0);
           e.body.setVelocity(Math.cos(ang) * 300, Math.sin(ang) * 300);
         }
-        if (d2 < 30 * 30) this.collectEnergyPack(e);
+        if (d2 < 30 * 30) this.collectEnergyPack(e, collector);
       });
     }
 
@@ -3747,9 +3947,10 @@ class GameScene extends Phaser.Scene {
         if (!f.active) return;
         if (f.glow && f.glow.active) f.glow.setPosition(f.x, f.y);
         if (time < f.collectReadyAt) return;
-        const d2 = dist2(f.x, f.y, this.player.x, this.player.y);
+        const collector = this.getCollector(f.x, f.y);
+        const d2 = dist2(f.x, f.y, collector.x, collector.y);
         if (d2 < 160 * 160) {
-          const ang = Math.atan2(this.player.y - f.y, this.player.x - f.x);
+          const ang = Math.atan2(collector.y - f.y, collector.x - f.x);
           f.body.setGravityY(0);
           f.body.setVelocity(Math.cos(ang) * 360, Math.sin(ang) * 360);
         }
