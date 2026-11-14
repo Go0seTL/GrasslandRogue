@@ -2371,6 +2371,31 @@ class GameScene extends Phaser.Scene {
     return this.netIds.get(e);
   }
 
+  collectSyncBeams() {
+    const out = [];
+    const addRect = (r) => {
+      if (!r || !r.active) return;
+      const len = r.width || 100;
+      const ang = r.rotation || 0;
+      out.push({
+        x1: Math.round(r.x), y1: Math.round(r.y),
+        x2: Math.round(r.x + Math.cos(ang) * len),
+        y2: Math.round(r.y + Math.sin(ang) * len),
+        w: Math.max(2, Math.round(r.height || 6)),
+        c: r.fillColor == null ? 0xff6a2a : r.fillColor,
+        a: r.alpha == null ? 0.6 : r.alpha,
+      });
+    };
+    this.enemies.getChildren().forEach((e) => {
+      if (!e.active || e.dying) return;
+      if (e.goatBeam) { addRect(e.goatBeam.glow); addRect(e.goatBeam.core); }
+      if (e.kingBeams) e.kingBeams.forEach(addRect);
+      if (e.breathBeam) { addRect(e.breathBeam.glow); addRect(e.breathBeam.core); }
+      if (e.phase2Beams) e.phase2Beams.forEach((b) => { addRect(b.glow); addRect(b.core); });
+    });
+    return out.slice(0, 40);
+  }
+
   sendGuestState(time, force) {
     if (!this.netHost || !this.player2) return;
     const real = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -2459,6 +2484,7 @@ class GameScene extends Phaser.Scene {
           * (this.guestSkill.type === 'guitar' ? GUITAR.speed : 1)),
       },
       fx: this.guestFx.splice(0, 30),
+      beams: this.collectSyncBeams(),
       hostSkill: this.skill && this.skill.active
         ? { type: this.skill.type, left: Math.max(0, Math.ceil((this.skill.endsAt - time) / 1000)) }
         : null,

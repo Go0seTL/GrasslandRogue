@@ -73,6 +73,7 @@ class GuestScene extends Phaser.Scene {
     this.hostAura = this.add.image(0, 0, 'ring').setTint(0xb07bff)
       .setScale(1.5).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(703).setVisible(false);
     this.hostBeamObjs = null;
+    this.syncBeamsG = this.add.graphics().setDepth(735).setBlendMode(Phaser.BlendModes.ADD);
     this.goo = this.add.particles(0, 0, 'spark', {
       lifespan: { min: 220, max: 520 }, speed: { min: 50, max: 190 },
       gravityY: 360, scale: { start: 0.9, end: 0 }, alpha: { start: 1, end: 0 },
@@ -754,6 +755,13 @@ class GuestScene extends Phaser.Scene {
         this.poisonG.fillCircle(p.x, p.y, p.r);
         this.poisonG.lineStyle(2, 0x7ad9a0, 0.6);
         this.poisonG.strokeCircle(p.x, p.y, p.r);
+      });
+    }
+    if (this.syncBeamsG) {
+      this.syncBeamsG.clear();
+      (d.beams || []).forEach((b) => {
+        this.syncBeamsG.lineStyle(b.w, b.c, b.a);
+        this.syncBeamsG.lineBetween(b.x1, b.y1, b.x2, b.y2);
       });
     }
     this.drawHostSkill(d);
